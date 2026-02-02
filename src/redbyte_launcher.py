@@ -244,14 +244,15 @@ class RedByteLauncher(QMainWindow):
         """Launch original monolithic demo"""
         legacy_path = Path(__file__).parent.parent / 'src' / 'main.py'
         if legacy_path.exists():
-            subprocess.Popen([sys.executable, str(legacy_path)])
+            # Launch the legacy app with the project root as working dir so imports like `ui` resolve
+            subprocess.Popen([sys.executable, str(legacy_path)], cwd=str(project_root))
     
     def open_docs(self):
         """Open documentation"""
         docs_path = Path(__file__).parent.parent / 'docs' / 'index.md'
         if docs_path.exists():
             import webbrowser
-            webbrowser.open(str(docs_path))
+            webbrowser.open_new_tab('file://' + str(docs_path.resolve()))
 
 
 def main():

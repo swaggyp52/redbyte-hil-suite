@@ -1,10 +1,10 @@
 {
-  "session_id": "test_partial",
+  "session_id": "20260201_172546",
   "source_app": null,
   "target_app": "roundtrip_test",
-  "timestamp": "2026-02-01T16:46:54.413937",
+  "timestamp": "2026-02-02T12:36:52.281811",
   "waveform": {
-    "timestamp": 1769982414.413937,
+    "timestamp": 1770053812.281797,
     "channels": {
       "v_an": [
         0.0,
@@ -323,7 +323,7 @@
     "parameters": {
       "mag": 0.5
     },
-    "start_time": 1769982414.413937,
+    "start_time": 1770053812.281804,
     "insights": [
       {
         "type": "thd",

@@ -1,10 +1,10 @@
 {
-  "session_id": "test_partial",
+  "session_id": "20260201_172546",
   "source_app": "test",
   "target_app": "test",
-  "timestamp": "2026-02-01T16:46:54.809982",
+  "timestamp": "2026-02-02T12:36:52.857754",
   "waveform": {
-    "timestamp": 1769982414.456441,
+    "timestamp": 1770053812.310215,
     "channels": {
       "v_an": [
         1.0,
@@ -29,7 +29,7 @@
     "name": "Insight Analysis",
     "fault_type": null,
     "parameters": {},
-    "start_time": 1769982414.474441,
+    "start_time": 1770053812.323032,
     "insights": [
       {
         "type": "thd",

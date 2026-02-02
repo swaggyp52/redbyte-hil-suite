@@ -1,11 +1,35 @@
 {
-  "session_id": "20260201_172546",
+  "session_id": "20260202_130038",
   "source_app": "diagnostics",
   "target_app": "diagnostics",
-  "timestamp": "2026-02-01T17:26:43.672326",
-  "waveform": null,
-  "scenario": null,
-  "config": {},
+  "timestamp": "2026-02-02T13:01:56.209108",
+  "waveform": {
+    "timestamp": 1770055286.377306,
+    "channels": {
+      "Va": [],
+      "Vb": [],
+      "Vc": [],
+      "Ia": [],
+      "Ib": [],
+      "Ic": []
+    },
+    "sample_rate": 10000,
+    "duration": 0,
+    "metadata": {
+      "scenario": "Diagnostic Session",
+      "validation": {}
+    }
+  },
+  "scenario": {
+    "name": "Diagnostic Session",
+    "fault_type": null,
+    "parameters": {},
+    "start_time": 1770055286.377317,
+    "insights": []
+  },
+  "config": {
+    "validation_results": {}
+  },
   "insights": [],
   "tags": []
 }
