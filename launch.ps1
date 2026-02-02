@@ -3,8 +3,11 @@
 # Move to script directory
 Set-Location -Path $PSScriptRoot
 
-# Prefer py launcher if python missing
-$pythonCmd = (Get-Command python -ErrorAction SilentlyContinue) -or (Get-Command py -ErrorAction SilentlyContinue)
+# Prefer python, fall back to py launcher
+$pythonCmd = Get-Command python -ErrorAction SilentlyContinue
+if (-not $pythonCmd) {
+    $pythonCmd = Get-Command py -ErrorAction SilentlyContinue
+}
 if (-not $pythonCmd) {
     Write-Error "Python not found. Install Python 3.10+ and try again."
     exit 1
@@ -14,7 +17,7 @@ if (-not $pythonCmd) {
 $venvPath = Join-Path $PSScriptRoot '.venv'
 if (-not (Test-Path $venvPath)) {
     Write-Host "Creating virtual environment at .venv..."
-    & $pythonCmd.Source -3 -m venv $venvPath
+    & $pythonCmd.Source -m venv $venvPath
 }
 
 # Activate venv for this session
