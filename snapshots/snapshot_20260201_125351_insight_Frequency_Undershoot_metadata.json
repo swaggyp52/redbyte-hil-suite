@@ -1,0 +1,14 @@
+{
+  "timestamp": "20260201_125351",
+  "event_type": "insight",
+  "event_name": "Frequency Undershoot",
+  "annotations": {
+    "timestamp": 1769968431.430173,
+    "thd": 0.0,
+    "frequency": 60.0,
+    "rotor_angle": 0.0,
+    "insight_count": 86,
+    "system_status": "CRITICAL"
+  },
+  "system_status": "CRITICAL"
+}

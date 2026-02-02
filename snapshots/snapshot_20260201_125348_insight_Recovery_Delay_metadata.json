@@ -1,0 +1,14 @@
+{
+  "timestamp": "20260201_125348",
+  "event_type": "insight",
+  "event_name": "Recovery Delay",
+  "annotations": {
+    "timestamp": 1769968428.6873298,
+    "thd": 0.0,
+    "frequency": 60.0,
+    "rotor_angle": 0.0,
+    "insight_count": 79,
+    "system_status": "CRITICAL"
+  },
+  "system_status": "CRITICAL"
+}

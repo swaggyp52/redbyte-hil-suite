@@ -1,0 +1,14 @@
+{
+  "timestamp": "20260201_130739",
+  "event_type": "insight",
+  "event_name": "Frequency Undershoot",
+  "annotations": {
+    "timestamp": 1769969259.5652266,
+    "thd": 0.0,
+    "frequency": 60.0,
+    "rotor_angle": 0.0,
+    "insight_count": 10,
+    "system_status": "DEGRADED"
+  },
+  "system_status": "DEGRADED"
+}

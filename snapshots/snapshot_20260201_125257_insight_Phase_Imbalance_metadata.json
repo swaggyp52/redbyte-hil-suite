@@ -1,0 +1,14 @@
+{
+  "timestamp": "20260201_125257",
+  "event_type": "insight",
+  "event_name": "Phase Imbalance",
+  "annotations": {
+    "timestamp": 1769968377.75248,
+    "thd": 0.0,
+    "frequency": 60.0,
+    "rotor_angle": 0.0,
+    "insight_count": 51,
+    "system_status": "NOMINAL"
+  },
+  "system_status": "NOMINAL"
+}

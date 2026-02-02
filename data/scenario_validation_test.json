@@ -1,0 +1,26 @@
+{
+    "name": "Voltage Sag Test",
+    "meta": {
+        "author": "Student Team",
+        "description": "Injects a 50% voltage sag and verifies recovery."
+    },
+    "events": [
+        {
+            "time": 2.0,
+            "type": "sag",
+            "depth": 0.5,
+            "duration": 0.2
+        }
+    ],
+    "validation": {
+        "voltage_sag": {
+            "min": 50.0
+        },
+        "frequency_nadir": {
+            "min": 59.5
+        },
+        "recovery_time": {
+            "max": 0.1
+        }
+    }
+}

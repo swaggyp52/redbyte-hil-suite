@@ -1,0 +1,15 @@
+{
+  "name": "Demo Scenario - Drift + Sag",
+  "description": "Offline demo scenario with frequency drift and voltage sag events.",
+  "events": [
+    {"time": 2.0, "type": "info", "label": "Nominal operation"},
+    {"time": 4.0, "type": "fault", "label": "Frequency drift +2Hz"},
+    {"time": 7.0, "type": "fault", "label": "Voltage sag to 60%"},
+    {"time": 8.5, "type": "info", "label": "Recovery"}
+  ],
+  "validation": {
+    "frequency_nadir": {"min": 58.5},
+    "voltage_sag": {"min": 60.0},
+    "recovery_time": {"max": 2.0}
+  }
+}

@@ -1,0 +1,96 @@
+{
+    "hardware": {
+        "port": "COM3",
+        "baud": 115200,
+        "timeout": 1.0
+    },
+    "channels": {
+        "v_an": {
+            "unit": "V",
+            "label": "Phase A Voltage"
+        },
+        "v_bn": {
+            "unit": "V",
+            "label": "Phase B Voltage"
+        },
+        "v_cn": {
+            "unit": "V",
+            "label": "Phase C Voltage"
+        },
+        "i_a": {
+            "unit": "A",
+            "label": "Phase A Current"
+        },
+        "i_b": {
+            "unit": "A",
+            "label": "Phase B Current"
+        },
+        "i_c": {
+            "unit": "A",
+            "label": "Phase C Current"
+        },
+        "freq": {
+            "unit": "Hz",
+            "label": "Grid Frequency"
+        },
+        "p_mech": {
+            "unit": "W",
+            "label": "Mechanical Power"
+        }
+    },
+    "opal_map": {
+        "UserFloat1": {
+            "key": "v_an",
+            "scale": 1.0
+        },
+        "UserFloat2": {
+            "key": "v_bn",
+            "scale": 1.0
+        },
+        "UserFloat3": {
+            "key": "v_cn",
+            "scale": 1.0
+        },
+        "UserFloat4": {
+            "key": "i_a",
+            "scale": 1.0
+        },
+        "UserFloat5": {
+            "key": "i_b",
+            "scale": 1.0
+        },
+        "UserFloat6": {
+            "key": "i_c",
+            "scale": 1.0
+        },
+        "UserFloat7": {
+            "key": "freq",
+            "scale": 1.0
+        },
+        "UserFloat8": {
+            "key": "p_mech",
+            "scale": 1.0
+        },
+        "v_out_a": {
+            "key": "v_an",
+            "scale": 1.0
+        },
+        "v_out_b": {
+            "key": "v_bn",
+            "scale": 1.0
+        },
+        "v_out_c": {
+            "key": "v_cn",
+            "scale": 1.0
+        }
+    },
+    "limits": {
+        "v_max": 132.0,
+        "v_min": 108.0,
+        "freq_max": 62.0,
+        "freq_min": 58.0
+    },
+    "demo": {
+        "enabled_by_default": false
+    }
+}

@@ -1,0 +1,7 @@
+[
+  {"delay": 1.0, "action": "inject_sag", "duration": 0.4, "depth": 0.5},
+  {"delay": 1.0, "action": "inject_drift", "duration": 2.0, "offset": 2.0},
+  {"delay": 1.0, "action": "inject_phase_jump", "degrees": 20},
+  {"delay": 1.0, "action": "inject_unbalance", "a": 1.0, "b": 0.85, "c": 1.15},
+  {"delay": 1.0, "action": "send_custom_waveform", "freq": 55.0, "amplitude": 150.0, "noise": 0.5, "duration": 1.5}
+]

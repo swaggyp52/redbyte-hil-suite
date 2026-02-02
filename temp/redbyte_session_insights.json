@@ -1,0 +1,76 @@
+{
+  "session_id": "test_partial",
+  "source_app": "diagnostics",
+  "target_app": "insights",
+  "timestamp": "2026-02-01T16:46:54.474441",
+  "waveform": {
+    "timestamp": 1769982414.456441,
+    "channels": {
+      "v_an": [
+        1.0,
+        2.0
+      ],
+      "i_a": [
+        0.5,
+        0.6
+      ]
+    },
+    "sample_rate": 100,
+    "duration": 0.02,
+    "metadata": {
+      "scenario": "Compliance Test",
+      "validation": {
+        "freq_check": "pass",
+        "voltage_check": "pass"
+      }
+    }
+  },
+  "scenario": {
+    "name": "Insight Analysis",
+    "fault_type": null,
+    "parameters": {},
+    "start_time": 1769982414.474441,
+    "insights": [
+      {
+        "type": "thd",
+        "severity": "critical",
+        "message": "THD 12%",
+        "timestamp": 1.0
+      },
+      {
+        "type": "frequency",
+        "severity": "warning",
+        "message": "Freq drift",
+        "timestamp": 2.0
+      }
+    ]
+  },
+  "config": {
+    "validation_results": {
+      "freq_check": "pass",
+      "voltage_check": "pass"
+    }
+  },
+  "insights": [
+    {
+      "type": "thd",
+      "severity": "critical",
+      "message": "THD 12%",
+      "timestamp": 1.0
+    },
+    {
+      "type": "frequency",
+      "severity": "warning",
+      "message": "Freq drift",
+      "timestamp": 2.0
+    }
+  ],
+  "tags": [
+    {
+      "timestamp": 0,
+      "label": "start",
+      "color": "#fff",
+      "notes": ""
+    }
+  ]
+}
