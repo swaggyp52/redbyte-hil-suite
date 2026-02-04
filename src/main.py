@@ -7,8 +7,9 @@ from ui.splash_screen import RotorSplashScreen
 from PyQt6.QtWidgets import QApplication
 from PyQt6.QtCore import QTimer
 from ui.main_window import MainWindow
+from src.opengl_check import check_opengl_available
 
-# Config logging
+# Config logging (will be reconfigured based on --debug flag)
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
@@ -21,11 +22,27 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--demo", action="store_true", help="Start in Demo Mode")
     parser.add_argument("--autoplay", action="store_true", help="Run demo script on start")
+    parser.add_argument("--debug", action="store_true", help="Enable debug logging (verbose output)")
+    parser.add_argument("--no-3d", action="store_true", help="Disable 3D view (for machines without OpenGL)")
     args = parser.parse_args()
     env_demo = os.getenv("DEMO_MODE", "0") == "1"
     env_autoplay = os.getenv("DEMO_AUTOPLAY", "0") == "1"
 
+    # Reconfigure logging if debug mode enabled
+    if args.debug:
+        logging.getLogger().setLevel(logging.DEBUG)
+        logger.info("Debug logging enabled")
+
     logger.info("Starting hil-verifier-suite...")
+    
+    # Check OpenGL availability early
+    if not args.no_3d:
+        opengl_ok, opengl_error = check_opengl_available()
+        if not opengl_ok:
+            logger.warning(f"OpenGL check failed: {opengl_error}")
+            logger.info("3D view will be disabled. Use --no-3d to suppress this check.")
+        else:
+            logger.info("OpenGL check passed")
     app = QApplication(sys.argv)
     app.setApplicationName("HIL Verifier Suite")
 
@@ -34,7 +51,11 @@ def main():
     splash.show()
     app.processEvents()  # Ensure splash is rendered
 
-    pg.setConfigOptions(useOpenGL=True, antialias=True, background='#0f1115', foreground='#e6e9ef')
+    # Configure pyqtgraph - disable OpenGL if requested or unavailable
+    use_opengl = not args.no_3d and opengl_ok
+    pg.setConfigOptions(useOpenGL=use_opengl, antialias=True, background='#0f1115', foreground='#e6e9ef')
+    if not use_opengl:
+        logger.info("pyqtgraph OpenGL acceleration disabled")
 
     window = MainWindow()
     if args.demo or env_demo:

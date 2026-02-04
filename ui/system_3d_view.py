@@ -1,9 +1,10 @@
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QHBoxLayout
-from PyQt6.QtCore import pyqtSlot, QTimer
+from PyQt6.QtCore import pyqtSlot, QTimer, Qt
 import numpy as np
 import math
 import collections
 from src.signal_processing import compute_rms
+from src.opengl_check import get_opengl_fallback_message
 
 try:
     import pyqtgraph.opengl as gl
@@ -32,7 +33,12 @@ class System3DView(QWidget):
         self.layout.addWidget(header)
 
         if not OPENGL_AVAILABLE:
-            self.layout.addWidget(QLabel("3D View requires 'PyOpenGL'.\nInstall via: pip install PyOpenGL"))
+            fallback_label = QLabel(get_opengl_fallback_message())
+            fallback_label.setWordWrap(True)
+            fallback_label.setTextFormat(Qt.TextFormat.RichText)
+            fallback_label.setStyleSheet("background: transparent;")
+            self.layout.addWidget(fallback_label)
+            self.layout.addStretch()
             return
 
         self.view = gl.GLViewWidget()

@@ -50,10 +50,17 @@ try {
 } catch {
     # ignore
 }
-$hasOpengl = (& $venvPython -m pip show PyOpenGL -q) -ne $null
+$hasOpengl = (& $venvPython -m pip show PyOpenGL -q 2>$null)
 if (-not $hasOpengl) {
-    Write-Host "Installing PyOpenGL (required for 3D view)..."
-    & $venvPython -m pip install PyOpenGL
+    Write-Host "Installing PyOpenGL (required for 3D view)..." -ForegroundColor Yellow
+    Write-Host "  If this fails on your machine, the app will still work without 3D." -ForegroundColor Gray
+    try {
+        & $venvPython -m pip install PyOpenGL PyOpenGL_accelerate --quiet
+        Write-Host "  ✓ PyOpenGL installed successfully" -ForegroundColor Green
+    } catch {
+        Write-Host "  ⚠ PyOpenGL installation failed - 3D view will be disabled" -ForegroundColor Yellow
+        Write-Host "    The app will launch with --no-3d flag automatically" -ForegroundColor Gray
+    }
 }
 
 # Launch the app
