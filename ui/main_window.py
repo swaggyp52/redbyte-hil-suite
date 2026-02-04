@@ -48,6 +48,7 @@ class MainWindow(QMainWindow):
         self.demo_enabled = False
         self.layout_locked = False
         self.initializing = True
+        self.windowed_mode = False  # Set to True to skip fullscreen in demo mode
         
         # Geometry persistence for floating panels
         self.saved_geometries = {}
@@ -181,6 +182,16 @@ class MainWindow(QMainWindow):
         # Apply comprehensive tooltips
         apply_all_tooltips(self)
 
+    def keyPressEvent(self, event):
+        """Handle keyboard shortcuts"""
+        from PyQt6.QtCore import Qt
+        if event.key() == Qt.Key.Key_Escape:
+            # ESC exits fullscreen demo mode
+            if self.isFullScreen():
+                self.disable_demo_mode()
+                logger.info("ESC pressed - exiting fullscreen demo mode")
+        super().keyPressEvent(event)
+
     def resizeEvent(self, event):
         super().resizeEvent(event)
         if hasattr(self, 'status_badge'):
@@ -243,6 +254,11 @@ class MainWindow(QMainWindow):
         self.sim_status_label = QLabel("Status: Idle")
         self.sim_status_label.setStyleSheet("color: #94a3b8; padding: 0 12px; font-weight: 500;")
         toolbar.addWidget(self.sim_status_label)
+        
+        # Frame rate indicator (shows live data flow)
+        self.frame_rate_label = QLabel("📡 0.0 Hz")
+        self.frame_rate_label.setStyleSheet("color: #22c55e; padding: 0 8px; font-weight: 600;")
+        toolbar.addWidget(self.frame_rate_label)
         
         toolbar.addSeparator()
         
@@ -510,13 +526,19 @@ class MainWindow(QMainWindow):
         self.telemetry_health_label.setStyleSheet("color: #10b981; font-weight: 600; padding: 0 8px;")
     
     def _on_frame_rate_changed(self, rate_hz):
-        """Update health label with current frame rate"""
+        """Update frame rate indicators with current rate"""
         if rate_hz > 0:
+            # Update health label
             self.telemetry_health_label.setText(f"📡 {rate_hz:.1f} Hz")
             self.telemetry_health_label.setStyleSheet("color: #10b981; font-weight: 600; padding: 0 8px;")
+            # Update toolbar frame rate label
+            self.frame_rate_label.setText(f"📡 {rate_hz:.1f} Hz")
+            self.frame_rate_label.setStyleSheet("color: #22c55e; padding: 0 8px; font-weight: 600;")
         else:
             self.telemetry_health_label.setText("📡 --")
             self.telemetry_health_label.setStyleSheet("color: #94a3b8; font-weight: 600; padding: 0 8px;")
+            self.frame_rate_label.setText("📡 0.0 Hz")
+            self.frame_rate_label.setStyleSheet("color: #94a3b8; padding: 0 8px; font-weight: 600;")
     
     def _update_telemetry_health_display(self):
         """Update telemetry health display from watchdog statistics"""
@@ -707,25 +729,25 @@ class MainWindow(QMainWindow):
         if "unbalance" in insight_lower or "phase" in insight_lower:
             # Pin phasor view top-left for phase issues
             self._auto_pin_panel(self.phasor_view, position="top-left")
-            self.overlay.show_message(f"📍 Auto-pinned Phasor View: {insight_type}", duration=2000)
+            self.overlay.show_message(f"📍 Auto-pinned Phasor View: {insight_type}")
             
         elif "harmonic" in insight_lower or "thd" in insight_lower:
             # Pin replay studio (spectrum tab) for harmonic analysis
             self._auto_pin_panel(self.replay_studio, position="top-left")
             if hasattr(self.replay_studio, 'tabs'):
                 self.replay_studio.tabs.setCurrentIndex(2)  # Spectrum tab
-            self.overlay.show_message(f"📍 Auto-pinned Spectrum Analysis: {insight_type}", duration=2000)
+            self.overlay.show_message(f"📍 Auto-pinned Spectrum Analysis: {insight_type}")
             
         elif "frequency" in insight_lower or "undershoot" in insight_lower:
             # Pin scope and insights panel for frequency events
             self._auto_pin_panel(self.scope, position="top-left")
             self._auto_pin_panel(self.insights, position="top-right")
-            self.overlay.show_message(f"📍 Auto-pinned Scope + Insights: {insight_type}", duration=2000)
+            self.overlay.show_message(f"📍 Auto-pinned Scope + Insights: {insight_type}")
             
         elif "recovery" in insight_lower:
             # Pin dashboard for recovery analysis
             self._auto_pin_panel(self.dashboard, position="bottom-right")
-            self.overlay.show_message(f"📍 Auto-pinned Dashboard: {insight_type}", duration=2000)
+            self.overlay.show_message(f"📍 Auto-pinned Dashboard: {insight_type}")
     
     def _auto_pin_panel(self, panel, position="top-left"):
         """Pin a panel to a specific screen position with debouncing"""
@@ -953,15 +975,19 @@ class MainWindow(QMainWindow):
             return
         logger.info("Enabling demo mode...")
         self.demo_enabled = True
-        self.statusBar().showMessage("Demo Mode Enabled: Simulating 3-Phase Data")
+        self.statusBar().showMessage("Demo Mode Enabled: Use simulation controls to start")
         self.status_widget.set_mode("DEMO")
-        self.serial_mgr.start_mock_mode()
+        # NOTE: DO NOT auto-start mock mode - let simulation controller handle data flow
+        # self.serial_mgr.start_mock_mode()  # DISABLED - use simulation controls instead
         self._ensure_demo_assets()
         self._show_help_overlay()
 
-        # Fullscreen presentation for demo
-        self.setWindowFlag(Qt.WindowType.FramelessWindowHint, True)
-        self.showFullScreen()
+        # Fullscreen presentation for demo (unless windowed mode requested)
+        if not self.windowed_mode:
+            self.setWindowFlag(Qt.WindowType.FramelessWindowHint, True)
+            self.showFullScreen()
+        else:
+            logger.info("Demo mode running in windowed mode (fullscreen disabled)")
         
         # Lock layout during presentation mode to prevent reset loop
         self.layout_locked = True

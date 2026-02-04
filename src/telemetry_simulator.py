@@ -96,6 +96,9 @@ class TelemetrySimulator(QObject):
     
     def _generate_frame(self):
         """Generate a realistic GFM inverter telemetry frame"""
+        if self.start_time is None:
+            self.start_time = time.time()  # Initialize if not set
+        
         elapsed = time.time() - self.start_time
         
         # Simulate three-phase sinusoidal AC
@@ -123,34 +126,34 @@ class TelemetrySimulator(QObject):
         
         # Create frame
         frame = {
-            "timestamp": time.time(),
+            "ts": time.time(),  # Timestamp field expected by UI
             "frame_id": self.frame_count,
             
-            # Voltages (V)
-            "V_an": v_an,
-            "V_bn": v_bn,
-            "V_cn": v_cn,
-            "V_ab": v_an - v_bn,
-            "V_bc": v_bn - v_cn,
-            "V_ca": v_cn - v_an,
+            # Voltages (V) - lowercase to match UI expectations
+            "v_an": v_an,
+            "v_bn": v_bn,
+            "v_cn": v_cn,
+            "v_ab": v_an - v_bn,
+            "v_bc": v_bn - v_cn,
+            "v_ca": v_cn - v_an,
             
-            # Currents (A)
-            "I_an": i_an,
-            "I_bn": i_bn,
-            "I_cn": i_cn,
+            # Currents (A) - lowercase
+            "i_an": i_an,
+            "i_bn": i_bn,
+            "i_cn": i_cn,
             
             # RMS values
-            "V_rms": self.v_rms,
-            "I_rms": self.i_rms,
+            "v_rms": self.v_rms,
+            "i_rms": self.i_rms,
             
             # Power metrics
-            "P": p,
-            "Q": q,
-            "S": math.sqrt(p**2 + q**2),
-            "PF": p / math.sqrt(p**2 + q**2) if (p**2 + q**2) > 0 else 1.0,
+            "p": p,  # Lowercase
+            "q": q,
+            "s": math.sqrt(p**2 + q**2),
+            "pf": p / math.sqrt(p**2 + q**2) if (p**2 + q**2) > 0 else 1.0,
             
             # Power quality
-            "THD": self.thd,
+            "thd": self.thd,  # Lowercase
             "freq": self.frequency,
             
             # Health indicators

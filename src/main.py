@@ -24,9 +24,11 @@ def main():
     parser.add_argument("--autoplay", action="store_true", help="Run demo script on start")
     parser.add_argument("--debug", action="store_true", help="Enable debug logging (verbose output)")
     parser.add_argument("--no-3d", action="store_true", help="Disable 3D view (for machines without OpenGL)")
+    parser.add_argument("--windowed", action="store_true", help="Skip fullscreen mode (demo stays in window)")
     args = parser.parse_args()
     env_demo = os.getenv("DEMO_MODE", "0") == "1"
     env_autoplay = os.getenv("DEMO_AUTOPLAY", "0") == "1"
+    env_windowed = os.getenv("WINDOWED", "0") == "1"
 
     # Reconfigure logging if debug mode enabled
     if args.debug:
@@ -62,6 +64,8 @@ def main():
         window.act_demo.blockSignals(True)
         window.act_demo.setChecked(True)
         window.act_demo.blockSignals(False)
+        # Pass windowed flag to demo mode
+        window.windowed_mode = args.windowed or env_windowed
         window._toggle_demo_mode(True)
         if args.autoplay or env_autoplay:
             pass

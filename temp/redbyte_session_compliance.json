@@ -2,34 +2,59 @@
   "session_id": "20260202_130038",
   "source_app": "diagnostics",
   "target_app": "compliance",
-  "timestamp": "2026-02-02T13:01:26.377323",
+  "timestamp": "2026-02-04T14:36:29.449166",
   "waveform": {
-    "timestamp": 1770055286.377306,
+    "timestamp": 1770233789.449166,
     "channels": {
-      "Va": [],
-      "Vb": [],
-      "Vc": [],
-      "Ia": [],
-      "Ib": [],
-      "Ic": []
+      "v_an": [
+        1.0,
+        2.0
+      ],
+      "i_a": [
+        0.5,
+        0.6
+      ]
     },
-    "sample_rate": 10000,
-    "duration": 0,
+    "sample_rate": 100,
+    "duration": 0.02,
     "metadata": {
-      "scenario": "Diagnostic Session",
-      "validation": {}
+      "scenario": "Compliance Test",
+      "validation": {
+        "freq_check": "pass",
+        "voltage_check": "pass"
+      }
     }
   },
   "scenario": {
-    "name": "Diagnostic Session",
+    "name": "Compliance Test",
     "fault_type": null,
-    "parameters": {},
-    "start_time": 1770055286.377317,
+    "parameters": {
+      "freq_check": "pass",
+      "voltage_check": "pass"
+    },
+    "start_time": 1770233789.449166,
     "insights": []
   },
   "config": {
-    "validation_results": {}
+    "validation_results": {
+      "freq_check": "pass",
+      "voltage_check": "pass"
+    }
   },
-  "insights": [],
-  "tags": []
+  "insights": [
+    {
+      "type": "thd",
+      "severity": "info",
+      "message": "test",
+      "timestamp": 0
+    }
+  ],
+  "tags": [
+    {
+      "timestamp": 0,
+      "label": "start",
+      "color": "#fff",
+      "notes": ""
+    }
+  ]
 }
