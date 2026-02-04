@@ -33,6 +33,7 @@ from src.layout_manager import LayoutManager
 from src.report_generator import generate_report
 from src.system_status import evaluate_system_status
 from src.telemetry_watchdog import TelemetryWatchdog
+from src.simulation_controller import SimulationController
 from src.csv_exporter import CSVExporter
 from ui.layout_presets import apply_diagnostics_matrix
 
@@ -71,6 +72,12 @@ class MainWindow(QMainWindow):
         self.telemetry_watchdog.stale_data.connect(self._on_telemetry_stale)
         self.telemetry_watchdog.data_resumed.connect(self._on_telemetry_resumed)
         self.telemetry_watchdog.frame_rate_changed.connect(self._on_frame_rate_changed)
+        
+        # Simulation Controller (for run/pause/resume/stop)
+        self.sim_ctrl = SimulationController()
+        self.sim_ctrl.state_changed.connect(self._on_simulation_state_changed)
+        self.sim_ctrl.simulation_paused.connect(self._on_simulation_paused)
+        self.sim_ctrl.simulation_resumed.connect(self._on_simulation_resumed)
         
         # MDI Area
         self.mdi = QMdiArea()
@@ -197,6 +204,36 @@ class MainWindow(QMainWindow):
         toolbar = QToolBar("Main Toolbar")
         self.toolbar = toolbar
         self.addToolBar(toolbar)
+        
+        # === SIMULATION CONTROLS ===
+        toolbar.addWidget(QLabel("  Simulation:"))
+        
+        self.act_run = QAction("▶️ Run", self)
+        self.act_run.triggered.connect(self._start_simulation)
+        self.act_run.setEnabled(True)
+        toolbar.addAction(self.act_run)
+        
+        self.act_pause = QAction("⏸ Pause", self)
+        self.act_pause.triggered.connect(self._pause_simulation)
+        self.act_pause.setEnabled(False)
+        toolbar.addAction(self.act_pause)
+        
+        self.act_resume = QAction("🔁 Resume", self)
+        self.act_resume.triggered.connect(self._resume_simulation)
+        self.act_resume.setEnabled(False)
+        toolbar.addAction(self.act_resume)
+        
+        self.act_stop = QAction("⏹ Stop", self)
+        self.act_stop.triggered.connect(self._stop_simulation)
+        self.act_stop.setEnabled(False)
+        toolbar.addAction(self.act_stop)
+        
+        # Simulation status label
+        self.sim_status_label = QLabel("Status: Idle")
+        self.sim_status_label.setStyleSheet("color: #94a3b8; padding: 0 12px; font-weight: 500;")
+        toolbar.addWidget(self.sim_status_label)
+        
+        toolbar.addSeparator()
         
         act_tile = QAction("Tile Windows", self)
         act_tile.triggered.connect(self.mdi.tileSubWindows)
@@ -474,14 +511,17 @@ class MainWindow(QMainWindow):
         """Update telemetry health display from watchdog statistics"""
         if hasattr(self, 'telemetry_watchdog'):
             stats = self.telemetry_watchdog.get_stats()
-            if stats['is_stale']:
-                elapsed = stats['stale_duration_sec']
-                self.telemetry_health_label.setText(f"📡 STALE ({elapsed:.1f}s)")
+            if stats['status'] == 'stale':
+                age_ms = stats['last_frame_age_ms'] or 0
+                self.telemetry_health_label.setText(f"📡 STALE ({age_ms/1000:.1f}s)")
                 self.telemetry_health_label.setStyleSheet("color: #dc2626; font-weight: 600; padding: 0 8px;")
-            elif stats['frame_count'] > 0:
-                rate = stats['frame_rate_hz']
+            elif stats['status'] == 'healthy' and stats['frame_count'] > 0:
+                rate = stats['rate_hz']
                 self.telemetry_health_label.setText(f"📡 {rate:.1f} Hz")
                 self.telemetry_health_label.setStyleSheet("color: #10b981; font-weight: 600; padding: 0 8px;")
+            else:
+                self.telemetry_health_label.setText("📡 --")
+                self.telemetry_health_label.setStyleSheet("color: #94a3b8; font-weight: 600; padding: 0 8px;")
     
     # ========== CSV Export Handler ==========
     
@@ -542,6 +582,85 @@ class MainWindow(QMainWindow):
             
         except Exception as e:
             QMessageBox.critical(self, "Export Failed", f"Failed to export CSV:\n{str(e)}")
+    
+    # ========== Simulation Control Handlers ==========
+    
+    def _start_simulation(self):
+        """Start the simulation"""
+        if self.sim_ctrl.start():
+            self.telemetry_watchdog.reset()
+            self._update_simulation_buttons()
+            self.statusBar().showMessage("Simulation started - telemetry flowing", 3000)
+            logger.info("Simulation started by user")
+    
+    def _pause_simulation(self):
+        """Pause the simulation (triggers stale data after 2s)"""
+        if self.sim_ctrl.pause():
+            self._update_simulation_buttons()
+            self.statusBar().showMessage("Simulation paused - telemetry halted", 3000)
+            logger.info("Simulation paused by user")
+    
+    def _resume_simulation(self):
+        """Resume a paused simulation"""
+        if self.sim_ctrl.resume():
+            self.telemetry_watchdog.reset()
+            self._update_simulation_buttons()
+            self.statusBar().showMessage("Simulation resumed - telemetry flowing", 3000)
+            logger.info("Simulation resumed by user")
+    
+    def _stop_simulation(self):
+        """Stop the simulation cleanly"""
+        if self.sim_ctrl.stop():
+            self.telemetry_watchdog.reset()
+            self._on_telemetry_resumed()  # Clear any stale warnings
+            self._update_simulation_buttons()
+            self.statusBar().showMessage("Simulation stopped", 3000)
+            logger.info("Simulation stopped by user")
+    
+    def _on_simulation_state_changed(self, new_state):
+        """Update UI when simulation state changes"""
+        self.sim_status_label.setText(f"Status: {new_state.title()}")
+        
+        # Update label color based on state
+        colors = {
+            "idle": "#94a3b8",      # Gray
+            "running": "#10b981",   # Green
+            "paused": "#f59e0b",    # Amber
+            "stopped": "#6b7280"    # Dark Gray
+        }
+        color = colors.get(new_state, "#94a3b8")
+        self.sim_status_label.setStyleSheet(f"color: {color}; padding: 0 12px; font-weight: 500;")
+    
+    def _on_simulation_paused(self):
+        """Handle simulation paused event"""
+        # When paused, stop sending telemetry frames
+        # The watchdog will detect stale data after 2 seconds
+        logger.debug("Simulation paused - telemetry will go stale in 2 seconds")
+    
+    def _on_simulation_resumed(self):
+        """Handle simulation resumed event"""
+        # Resume should clear any stale warnings
+        logger.debug("Simulation resumed")
+    
+    def _update_simulation_buttons(self):
+        """Update button enabled/disabled states based on current simulation state"""
+        state = self.sim_ctrl.get_state()
+        
+        if state == "idle" or state == "stopped":
+            self.act_run.setEnabled(True)
+            self.act_pause.setEnabled(False)
+            self.act_resume.setEnabled(False)
+            self.act_stop.setEnabled(False)
+        elif state == "running":
+            self.act_run.setEnabled(False)
+            self.act_pause.setEnabled(True)
+            self.act_resume.setEnabled(False)
+            self.act_stop.setEnabled(True)
+        elif state == "paused":
+            self.act_run.setEnabled(False)
+            self.act_pause.setEnabled(False)
+            self.act_resume.setEnabled(True)
+            self.act_stop.setEnabled(True)
 
     def _update_system_status(self, thd, frame):
         freq = frame.get("freq", 60.0) if frame else 60.0
