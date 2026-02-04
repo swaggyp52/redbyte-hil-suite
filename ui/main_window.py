@@ -34,6 +34,7 @@ from src.report_generator import generate_report
 from src.system_status import evaluate_system_status
 from src.telemetry_watchdog import TelemetryWatchdog
 from src.simulation_controller import SimulationController
+from src.telemetry_simulator import TelemetrySimulator
 from src.csv_exporter import CSVExporter
 from ui.layout_presets import apply_diagnostics_matrix
 
@@ -78,6 +79,16 @@ class MainWindow(QMainWindow):
         self.sim_ctrl.state_changed.connect(self._on_simulation_state_changed)
         self.sim_ctrl.simulation_paused.connect(self._on_simulation_paused)
         self.sim_ctrl.simulation_resumed.connect(self._on_simulation_resumed)
+        
+        # Telemetry Simulator (generates mock data when simulation runs)
+        self.telemetry_sim = TelemetrySimulator()
+        self.telemetry_sim.frame_generated.connect(self.serial_mgr.frame_received.emit)
+        
+        # Wire simulation controls to simulator
+        self.sim_ctrl.simulation_started.connect(self.telemetry_sim.start_streaming)
+        self.sim_ctrl.simulation_paused.connect(self.telemetry_sim.pause)
+        self.sim_ctrl.simulation_resumed.connect(self.telemetry_sim.resume)
+        self.sim_ctrl.simulation_stopped.connect(self.telemetry_sim.stop)
         
         # MDI Area
         self.mdi = QMdiArea()
