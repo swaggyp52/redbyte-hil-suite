@@ -32,6 +32,8 @@ from src.insight_engine import InsightEngine
 from src.layout_manager import LayoutManager
 from src.report_generator import generate_report
 from src.system_status import evaluate_system_status
+from src.telemetry_watchdog import TelemetryWatchdog
+from src.csv_exporter import CSVExporter
 from ui.layout_presets import apply_diagnostics_matrix
 
 logger = logging.getLogger(__name__)
@@ -55,12 +57,20 @@ class MainWindow(QMainWindow):
         self.recorder = Recorder()
         self.scenario_ctrl = ScenarioController()
         self.insight_engine = InsightEngine()
+        self.telemetry_watchdog = TelemetryWatchdog(timeout_ms=2000, check_interval_ms=500)
+        self.csv_exporter = CSVExporter()
         
         # Connect backend
         self.serial_mgr.frame_received.connect(self.recorder.log_frame)
         self.scenario_ctrl.event_triggered.connect(self._on_scenario_event)
         self.serial_mgr.frame_received.connect(self.insight_engine.update)
         self.serial_mgr.frame_received.connect(self._on_frame)
+        
+        # Connect telemetry watchdog
+        self.serial_mgr.frame_received.connect(self.telemetry_watchdog.on_frame_received)
+        self.telemetry_watchdog.stale_data.connect(self._on_telemetry_stale)
+        self.telemetry_watchdog.data_resumed.connect(self._on_telemetry_resumed)
+        self.telemetry_watchdog.frame_rate_changed.connect(self._on_frame_rate_changed)
         
         # MDI Area
         self.mdi = QMdiArea()
@@ -104,6 +114,24 @@ class MainWindow(QMainWindow):
         """)
         self.status_badge.setFixedSize(220, 45)
         self.status_badge.hide()
+        
+        # Stale Data Indicator (Floating Overlay)
+        self.stale_indicator = QLabel("⚠️ TELEMETRY STALE", self)
+        self.stale_indicator.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.stale_indicator.setStyleSheet("""
+            QLabel {
+                background-color: rgba(220, 38, 38, 240);
+                color: #ffffff;
+                border-radius: 12px;
+                padding: 10px 16px;
+                font-weight: 700;
+                font-size: 13pt;
+                border: 2px solid rgba(255,255,255,0.3);
+            }
+        """)
+        self.stale_indicator.setFixedSize(280, 50)
+        self.stale_indicator.hide()
+        
         self._last_frame = {}
         self._system_status = "NOMINAL"
 
@@ -139,6 +167,9 @@ class MainWindow(QMainWindow):
         super().resizeEvent(event)
         if hasattr(self, 'status_badge'):
             self.status_badge.move(self.width() - self.status_badge.width() - 20, 60)
+        if hasattr(self, 'stale_indicator'):
+            # Center stale indicator at top
+            self.stale_indicator.move((self.width() - self.stale_indicator.width()) // 2, 20)
 
     def _add_subwindow(self, widget, title):
         sub = QMdiSubWindow()
@@ -230,6 +261,31 @@ class MainWindow(QMainWindow):
         act_snapshot = QAction("📸 Capture Scene", self)
         act_snapshot.triggered.connect(self._capture_scene)
         toolbar.addAction(act_snapshot)
+        
+        # CSV Export with format selector
+        toolbar.addSeparator()
+        toolbar.addWidget(QLabel("  Export:"))
+        
+        self.export_format_combo = QComboBox()
+        self.export_format_combo.addItems(["Simple CSV", "Detailed CSV", "Analysis CSV"])
+        self.export_format_combo.setFixedWidth(140)
+        self.export_format_combo.setToolTip("Choose CSV export format")
+        toolbar.addWidget(self.export_format_combo)
+        
+        act_export_csv = QAction("📤 Export CSV", self)
+        act_export_csv.triggered.connect(self._export_csv)
+        toolbar.addAction(act_export_csv)
+        
+        # Telemetry health indicator
+        toolbar.addSeparator()
+        self.telemetry_health_label = QLabel("📡 Telemetry: --")
+        self.telemetry_health_label.setStyleSheet("color: #94a3b8; padding: 0 8px;")
+        toolbar.addWidget(self.telemetry_health_label)
+        
+        # Update telemetry health every second
+        self.health_timer = QTimer(self)
+        self.health_timer.timeout.connect(self._update_telemetry_health_display)
+        self.health_timer.start(1000)
 
     def _apply_layout_preset(self, mode):
         if self.layout_locked:
@@ -388,6 +444,104 @@ class MainWindow(QMainWindow):
     def _on_frame(self, frame):
         self._last_frame = frame
         self.layout_manager.on_frame(frame)
+    
+    # ========== Telemetry Watchdog Handlers ==========
+    
+    def _on_telemetry_stale(self, seconds):
+        """Show stale data overlay and update health label"""
+        self.stale_indicator.setText(f"⚠️ TELEMETRY STALE ({seconds:.1f}s)")
+        self.stale_indicator.raise_()  # Bring to front
+        self.stale_indicator.show()
+        self.telemetry_health_label.setText("📡 Telemetry: STALE")
+        self.telemetry_health_label.setStyleSheet("color: #dc2626; font-weight: 600; padding: 0 8px;")
+    
+    def _on_telemetry_resumed(self):
+        """Hide stale overlay and restore health label"""
+        self.stale_indicator.hide()
+        self.telemetry_health_label.setText("📡 Telemetry: OK")
+        self.telemetry_health_label.setStyleSheet("color: #10b981; font-weight: 600; padding: 0 8px;")
+    
+    def _on_frame_rate_changed(self, rate_hz):
+        """Update health label with current frame rate"""
+        if rate_hz > 0:
+            self.telemetry_health_label.setText(f"📡 {rate_hz:.1f} Hz")
+            self.telemetry_health_label.setStyleSheet("color: #10b981; font-weight: 600; padding: 0 8px;")
+        else:
+            self.telemetry_health_label.setText("📡 --")
+            self.telemetry_health_label.setStyleSheet("color: #94a3b8; font-weight: 600; padding: 0 8px;")
+    
+    def _update_telemetry_health_display(self):
+        """Update telemetry health display from watchdog statistics"""
+        if hasattr(self, 'telemetry_watchdog'):
+            stats = self.telemetry_watchdog.get_stats()
+            if stats['is_stale']:
+                elapsed = stats['stale_duration_sec']
+                self.telemetry_health_label.setText(f"📡 STALE ({elapsed:.1f}s)")
+                self.telemetry_health_label.setStyleSheet("color: #dc2626; font-weight: 600; padding: 0 8px;")
+            elif stats['frame_count'] > 0:
+                rate = stats['frame_rate_hz']
+                self.telemetry_health_label.setText(f"📡 {rate:.1f} Hz")
+                self.telemetry_health_label.setStyleSheet("color: #10b981; font-weight: 600; padding: 0 8px;")
+    
+    # ========== CSV Export Handler ==========
+    
+    def _export_csv(self):
+        """Export the last recorded session to CSV with selected format"""
+        import os
+        from pathlib import Path
+        from PyQt6.QtWidgets import QFileDialog, QMessageBox
+        
+        # Get the selected format
+        format_map = {
+            "Simple CSV": "simple",
+            "Detailed CSV": "detailed",
+            "Analysis CSV": "analysis"
+        }
+        format_type = format_map[self.export_format_combo.currentText()]
+        
+        # Find last session file
+        session_dir = Path("data/sessions")
+        if not session_dir.exists():
+            QMessageBox.warning(self, "No Sessions", "No recorded sessions found in data/sessions/")
+            return
+        
+        session_files = sorted(session_dir.glob("session_*.json"), key=os.path.getmtime, reverse=True)
+        if not session_files:
+            QMessageBox.warning(self, "No Sessions", "No session files found. Record a session first.")
+            return
+        
+        last_session = session_files[0]
+        
+        # Ask user for save location
+        default_name = f"{last_session.stem}_{format_type}.csv"
+        save_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Export Session to CSV",
+            str(Path("exports") / default_name),
+            "CSV Files (*.csv)"
+        )
+        
+        if not save_path:
+            return
+        
+        # Perform export
+        try:
+            stats = self.csv_exporter.export_session(str(last_session), save_path, format_type=format_type)
+            
+            # Show success message with stats
+            msg = f"✅ CSV Export Successful!\n\n"
+            msg += f"Session: {last_session.name}\n"
+            msg += f"Format: {format_type.title()}\n"
+            msg += f"Rows: {stats['row_count']}\n"
+            msg += f"Columns: {stats['column_count']}\n"
+            msg += f"Duration: {stats['duration_sec']:.2f}s\n"
+            msg += f"\nSaved to:\n{save_path}"
+            
+            QMessageBox.information(self, "Export Complete", msg)
+            self.statusBar().showMessage(f"CSV exported: {Path(save_path).name}", 5000)
+            
+        except Exception as e:
+            QMessageBox.critical(self, "Export Failed", f"Failed to export CSV:\n{str(e)}")
 
     def _update_system_status(self, thd, frame):
         freq = frame.get("freq", 60.0) if frame else 60.0
