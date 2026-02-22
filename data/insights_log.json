@@ -1,7 +1,1022 @@
 {
   "insights": [
     {
-      "ts": 1770234987.2329934,
+      "ts": 1770235122.699612,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235123.314753,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235124.0597339,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235124.8958592,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235125.542316,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235126.7016382,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235127.3090591,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235128.0947366,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235128.7491794,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235129.4997942,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235130.1314006,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235130.7765653,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235131.8248248,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235132.4541786,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235133.2115674,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235133.9485848,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235134.5989685,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235135.2003062,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235136.2887897,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235137.033873,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235137.7277513,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235138.3477893,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235162.8296132,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235163.4905841,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235164.5561848,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235165.3395243,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235166.01219,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235166.6961684,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235167.398277,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235168.0643888,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235168.7106156,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235169.404125,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235170.0570564,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235170.6642094,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235171.2948506,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235172.216731,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235172.8535664,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235173.4646986,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235174.072666,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235174.7180078,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235175.353155,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235176.2374177,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235177.1026547,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235177.7365012,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235178.3407123,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235179.039703,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235179.6639373,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235180.4115887,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235181.338091,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235182.228537,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235183.0742137,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235184.2797232,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235184.9173481,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235185.5578651,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235186.1672566,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235186.7878904,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235187.4037797,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235188.0095031,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235189.5428233,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235190.1493897,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235190.8683174,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235191.4907703,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235192.1217823,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235192.7719169,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235193.4200726,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235194.088528,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235194.9386413,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235195.6396382,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235196.267541,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235196.8682787,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235197.5311294,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235198.1425378,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235198.9253485,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235199.5691507,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235200.4315965,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235201.0328932,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235201.6479342,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235202.28533,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235202.9857516,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235203.6026785,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235204.2362707,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235204.879844,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235205.4825244,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235206.3871255,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235207.0453308,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235207.721042,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235208.325574,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235209.0095713,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235209.7583685,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235210.3661792,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235210.9711754,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235211.7150366,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235212.3471122,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235212.9797933,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235213.6084151,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235214.3081343,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235215.047614,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235215.7798097,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235216.4763997,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235217.0839462,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235217.7067752,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235218.387638,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235219.0606103,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235219.7060587,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235220.352188,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235221.121085,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235221.7267694,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235222.4218557,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235223.039813,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235223.6824841,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235224.292647,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235224.9093132,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235225.5304673,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235226.2672403,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235226.9576507,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235227.738893,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235228.3514974,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235228.98935,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235229.6219647,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235230.2618449,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235230.8684518,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235231.4994457,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235232.3592014,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235233.0077372,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235233.7023308,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235234.3434014,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235234.961047,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235235.5974228,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235236.2229342,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235236.9081047,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235237.5885882,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235238.2004476,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235238.8400245,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235239.4420793,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235240.0873697,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235240.6895816,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235241.2912903,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235242.3364878,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235243.0288696,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235243.6540601,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235244.289961,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235244.9190097,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235245.5678353,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235246.2095447,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235246.8808322,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235247.7688408,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235248.3714778,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235249.0728831,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235249.7656064,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235250.3971813,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235251.0395017,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235251.6796613,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235252.7244532,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235253.3689208,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235254.3634102,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235258.561633,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235259.2095678,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235259.935705,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235260.6162252,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235261.7487128,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235262.3721151,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235263.5839744,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235264.4072127,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235265.0368621,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235265.766184,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235266.4377775,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235267.049174,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235267.7066545,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235268.9216046,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235269.717562,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235270.4956758,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235271.2841923,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235271.9204745,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235272.6865833,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235273.3002424,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235274.2365537,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235275.3658679,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235276.0064628,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235276.8918855,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235277.6401718,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235278.2442496,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235278.9648125,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235280.182449,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235280.8910122,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235281.5244794,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235282.6991847,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235283.3299632,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235283.9680085,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235284.6124206,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235285.2540426,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235285.859154,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235286.4789877,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235287.7302523,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235288.7001324,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235289.3130708,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235290.012379,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235290.6257646,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235291.2476768,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235291.862553,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235292.8544586,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235293.5690682,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235294.24695,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235294.8897316,
+      "type": "Phase Imbalance",
+      "description": "Angle deviation > 20\u00b0 detected"
+    },
+    {
+      "ts": 1770235295.5311708,
       "type": "Phase Imbalance",
       "description": "Angle deviation > 20\u00b0 detected"
     }
