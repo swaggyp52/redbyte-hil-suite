@@ -20,13 +20,14 @@ class Insight:
     phase: Optional[str] = None
     
     def to_dict(self) -> Dict[str, Any]:
+        """Return canonical InsightEvent dict (ts, type, severity, description)."""
         return {
-            'timestamp': self.timestamp,
-            'type': self.event_type,
-            'severity': self.severity,
-            'message': self.message,
-            'metrics': self.metrics,
-            'phase': self.phase
+            'ts':          self.timestamp,
+            'type':        self.event_type,
+            'severity':    self.severity,
+            'description': self.message,
+            'metrics':     self.metrics,
+            'phase':       self.phase,
         }
 
 

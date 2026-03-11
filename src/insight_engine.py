@@ -48,12 +48,18 @@ class InsightEngine(QObject):
 
         self._detect(ts)
 
-    def _emit(self, ts, kind, description):
+    def _emit(self, ts, kind, description, severity="warning"):
         last = self._last_emit.get(kind, 0)
         if ts - last < self._debounce_s:
             return
         self._last_emit[kind] = ts
-        payload = {"ts": ts, "type": kind, "description": description}
+        payload = {
+            "ts":          ts,
+            "type":        kind,
+            "severity":    severity,
+            "description": description,
+            "metrics":     {},
+        }
         self._insights.append(payload)
         self.insight_emitted.emit(payload)
         self._persist()
@@ -72,25 +78,28 @@ class InsightEngine(QObject):
         # Harmonic Bloom: THD rises >10% within 0.5s
         thd = compute_thd(list(self._va), time_data=list(self._ts))
         if thd > 10.0:
-            self._emit(ts, "Harmonic Bloom", f"THD {thd:.1f}% exceeded 10%")
+            severity = "critical" if thd > 20.0 else "warning"
+            self._emit(ts, "Harmonic Bloom", f"THD {thd:.1f}% exceeded 10%", severity=severity)
 
         # Phase Imbalance: angle deviation > 20°
         ph = extract_three_phase_phasors(list(self._va), list(self._vb), list(self._vc), time_data=list(self._ts))
         if ph is not None:
             if abs(ph["ab_angle"]) > 140 or abs(ph["ac_angle"]) > 140:
-                self._emit(ts, "Phase Imbalance", "Angle deviation > 20° detected")
+                self._emit(ts, "Phase Imbalance", "Angle deviation > 20° detected", severity="warning")
 
         # Frequency undershoot: < 58.5 Hz for > 0.3s
         if len(self._freq) > 6:
             recent = list(self._freq)[-6:]
             if all(f < 58.5 for f in recent):
-                self._emit(ts, "Frequency Undershoot", "f < 58.5 Hz for > 0.3s")
+                self._emit(ts, "Frequency Undershoot", "f < 58.5 Hz for > 0.3s", severity="critical")
+            elif all(f < 59.0 for f in recent):
+                self._emit(ts, "Frequency Undershoot", "f < 59.0 Hz warning", severity="warning")
 
         # Recovery delay: > 0.5s after fault clear
         if self._active_fault_ts is not None:
             elapsed = ts - self._active_fault_ts
             if elapsed > 0.5:
-                self._emit(ts, "Recovery Delay", f"Recovery > {elapsed:.2f}s")
+                self._emit(ts, "Recovery Delay", f"Recovery > {elapsed:.2f}s", severity="info")
 
     def export_insights(self, path=None):
         if path is None:

@@ -50,36 +50,43 @@ A professional-grade solution for verifying Grid-Forming (GFM/VSM) inverter cont
 
 ### Prerequisites
 
-- Python 3.9+
+- Python 3.10+
 - Windows (tested on Windows 10/11)
 
 ### Install
 
 ```cmd
-git clone <repo-url>
-cd gfm_hil_suite
+git clone https://github.com/swaggyp52/redbyte-hil-suite
+cd redbyte-hil-suite
 python -m venv .venv
 .venv\Scripts\activate
-pip install -r requirements.txt
+pip install -e ".[dev]"
 ```
 
-### Launch
+### Launch (Demo Mode, No Hardware)
 
 ```cmd
-bin\launch_redbyte.bat          :: Visual app selector (recommended)
-bin\diagnostics.bat             :: Live monitoring + fault injection
-bin\replay.bat                  :: Timeline playback
-bin\compliance.bat              :: Standards validation
-bin\insights.bat                :: Event analysis
-bin\sculptor.bat                :: Waveform engineering
+python src\redbyte_launcher.py --mock
 ```
 
-All launchers support `--mock` (simulated serial data) and `--load <path>` (auto-import session context).
+### Launch A Specific App
 
 ```cmd
-bin\diagnostics.bat --mock                              :: Demo mode with simulated data
-bin\replay.bat --load data\demo_context_fault_sag.json  :: Load a pre-built demo session
+python src\redbyte_launcher.py --mock --app diagnostics
+python src\redbyte_launcher.py --mock --app replay --load data\demo_sessions\demo_session_baseline.json
+python src\redbyte_launcher.py --mock --app compliance --load data\demo_sessions\demo_session_baseline.json
 ```
+
+### Batch Launcher Shortcuts
+
+```cmd
+bin\launch_redbyte.bat
+bin\diagnostics.bat --mock
+bin\replay.bat --load data\demo_sessions\demo_session_baseline.json
+bin\compliance.bat --load data\demo_sessions\demo_session_baseline.json
+```
+
+All launchers support `--mock` (simulated telemetry source) and `--load <path>` (auto-load session JSON).
 
 **→ For detailed workflows, see [docs/QUICK_START_MODULAR.md](docs/QUICK_START_MODULAR.md)**
 
@@ -200,11 +207,13 @@ Pre-built demo context files are included in `data/` for quick evaluation:
 |------|----------|-------------|
 | `demo_context_baseline.json` | Normal operation | 3-phase at 120V/60Hz, clean waveforms |
 | `demo_context_fault_sag.json` | Voltage sag fault | 3-phase sag to 40%, THD spike, frequency dip, recovery |
+| `demo_sessions/demo_session_baseline.json` | End-to-end demo pipeline | Canonical v1.2 recording with 300 frames, sag + drift + recovery and insight events |
 
 Load a demo session:
 ```cmd
 bin\replay.bat --load data\demo_context_fault_sag.json
 bin\insights.bat --load data\demo_context_fault_sag.json
+python src\redbyte_launcher.py --mock --app compliance --load data\demo_sessions\demo_session_baseline.json
 ```
 
 ---
@@ -213,7 +222,7 @@ bin\insights.bat --load data\demo_context_fault_sag.json
 
 - **Target Hardware**: 3-Phase Inverter Microcontroller (VSM Firmware)
 - **Telemetry Protocol**: JSON over UART (115200 baud)
-- **Channels**: `V_an`, `V_bn`, `V_cn`, `I_a`, `I_b`, `I_c`, `Freq`, `P_mech`
+- **Channels**: `ts`, `v_an`, `v_bn`, `v_cn`, `i_a`, `i_b`, `i_c`, `freq`, `p_mech`
 - **Configuration**: [config/system_config.json](config/system_config.json)
 
 ---

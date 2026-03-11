@@ -1,20 +1,29 @@
 import json
 import os
+from datetime import datetime
 from pathlib import Path
 
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-from src.compliance_checker import evaluate_ieee_2800
-from src.signal_processing import compute_rms, compute_thd
+try:
+    from compliance_checker import evaluate_ieee_2800
+    from signal_processing import compute_rms, compute_thd
+except ImportError:
+    from src.compliance_checker import evaluate_ieee_2800
+    from src.signal_processing import compute_rms, compute_thd
 
 
 def generate_report(session_path: str, output_dir: str = "reports", insights_path: str = "data/insights_log.json"):
+    session_file = Path(session_path)
+    if not session_file.exists():
+        raise FileNotFoundError(f"Session file not found: {session_file}")
+
     output = Path(output_dir)
     output.mkdir(parents=True, exist_ok=True)
 
-    with open(session_path, "r") as f:
+    with open(session_file, "r") as f:
         data = json.load(f)
 
     frames = data.get("frames", [])
@@ -84,6 +93,7 @@ def generate_report(session_path: str, output_dir: str = "reports", insights_pat
     </html>
     """
 
-    html_path = output / "session_report.html"
+    ts_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+    html_path = output / f"session_report_{ts_str}.html"
     html_path.write_text(html)
     return str(html_path)

@@ -4,6 +4,7 @@ Entry point for diagnostic operations and real-time monitoring
 """
 
 import sys
+import time
 from pathlib import Path
 
 # Add parent and project root to path
@@ -57,7 +58,6 @@ class DiagnosticsWindow(LauncherBase):
         self.scenario_ctrl = ScenarioController()
 
         # Wire signals
-        self.serial_mgr.frame_received.connect(self.recorder.log_frame)
         self.serial_mgr.frame_received.connect(self._on_frame)
         self.scenario_ctrl.event_triggered.connect(self._on_scenario_event)
 
@@ -126,6 +126,18 @@ class DiagnosticsWindow(LauncherBase):
 
         toolbar.addSeparator()
 
+        # Recording controls
+        self.act_rec_start = QAction("⏺ Start Rec", self)
+        self.act_rec_start.triggered.connect(self.start_recording)
+        toolbar.addAction(self.act_rec_start)
+
+        self.act_rec_stop = QAction("⏹ Stop Rec", self)
+        self.act_rec_stop.triggered.connect(self.stop_recording)
+        self.act_rec_stop.setEnabled(False)
+        toolbar.addAction(self.act_rec_stop)
+
+        toolbar.addSeparator()
+
         # Export to other apps
         act_replay = QAction("🔵 Open in Replay Studio", self)
         act_replay.triggered.connect(self.export_to_replay)
@@ -186,15 +198,19 @@ class DiagnosticsWindow(LauncherBase):
         self._apply_geometry_if_not_moved(self.injector, w * 2, h * 2, w, h * 1.5)
 
     def _on_frame(self, frame):
-        """Handle incoming data frame from serial manager"""
-        # Push to signal engine
-        channels = {}
-        for key in ['v_an', 'v_bn', 'v_cn', 'i_a', 'i_b', 'i_c']:
-            if key in frame:
-                channels[key] = frame[key]
-        timestamp = frame.get('timestamp', 0)
+        """Handle incoming data frame from serial manager."""
+        # Push canonical channels to signal engine
+        channels = {
+            k: frame[k] for k in ('v_an', 'v_bn', 'v_cn', 'i_a', 'i_b', 'i_c')
+            if k in frame
+        }
+        # Use canonical 'ts' key (not legacy 'timestamp')
+        timestamp = frame.get('ts') or time.time()
         if channels:
             self.signal_engine.push_sample(channels, timestamp)
+
+        # Log frame to recorder buffer if recording
+        self.recorder.log_frame(frame)
 
         # Detect insights
         self.detect_insights(frame)
@@ -205,12 +221,12 @@ class DiagnosticsWindow(LauncherBase):
         self.notify(f"Scenario event: {event_type}", "#f59e0b")
 
     def detect_insights(self, data):
-        """Real-time insight detection"""
-        timestamp = data.get('timestamp', 0)
+        """Real-time insight detection using canonical 'ts' key."""
+        timestamp = data.get('ts') or time.time()
 
-        # THD detection
-        for phase in ['A', 'B', 'C']:
-            thd = self.signal_engine.get_thd(f'v_{phase.lower()}n')
+        # THD detection (signal engine uses canonical v_an, v_bn, v_cn)
+        for ch_key, phase in [('v_an', 'A'), ('v_bn', 'B'), ('v_cn', 'C')]:
+            thd = self.signal_engine.get_thd(ch_key)
             insight = self.insight_engine.detect_thd_event(thd, phase, timestamp)
             if insight:
                 self.insight_engine.add_insight(insight)
@@ -254,6 +270,25 @@ class DiagnosticsWindow(LauncherBase):
         )
 
         self.notify("Exported to Compliance Lab", "#8b5cf6")
+
+    def start_recording(self):
+        """Start a new recording session."""
+        self.recorder.start()
+        self.act_rec_start.setEnabled(False)
+        self.act_rec_stop.setEnabled(True)
+        self.notify("Recording started ⏺", "#ef4444")
+        self.statusBar().showMessage("Recording…")
+
+    def stop_recording(self):
+        """Stop recording and save session file."""
+        path = self.recorder.stop()
+        self.act_rec_start.setEnabled(True)
+        self.act_rec_stop.setEnabled(False)
+        if path:
+            self.notify(f"Session saved: {Path(path).name}", "#10b981")
+            self.statusBar().showMessage(f"Session saved → {path}")
+        else:
+            self.notify("Recording stopped (no data)", "#f59e0b")
 
     def start_monitoring(self):
         """Start data acquisition via mock mode"""

@@ -21,13 +21,15 @@ import subprocess
 class AppCard(QFrame):
     """Themed application launch card with hover animations"""
     
-    def __init__(self, app_name: str, app_id: str, accent_color: str, 
-                 icon: str, description: str, launcher_script: str, parent=None):
+    def __init__(self, app_name: str, app_id: str, accent_color: str,
+                 icon: str, description: str, launcher_script: str,
+                 mock_mode: bool = False, parent=None):
         super().__init__(parent)
         self.app_name = app_name
         self.app_id = app_id
         self.accent_color = accent_color
         self.launcher_script = launcher_script
+        self.mock_mode = mock_mode
         
         self.setFrameStyle(QFrame.Shape.Box | QFrame.Shadow.Raised)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -90,19 +92,22 @@ class AppCard(QFrame):
     def launch_app(self):
         """Launch the associated RedByte application"""
         launcher_path = Path(__file__).parent.parent / 'src' / 'launchers' / self.launcher_script
-        
+
         if launcher_path.exists():
-            # Launch in new process
-            subprocess.Popen([sys.executable, str(launcher_path)])
+            cmd = [sys.executable, str(launcher_path)]
+            if self.mock_mode:
+                cmd.append('--mock')
+            subprocess.Popen(cmd, cwd=str(launcher_path.parent.parent.parent))
         else:
             print(f"Launcher not found: {launcher_path}")
 
 
 class RedByteLauncher(QMainWindow):
     """Main RedByte Suite launcher window"""
-    
-    def __init__(self):
+
+    def __init__(self, mock_mode: bool = False, auto_app: str | None = None):
         super().__init__()
+        self.mock_mode = mock_mode
         self.setWindowTitle("RedByte HIL Suite")
         self.setMinimumSize(1000, 700)
         
@@ -213,7 +218,8 @@ class RedByteLauncher(QMainWindow):
                 accent_color=app['accent'],
                 icon=app['icon'],
                 description=app['desc'],
-                launcher_script=app['launcher']
+                launcher_script=app['launcher'],
+                mock_mode=self.mock_mode,
             )
             row = idx // 3
             col = idx % 3
@@ -256,8 +262,46 @@ class RedByteLauncher(QMainWindow):
 
 
 def main():
+    import argparse
+    parser = argparse.ArgumentParser(description="RedByte HIL Suite Launcher")
+    parser.add_argument(
+        "--mock", action="store_true",
+        help="Launch child apps in mock/demo mode (no hardware required)"
+    )
+    parser.add_argument(
+        "--app", type=str, default=None,
+        choices=["diagnostics", "replay", "compliance", "insights", "sculptor"],
+        help="Directly launch a specific app (skips selector)"
+    )
+    parser.add_argument(
+        "--load", type=str, default=None,
+        help="Path to a session JSON to auto-load in the launched app"
+    )
+    args = parser.parse_args()
+
     app = QApplication(sys.argv)
-    launcher = RedByteLauncher()
+
+    if args.app:
+        # Direct launch of a specific sub-app
+        launcher_map = {
+            "diagnostics": "launch_diagnostics.py",
+            "replay":      "launch_replay.py",
+            "compliance":  "launch_compliance.py",
+            "insights":    "launch_insights.py",
+            "sculptor":    "launch_sculptor.py",
+        }
+        script = launcher_map.get(args.app)
+        if script:
+            launcher_path = Path(__file__).parent / 'launchers' / script
+            cmd = [sys.executable, str(launcher_path)]
+            if args.mock:
+                cmd.append('--mock')
+            if args.load:
+                cmd.extend(['--load', args.load])
+            subprocess.Popen(cmd, cwd=str(project_root))
+            sys.exit(0)
+
+    launcher = RedByteLauncher(mock_mode=args.mock)
     launcher.show()
     sys.exit(app.exec())
 

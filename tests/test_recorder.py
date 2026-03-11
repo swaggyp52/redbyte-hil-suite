@@ -30,6 +30,12 @@ def test_data_capsule_structure(recorder):
     recorder.start()
     recorder.log_frame({"ts": 1.0, "v": 100})
     recorder.log_frame({"ts": 1.1, "v": 101})
+    recorder.log_insight({
+        "ts": 1.05,
+        "type": "test_insight",
+        "severity": "info",
+        "description": "test",
+    })
     recorder.log_event("TEST_EVENT", "Something happened")
     filepath = recorder.stop()
     
@@ -40,9 +46,15 @@ def test_data_capsule_structure(recorder):
         
     assert "meta" in data
     assert "frames" in data
+    assert "insights" in data
     assert "events" in data
     
+    assert data["meta"]["version"] == "1.2"
+    assert "sample_rate_estimate" in data["meta"]
+    assert "channels" in data["meta"]
+
     assert len(data["frames"]) == 2
+    assert len(data["insights"]) == 1
     assert len(data["events"]) == 1
     assert data["frames"][0]["v"] == 100
     assert data["events"][0]["type"] == "TEST_EVENT"

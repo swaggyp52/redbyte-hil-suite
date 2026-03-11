@@ -8,6 +8,16 @@ from typing import Dict, List, Optional, Tuple
 import numpy as np
 
 
+_CHANNEL_ALIASES: Dict[str, str] = {
+    "Va": "v_an",
+    "Vb": "v_bn",
+    "Vc": "v_cn",
+    "Ia": "i_a",
+    "Ib": "i_b",
+    "Ic": "i_c",
+}
+
+
 class SignalEngine:
     """
     Unified signal processing engine for HIL data
@@ -24,13 +34,14 @@ class SignalEngine:
         self.sample_rate = sample_rate
         
         # Signal buffers (circular deques for efficiency)
+        # Keys match canonical TelemetryFrame schema: v_an, v_bn, v_cn, i_a, i_b, i_c
         self.buffers: Dict[str, deque] = {
-            'Va': deque(maxlen=buffer_size),
-            'Vb': deque(maxlen=buffer_size),
-            'Vc': deque(maxlen=buffer_size),
-            'Ia': deque(maxlen=buffer_size),
-            'Ib': deque(maxlen=buffer_size),
-            'Ic': deque(maxlen=buffer_size),
+            'v_an': deque(maxlen=buffer_size),
+            'v_bn': deque(maxlen=buffer_size),
+            'v_cn': deque(maxlen=buffer_size),
+            'i_a':  deque(maxlen=buffer_size),
+            'i_b':  deque(maxlen=buffer_size),
+            'i_c':  deque(maxlen=buffer_size),
         }
         
         self.time_buffer = deque(maxlen=buffer_size)
@@ -39,8 +50,9 @@ class SignalEngine:
     def push_sample(self, channels: Dict[str, float], timestamp: float):
         """Add new sample to all channel buffers"""
         for ch, value in channels.items():
-            if ch in self.buffers:
-                self.buffers[ch].append(value)
+            canonical = _CHANNEL_ALIASES.get(ch, ch)
+            if canonical in self.buffers:
+                self.buffers[canonical].append(value)
         self.time_buffer.append(timestamp)
         self.current_time = timestamp
     
@@ -51,14 +63,15 @@ class SignalEngine:
         Returns:
             (time_array, data_array)
         """
-        if channel not in self.buffers:
+        canonical = _CHANNEL_ALIASES.get(channel, channel)
+        if canonical not in self.buffers:
             return np.array([]), np.array([])
         
         if num_samples:
-            data = list(self.buffers[channel])[-num_samples:]
+            data = list(self.buffers[canonical])[-num_samples:]
             time = list(self.time_buffer)[-num_samples:]
         else:
-            data = list(self.buffers[channel])
+            data = list(self.buffers[canonical])
             time = list(self.time_buffer)
         
         return np.array(time), np.array(data)
