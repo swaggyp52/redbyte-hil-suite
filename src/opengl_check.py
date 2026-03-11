@@ -60,8 +60,8 @@ def check_opengl_context():
                 logger.info(f"OpenGL context functional. Version: {version}")
                 test_widget.deleteLater()
                 return True, ""
-        except:
-            pass
+        except Exception as e:
+            logger.debug(f"OpenGL version check unavailable before full context init: {e}")
         
         test_widget.deleteLater()
         return True, ""  # If we got this far, basic functionality works

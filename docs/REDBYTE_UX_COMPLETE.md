@@ -1,5 +1,7 @@
 # 🎉 RedByte UX Polish - Implementation Complete
 
+> Historical monolithic UX polish report. The current release demo path starts with `bin\launch_redbyte.bat`; this document is preserved as implementation history.
+
 ## Executive Summary
 
 The HIL Verifier Suite has been successfully transformed into a **premium RedByte-grade product** with comprehensive visual polish, intelligent interactions, and professional aesthetics.

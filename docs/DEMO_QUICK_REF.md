@@ -1,12 +1,22 @@
 # Demo Quick Reference Card
 
+> Legacy monolithic quick reference. The current 5-app suite demo starts with `bin\launch_redbyte.bat`; use this file only when intentionally showing the preserved legacy demo.
+
 ## One-Click Demo Features 🎯
 
 ### Starting the App
+
+**Current suite demo**
+```powershell
+cd c:\Users\conno\redbyte_gfm\gfm_hil_suite
+.\bin\launch_redbyte.bat
+```
+
+**Legacy monolithic demo**
 ```powershell
 cd c:\Users\conno\redbyte_gfm\gfm_hil_suite
 .\bin\start.bat      # Windows
-./bin/start.sh       # Linux/Mac
+./bin/start.sh        # Linux/Mac
 ```
 
 ### Telemetry Watchdog Demo (Live Data Monitoring)
@@ -129,7 +139,7 @@ Professor opens this - no questions needed."
 
 ## Key Talking Points for Evaluators 💡
 
-✅ **Reliability**: 85 automated tests passing  
+✅ **Reliability**: Current automated validation snapshot is maintained in `docs/REPO_HEALTH_REPORT.md`  
 ✅ **Real-time**: Frame rate updates every 1 second  
 ✅ **Safety**: Stale data detected within 2 seconds  
 ✅ **Professional**: 3 export formats with validation  
@@ -153,7 +163,7 @@ python scripts/demo_ui_integration.py
 pytest tests/ --tb=no -q
 ```
 
-**Expected Result**: 85 tests passing ✅
+**Expected Result**: See `docs/REPO_HEALTH_REPORT.md` for the current validated test count.
 
 ---
 
@@ -182,5 +192,4 @@ When telemetry stops:
 - `tests/test_gfm_demo_features.py` - Feature validation
 - `tests/test_ui_integration.py` - UI wiring tests
 
-**Say this:** "Every feature has test coverage. 85 automated tests. 
-If something breaks, we find it in seconds - not during your evaluation."
+**Say this:** "Every feature has automated validation. The current test snapshot is documented in the repo health report, so we can show both the workflow and the verification evidence."

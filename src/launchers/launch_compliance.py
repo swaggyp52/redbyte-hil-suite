@@ -196,7 +196,7 @@ class ComplianceWindow(LauncherBase):
         self.setStyleSheet(get_compliance_style())
 
         if self.session.import_context('diagnostics'):
-            print("✅ Loaded session from Diagnostics")
+            print("[OK] Loaded session from Diagnostics")
 
         # Initialize backend dependencies
         self.scenario_ctrl = ScenarioController()

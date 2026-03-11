@@ -163,11 +163,13 @@ def test_visual_enhancements():
         print("   • Annotated scene capture")
         print("   • Animated rotor splash screen")
         print("\n🚀 Ready for demo!")
-        return True
     else:
         print(f"⚠️  {tests_failed} test(s) failed - review implementation")
-        return False
+    assert tests_failed == 0, f"Visual enhancement checks failed: {tests_failed}"
 
 if __name__ == "__main__":
-    success = test_visual_enhancements()
-    sys.exit(0 if success else 1)
+    try:
+        test_visual_enhancements()
+        sys.exit(0)
+    except AssertionError:
+        sys.exit(1)

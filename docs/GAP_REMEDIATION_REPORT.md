@@ -213,7 +213,7 @@ From GAP_ANALYSIS.md, evaluators will look for:
 - ✅ **Clear problem statement** ← PROJECT_OVERVIEW.md § "The Problem"
 - ✅ **Technical complexity** ← ARCHITECTURE_DECISIONS.md (12 technical choices)
 - ✅ **Team collaboration** ← PROJECT_OVERVIEW.md § "Team Structure"
-- ✅ **Working prototype** ← README.md § "Quick Start", 54 tests passing
+- ✅ **Working prototype** ← README.md § "Quick Start", 54 tests passing at the time of remediation; see REPO_HEALTH_REPORT.md for the current validation snapshot
 - ✅ **Testing/validation** ← README.md § "Testing", UX_CERTIFICATION_REPORT.md
 - ✅ **Documentation quality** ← **THIS REPORT** - comprehensive, organized, accessible
 

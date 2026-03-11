@@ -44,7 +44,7 @@ def test_imports():
             failed += 1
     
     print(f"\nImport Tests: {passed}/{passed+failed} passed")
-    return failed == 0
+    assert failed == 0, f"Import checks failed: {failed}"
 
 
 def test_launcher_files():
@@ -93,7 +93,7 @@ def test_launcher_files():
             failed += 1
     
     print(f"\nLauncher Files: {passed}/{passed+failed} passed")
-    return failed == 0
+    assert failed == 0, f"Launcher checks failed: {failed}"
 
 
 def test_batch_files():
@@ -124,7 +124,7 @@ def test_batch_files():
             failed += 1
     
     print(f"\nBatch Files: {passed}/{passed+failed} passed")
-    return failed == 0
+    assert failed == 0, f"Batch checks failed: {failed}"
 
 
 def test_core_functionality():
@@ -163,12 +163,11 @@ def test_core_functionality():
         print("  ✓ InsightEngine works")
         
         print("\nCore Functionality: 4/4 passed")
-        return True
         
     except Exception as e:
         print(f"  ✗ Error: {e}")
         print("\nCore Functionality: FAILED")
-        return False
+        raise AssertionError(f"Core functionality check failed: {e}") from e
 
 
 def test_documentation():
@@ -213,7 +212,7 @@ def test_documentation():
             failed += 1
     
     print(f"\nDocumentation: {passed}/{passed+failed} passed")
-    return failed == 0
+    assert failed == 0, f"Documentation checks failed: {failed}"
 
 
 def main():
@@ -223,13 +222,23 @@ def main():
     print("#"*60)
     
     results = []
-    
+
+    checks = [
+        ("Module Imports", test_imports),
+        ("Launcher Files", test_launcher_files),
+        ("Batch Files", test_batch_files),
+        ("Core Functionality", test_core_functionality),
+        ("Documentation", test_documentation),
+    ]
+
     # Run all tests
-    results.append(("Module Imports", test_imports()))
-    results.append(("Launcher Files", test_launcher_files()))
-    results.append(("Batch Files", test_batch_files()))
-    results.append(("Core Functionality", test_core_functionality()))
-    results.append(("Documentation", test_documentation()))
+    for name, check in checks:
+        try:
+            check()
+            results.append((name, True))
+        except Exception as exc:
+            print(f"  ✗ {name}: {exc}")
+            results.append((name, False))
     
     # Summary
     print("\n" + "="*60)

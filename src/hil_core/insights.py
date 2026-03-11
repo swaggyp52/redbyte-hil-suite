@@ -6,7 +6,6 @@ Shared insight generation for all RedByte apps
 from typing import Dict, List, Any, Optional
 from collections import defaultdict
 from dataclasses import dataclass
-from datetime import datetime
 
 
 @dataclass
@@ -20,15 +19,49 @@ class Insight:
     phase: Optional[str] = None
     
     def to_dict(self) -> Dict[str, Any]:
-        """Return canonical InsightEvent dict (ts, type, severity, description)."""
+        """Return canonical InsightEvent dict with legacy aliases for compatibility."""
         return {
             'ts':          self.timestamp,
+            'timestamp':   self.timestamp,
             'type':        self.event_type,
             'severity':    self.severity,
             'description': self.message,
+            'message':     self.message,
             'metrics':     self.metrics,
             'phase':       self.phase,
         }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "Insight":
+        """Construct Insight from canonical or legacy payload keys."""
+        ts = data.get('ts')
+        if ts is None:
+            ts = data.get('timestamp', 0.0)
+
+        msg = data.get('description')
+        if msg in (None, ''):
+            msg = data.get('message', '')
+
+        event_type = data.get('type')
+        if event_type in (None, ''):
+            event_type = data.get('event_type', 'unknown')
+
+        try:
+            timestamp = float(ts)
+        except (TypeError, ValueError):
+            timestamp = 0.0
+
+        metrics_raw = data.get('metrics', {})
+        metrics = dict(metrics_raw) if isinstance(metrics_raw, dict) else {}
+
+        return cls(
+            timestamp=timestamp,
+            event_type=str(event_type),
+            severity=str(data.get('severity', 'info')),
+            message=str(msg),
+            metrics=metrics,
+            phase=data.get('phase'),
+        )
 
 
 class InsightEngine:

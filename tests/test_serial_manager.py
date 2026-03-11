@@ -50,8 +50,8 @@ def test_serial_manager_switch_and_command(monkeypatch):
 
 def test_serial_manager_mock_mode(monkeypatch, qapp):
     """Test mock mode with proper Qt event loop handling"""
-    from PyQt6.QtCore import QTimer
-    
+    from PyQt6.QtTest import QTest
+
     fake = FakeAdapter(frames=[{"ts": 2, "v_an": 2, "v_bn": 0, "v_cn": -2}])
     monkeypatch.setattr(serial_reader, "DemoAdapter", lambda: fake)
 
@@ -60,15 +60,12 @@ def test_serial_manager_mock_mode(monkeypatch, qapp):
     mgr.frame_received.connect(lambda f: received.append(f))
 
     mgr.start_mock_mode()
-    
-    # Process Qt events for up to 500ms to allow signal to fire
-    timeout = 500
-    elapsed = 0
-    while not received and elapsed < timeout:
+
+    # Process events while yielding time for the background reader thread.
+    deadline = time.time() + 1.0
+    while not received and time.time() < deadline:
         qapp.processEvents()
-        QTimer.singleShot(10, lambda: None)
-        qapp.processEvents()
-        elapsed += 10
+        QTest.qWait(10)
     
     mgr.stop()
     

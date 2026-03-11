@@ -1,6 +1,8 @@
 # Demo Launch Instructions
 
-## Quick Launch Options
+> Legacy monolithic demo guide. For the current capstone demo path, start with `bin\launch_redbyte.bat` and use [docs/presentation/demo_script.md](docs/presentation/demo_script.md).
+
+## Quick Launch Options (Legacy Demo)
 
 ### Option 1: Windowed Mode (Recommended for Testing)
 **Best for testing simulation controls**
@@ -97,4 +99,4 @@ When demo launches in fullscreen:
 ✅ Created windowed launch option for easier testing  
 ✅ Verified simulation controller signal connections working  
 
-All tests passing: 98 total (19 simulation/UI integration tests)
+Current validation snapshot is maintained in `docs/REPO_HEALTH_REPORT.md`.

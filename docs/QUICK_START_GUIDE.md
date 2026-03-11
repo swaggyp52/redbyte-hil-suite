@@ -1,5 +1,7 @@
 # RedByte UX Quick Start Guide
 
+> Legacy monolithic UX guide. For the current 5-app suite setup and launch path, use [README.md](../README.md) and [QUICK_START_MODULAR.md](QUICK_START_MODULAR.md).
+
 ## 🚀 Launch the Application
 
 ### Standard Launch

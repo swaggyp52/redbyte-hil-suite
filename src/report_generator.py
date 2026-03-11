@@ -1,11 +1,24 @@
 import json
+import logging
 import os
+import warnings
 from datetime import datetime
 from pathlib import Path
+
+# Temporary suppression for third-party dateutil deprecation emitted during matplotlib import.
+# Remove when upstream dependency no longer calls utcfromtimestamp.
+warnings.filterwarnings(
+    "ignore",
+    message=r"datetime\.datetime\.utcfromtimestamp\(\) is deprecated and scheduled for removal in a future version.*",
+    category=DeprecationWarning,
+    module=r"dateutil\.tz\.tz",
+)
 
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+
+logger = logging.getLogger(__name__)
 
 try:
     from compliance_checker import evaluate_ieee_2800
@@ -56,8 +69,10 @@ def generate_report(session_path: str, output_dir: str = "reports", insights_pat
     if os.path.exists(insights_path):
         try:
             with open(insights_path, "r") as f:
-                insights = json.load(f).get("insights", [])
-        except Exception:
+                payload = json.load(f)
+                insights = payload.get("insights", []) if isinstance(payload, dict) else []
+        except (OSError, json.JSONDecodeError, TypeError, ValueError) as exc:
+            logger.warning("Could not load insights from %s: %s", insights_path, exc)
             insights = []
 
     insight_rows = "".join([

@@ -10,7 +10,7 @@ authors = [
   { name = "Senior Design Team", email = "team@example.com" },
 ]
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.12,<3.13"
 dependencies = [
     "PyQt6>=6.4.0",
     "pyqtgraph>=0.13.0",
@@ -23,8 +23,15 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+test = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "playwright>=1.40.0",
+]
 dev = [
     "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "playwright>=1.40.0",
     "black",
     "isort",
     "mypy",
@@ -32,10 +39,17 @@ dev = [
 
 [tool.pytest.ini_options]
 minversion = "6.0"
-addopts = "-ra -q"
+addopts = "-ra -q --strict-markers --strict-config"
 testpaths = [
     "tests",
 ]
 python_files = "test_*.py"
 python_classes = "Test*"
 python_functions = "test_*"
+markers = [
+    "playwright: browser automation tests that require playwright and Chromium",
+]
+filterwarnings = [
+    "ignore:datetime\\.datetime\\.utcfromtimestamp\\(\\) is deprecated and scheduled for removal in a future version.*:DeprecationWarning",
+    "error",
+]

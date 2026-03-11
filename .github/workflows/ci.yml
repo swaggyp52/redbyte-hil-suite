@@ -14,7 +14,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
-        python-version: ["3.10", "3.11"]
+        python-version: ["3.12"]
 
     steps:
       - uses: actions/checkout@v4
@@ -27,9 +27,16 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -e ".[dev]" || pip install -r requirements.txt pytest pytest-cov
+          pip install -e ".[dev]" || pip install -r requirements.txt
+
+      - name: Install Playwright browser
+        run: python -m playwright install chromium
+
+      - name: Preflight dependency check
+        run: python scripts/preflight_check.py
 
       - name: Run tests (offscreen, no display required)
         env:
           QT_QPA_PLATFORM: offscreen
-        run: pytest tests/ --tb=short -q --cov=src --cov-report=term-missing
+          PYTHONWARNINGS: error
+        run: pytest tests/ --tb=short --cov=src --cov-report=term-missing --cov-fail-under=50 -W error

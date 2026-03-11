@@ -38,16 +38,9 @@ class InsightStudioWindow(LauncherBase):
 
         # Import from diagnostics or replay
         if self.session.import_context('diagnostics') or self.session.import_context('replay'):
-            print("✅ Loaded session insights")
+            print("[OK] Loaded session insights")
             for insight_dict in self.session.insights:
-                insight = Insight(
-                    timestamp=insight_dict.get("timestamp", 0),
-                    event_type=insight_dict.get("type", "unknown"),
-                    severity=insight_dict.get("severity", "info"),
-                    message=insight_dict.get("message", ""),
-                    metrics=insight_dict.get("metrics", {}),
-                    phase=insight_dict.get("phase")
-                )
+                insight = Insight.from_dict(insight_dict)
                 self.insight_engine.add_insight(insight)
 
         self.create_panels()
@@ -86,16 +79,9 @@ class InsightStudioWindow(LauncherBase):
         """Refresh insights panel after context import."""
         if self.session.insights:
             for insight_dict in self.session.insights:
-                insight = Insight(
-                    timestamp=insight_dict.get("timestamp", 0),
-                    event_type=insight_dict.get("type", "unknown"),
-                    severity=insight_dict.get("severity", "info"),
-                    message=insight_dict.get("message", ""),
-                    metrics=insight_dict.get("metrics", {}),
-                    phase=insight_dict.get("phase")
-                )
+                insight = Insight.from_dict(insight_dict)
                 self.insight_engine.add_insight(insight)
-                self.insights.add_insight(insight_dict)
+                self.insights.add_insight(insight.to_dict())
 
 
 def main():

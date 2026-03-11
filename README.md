@@ -1,6 +1,6 @@
 # RedByte HIL Verifier Suite (v2.0)
 
-![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-blue)
+![Python 3.12](https://img.shields.io/badge/python-3.12-blue)
 ![PyQt6](https://img.shields.io/badge/UI-PyQt6-41cd52)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Tests](https://img.shields.io/badge/tests-passing-brightgreen)
@@ -50,8 +50,14 @@ A professional-grade solution for verifying Grid-Forming (GFM/VSM) inverter cont
 
 ### Prerequisites
 
-- Python 3.10+
+- Python 3.12 (required for validated runs)
 - Windows (tested on Windows 10/11)
+
+### Python Support Policy
+
+- Supported: Python 3.12
+- Unsupported: Python 3.14 for this repo (local 3.14 env drift and dependency/runtime parity not guaranteed)
+- See [docs/PYTHON_SUPPORT.md](docs/PYTHON_SUPPORT.md) for policy details and rationale.
 
 ### Install
 
@@ -61,6 +67,8 @@ cd redbyte-hil-suite
 python -m venv .venv
 .venv\Scripts\activate
 pip install -e ".[dev]"
+python -m playwright install chromium
+python scripts\preflight_check.py
 ```
 
 ### Launch (Demo Mode, No Hardware)
@@ -230,8 +238,19 @@ python src\redbyte_launcher.py --mock --app compliance --load data\demo_sessions
 ## Testing
 
 ```cmd
+python scripts\preflight_check.py
 python -m pytest tests/ -v
+python -m pytest tests\test_playwright_report_ui.py -v
 ```
+
+Browser validation tests require both the Python package and Chromium browser binaries:
+
+```cmd
+pip install playwright
+python -m playwright install chromium
+```
+
+Use [docs/FRESH_MACHINE_SETUP.md](docs/FRESH_MACHINE_SETUP.md) for the full first-time setup and validation flow.
 
 Test coverage includes:
 - **Launcher stability** (`verify_launchers.py`) -- All 5 windows instantiate with correct panels and backends
@@ -246,6 +265,8 @@ Test coverage includes:
 ### Getting Started
 | Document | Description |
 |----------|-------------|
+| **[docs/FRESH_MACHINE_SETUP.md](docs/FRESH_MACHINE_SETUP.md)** | ✅ **Step-by-step first-time setup and validation** |
+| **[docs/PYTHON_SUPPORT.md](docs/PYTHON_SUPPORT.md)** | 🧭 **Explicit Python support/compatibility policy** |
 | **[docs/PROJECT_OVERVIEW.md](docs/PROJECT_OVERVIEW.md)** | 🎓 **Senior design project context & scope** |
 | [docs/QUICK_START_MODULAR.md](docs/QUICK_START_MODULAR.md) | User-friendly workflow examples |
 | [docs/index.md](docs/index.md) | Engineering documentation hub |
@@ -318,5 +339,5 @@ gfm_hil_suite/
 | Signal Processing | NumPy, SciPy (FFT, Hilbert) |
 | Serial Comms | pyserial (JSON/UART) |
 | Data Storage | pandas, JSON context files |
-| Testing | pytest, pytest-qt |
+| Testing | pytest, playwright |
 | Styling | QSS (Qt Style Sheets), glassmorphic design |

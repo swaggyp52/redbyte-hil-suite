@@ -2,6 +2,20 @@
 
 Welcome to the **gfm_hil_suite** team! As a senior design project, this repository serves as both a software product and an academic deliverable. Please follow these guidelines to verify that our work remains high-quality and easy to merge.
 
+## Development Environment
+
+- Required Python version: **3.12** (see `.python-version` and `docs/PYTHON_SUPPORT.md`)
+- Create and activate project venv:
+    - `python -m venv .venv`
+    - `.venv\Scripts\activate`
+- Install dependencies:
+    - `pip install -e ".[dev]"`
+    - `python -m playwright install chromium`
+- Run fail-fast environment checks:
+    - `python scripts\preflight_check.py`
+
+If setup is new or uncertain, follow `docs/FRESH_MACHINE_SETUP.md` end-to-end before opening a PR.
+
 ## 🛠️ Development Workflow
 
 1. **Branching:**

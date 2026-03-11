@@ -51,9 +51,9 @@ class ReplayWindow(LauncherBase):
 
         # Try to import context from diagnostics
         if self.session.import_context('diagnostics'):
-            print("✅ Loaded session from Diagnostics")
+            print("[OK] Loaded session from Diagnostics")
         else:
-            print("ℹ️ No session data found - starting empty")
+            print("[INFO] No session data found - starting empty")
 
         self.create_panels()
         self.create_toolbar()
@@ -178,13 +178,13 @@ class ReplayWindow(LauncherBase):
         """Start playback"""
         self.playing = True
         self.play_timer.start(50)  # 20 FPS
-        print("▶️ Playback started")
+        print("[PLAY] Playback started")
 
     def pause(self):
         """Pause playback"""
         self.playing = False
         self.play_timer.stop()
-        print("⏸️ Playback paused")
+        print("[PAUSE] Playback paused")
 
     def stop(self):
         """Stop and reset playback"""
@@ -192,7 +192,7 @@ class ReplayWindow(LauncherBase):
         self.play_timer.stop()
         self.playback_position = 0
         self.timeline_slider.setValue(0)
-        print("⏹️ Playback stopped")
+        print("[STOP] Playback stopped")
 
     def advance_playback(self):
         """Advance playback position"""

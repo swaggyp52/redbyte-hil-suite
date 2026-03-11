@@ -1,6 +1,8 @@
 # 🎓 UI INTEGRATION COMPLETE - Session Report
 
-**Status**: ✅ PROFESSOR-PROOF & READY FOR CAPSTONE EVALUATION
+> Historical monolithic session report. Use `docs/REPO_HEALTH_REPORT.md` for the current validation snapshot and `docs/presentation/demo_script.md` for the current 5-app demo flow.
+
+**Status**: ✅ HISTORICAL SESSION COMPLETE
 
 ---
 
@@ -132,7 +134,7 @@ Tests verify:
 > USB disconnect - we detect it in 2 seconds with a red warning. 
 > This proves our system is production-ready."
 
-**Talking point**: 85 automated tests validate this behavior
+**Talking point**: Historical snapshot: 85 automated tests validated this behavior at the time; use `docs/REPO_HEALTH_REPORT.md` for the current count.
 
 ### Feature 2: CSV Data Export 📤
 **What it shows professors:**
@@ -182,7 +184,7 @@ Tests verify:
 
 | Metric | Value | Status |
 |--------|-------|--------|
-| Total Tests Passing | 85 | ✅ |
+| Total Tests Passing | Historical snapshot: 85 | ✅ |
 | UI Integration Tests | 6 | ✅ |
 | Code Coverage | All critical paths | ✅ |
 | Documentation | Complete | ✅ |
@@ -213,7 +215,7 @@ Tests verify:
 
 ✅ **Automatic**: Features work without manual intervention  
 ✅ **Visual**: All states clearly displayed in UI  
-✅ **Validated**: 85 automated tests (including 6 new UI tests)  
+✅ **Validated**: Historical snapshot was 85 automated tests (including 6 new UI tests); current validation is tracked in `docs/REPO_HEALTH_REPORT.md`  
 ✅ **Professional**: Metadata, error handling, statistics  
 ✅ **Documented**: Complete walkthrough + demo script  
 ✅ **One-Click**: No coding needed at runtime  
