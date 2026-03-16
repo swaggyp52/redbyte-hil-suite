@@ -1,343 +1,75 @@
-# RedByte HIL Verifier Suite (v2.0)
+# RedByte GFM HIL Suite
 
-![Python 3.12](https://img.shields.io/badge/python-3.12-blue)
-![PyQt6](https://img.shields.io/badge/UI-PyQt6-41cd52)
-![License](https://img.shields.io/badge/license-MIT-green)
-![Tests](https://img.shields.io/badge/tests-passing-brightgreen)
-![Platform](https://img.shields.io/badge/platform-Windows-lightgrey)
-
-**Modular, Purpose-Built HIL Testing Platform for 3-Phase Grid-Forming Inverters**
-
-> **NEW in v2.0:** Transformed from monolithic demo app into **5 specialized RedByte applications** with distinct visual identities, focused workflows, and seamless cross-app data handoff.
+Grid-Forming Inverter Hardware-in-the-Loop diagnostics and validation platform.
 
 ---
 
-## 🎓 Project Background
+## Quick Start
 
-This is a **senior design capstone project** that demonstrates **Hardware-in-the-Loop (HIL) simulation** for testing three-phase power inverters. The project enables safe, comprehensive validation of grid-forming inverter control algorithms without risking physical equipment.
+**Double-click to launch:**
+```
+run.bat
+```
 
-**The Challenge:** Grid-forming inverters must handle extreme fault conditions (voltage sags, frequency deviations, phase imbalances) while maintaining stability. Testing these scenarios on real grids is dangerous and impractical.
+**Or from terminal:**
+```bash
+python run.py
+```
 
-**The Solution:** A HIL testbed where a real inverter interfaces with a simulated electrical environment. This software suite provides the **monitoring, control, and analysis layer** that transforms raw simulation data into actionable insights.
-
-**Project Scope:**
-- **Hardware:** 3-phase inverter with Virtual Synchronous Machine (VSM) control algorithm
-- **Simulation:** Real-time HIL platform (microcontroller-based with UART telemetry)
-- **Software (This Repository):** Professional monitoring, fault injection, and validation suite
-- **Team:** Cyber Engineering (software) + Electrical Engineering (hardware/firmware)
-
-**Why "RedByte"?** The software architecture is derived from [RedByte OS](docs/REDBYTE_HERITAGE.md), a prior project featuring windowing systems and modular app frameworks. This heritage enabled rapid development of a sophisticated multi-app suite.
-
-**→ For full project context, see [docs/PROJECT_OVERVIEW.md](docs/PROJECT_OVERVIEW.md)**
+Launches in demo mode with mock telemetry — no hardware required.
 
 ---
 
-## 🚀 Application Suite
+## Launch Options
 
-A professional-grade solution for verifying Grid-Forming (GFM/VSM) inverter control algorithms on HIL testbeds. Each RedByte app serves a specific purpose:
-
-| App | Theme | Purpose |
-|-----|-------|---------|
-| **Diagnostics** | Emerald `#10b981` | Live signal capture + fault injection |
-| **Replay Studio** | Cyan `#06b6d4` | Timeline playback & waveform review |
-| **Compliance Lab** | Purple `#8b5cf6` | Automated standards testing & scoring |
-| **Insight Studio** | Amber `#f59e0b` | Event clustering & pattern analysis |
-| **Signal Sculptor** | Orange `#f97316` | Live waveform editing & filter design |
+| Command | Mode |
+|---|---|
+| `python run.py` | Demo mode, windowed |
+| `python run.py --fullscreen` | Demo mode, fullscreen |
+| `python run.py --live` | Live hardware mode |
+| `python run.py --no-3d` | Disable 3D (if OpenGL unavailable) |
 
 ---
 
-## ⚡ Quick Start
+## Setup (first time)
 
-### Prerequisites
-
-- Python 3.12 (required for validated runs)
-- Windows (tested on Windows 10/11)
-
-### Python Support Policy
-
-- Supported: Python 3.12
-- Unsupported: Python 3.14 for this repo (local 3.14 env drift and dependency/runtime parity not guaranteed)
-- See [docs/PYTHON_SUPPORT.md](docs/PYTHON_SUPPORT.md) for policy details and rationale.
-
-### Install
-
-```cmd
-git clone https://github.com/swaggyp52/redbyte-hil-suite
-cd redbyte-hil-suite
-python -m venv .venv
-.venv\Scripts\activate
-pip install -e ".[dev]"
-python -m playwright install chromium
-python scripts\preflight_check.py
+```bash
+pip install -e .
 ```
 
-### Launch (Demo Mode, No Hardware)
-
-```cmd
-python src\redbyte_launcher.py --mock
-```
-
-### Launch A Specific App
-
-```cmd
-python src\redbyte_launcher.py --mock --app diagnostics
-python src\redbyte_launcher.py --mock --app replay --load data\demo_sessions\demo_session_baseline.json
-python src\redbyte_launcher.py --mock --app compliance --load data\demo_sessions\demo_session_baseline.json
-```
-
-### Batch Launcher Shortcuts
-
-```cmd
-bin\launch_redbyte.bat
-bin\diagnostics.bat --mock
-bin\replay.bat --load data\demo_sessions\demo_session_baseline.json
-bin\compliance.bat --load data\demo_sessions\demo_session_baseline.json
-```
-
-All launchers support `--mock` (simulated telemetry source) and `--load <path>` (auto-load session JSON).
-
-**→ For detailed workflows, see [docs/QUICK_START_MODULAR.md](docs/QUICK_START_MODULAR.md)**
+Requires Python 3.12. See `docs/FRESH_MACHINE_SETUP.md` for full setup on a new machine.
 
 ---
 
-## ✨ Key Features
+## Demo Walkthrough
 
-### Real-Time Monitoring
-- **Inverter Scope:** 3-phase waveform plotting (25 Hz refresh, FFT/RMS/THD)
-- **Phasor Diagram:** Vector visualization of phase relationships with Hilbert transform
-- **3D System View:** Animated rotor showing VSM virtual angle + power flow visualization
-- **Insights Panel:** Automatic anomaly detection (THD warnings, frequency drift, phase imbalance)
+1. App opens on **Overview** — click **Start Demo Session**
+2. **Console** — single-screen view: live waveforms, phasor diagram, metrics header
+3. Navigate to **Diagnostics** — click **Inject Voltage Sag** — anomaly appears in insights panel
+4. Click **Replay** in the sidebar — session loads automatically, scrub the timeline
+5. Click **Compliance** — run IEEE 2800 checks, see the scorecard fill in
+6. Export HTML report or CSV from the compliance page
 
-### Fault Injection & Validation
-- **Programmable Scenarios:** Voltage sags, frequency deviations, phase outages
-- **Timeline Control:** Schedule faults with precise timing
-- **IEEE 1547 Compliance:** Automated LVRT (Low Voltage Ride-Through) testing
-- **Pass/Fail Scorecard:** RMSE metrics, recovery time measurement
-
-### Analysis & Replay
-- **Timeline Playback:** DVR-like scrubbing through captured sessions
-- **Tag System:** Annotate critical moments for review
-- **Event Clustering:** Group insights by type (Insight Studio)
-- **Session Export/Import:** JSON-based context handoff between apps
-
-### Professional UX
-- **5 Themed Apps:** Per-app color schemes aid cognitive organization
-- **55+ Tooltips:** Comprehensive UI guidance
-- **Keyboard Shortcuts:** Accessible navigation (Ctrl+H for help, Ctrl+Q to quit)
-- **Splash Screen Animation:** Professional startup experience
+Full script: `docs/DEMO_WALKTHROUGH.md`
 
 ---
 
-## 🏗️ Architecture
-
-```
-redbyte_launcher.py (App Selector Card UI)
-    |
-    |-- launch_diagnostics.py --> DiagnosticsWindow(LauncherBase)
-    |     Backends: SerialManager, Recorder, ScenarioController
-    |     hil_core: SessionContext, SignalEngine, FaultEngine, InsightEngine
-    |     Panels:   System3DView, InverterScope, PhasorView, FaultInjector, InsightsPanel
-    |
-    |-- launch_replay.py -------> ReplayWindow(LauncherBase)
-    |     Backends: SerialManager, Recorder
-    |     hil_core: SessionContext
-    |     Panels:   ReplayStudio, PhasorView, InsightsPanel
-    |
-    |-- launch_compliance.py ---> ComplianceWindow(LauncherBase)
-    |     Backends: ScenarioController
-    |     hil_core: SessionContext
-    |     Panels:   ValidationDashboard
-    |
-    |-- launch_insights.py -----> InsightStudioWindow(LauncherBase)
-    |     Backends: (none)
-    |     hil_core: SessionContext, InsightEngine
-    |     Panels:   InsightsPanel
-    |
-    +-- launch_sculptor.py -----> SculptorWindow(LauncherBase)
-          Backends: SerialManager
-          hil_core: SessionContext
-          Panels:   SignalSculptor, InverterScope
-```
-
-### Two-Layer Backend Design
-
-**Layer 1 -- `src/` Backends** (Qt-based, real-time signals)
-
-| Class | Signal | Purpose |
-|-------|--------|---------|
-| `SerialManager` | `frame_received(dict)` | UART telemetry ingestion |
-| `Recorder` | -- | Session recording to disk |
-| `ScenarioController` | `event_triggered(str, dict)` | Fault scenario state machine |
-
-**Layer 2 -- `hil_core/` Engines** (Pure Python, cross-app)
-
-| Class | Purpose |
-|-------|---------|
-| `SessionContext` | Singleton for cross-app state |
-| `SignalEngine` | Circular buffer + FFT/RMS |
-| `FaultEngine` | Fault injection state machine |
-| `InsightEngine` | Event detection + clustering |
-
-### Cross-App Data Flow
-
-```
-Diagnostics --(export_context)--> temp/redbyte_session_replay.json
-                                       |
-                              Replay / Compliance / Insights
-                              (--load flag or toolbar import)
-```
-
-Session context files (`.ctx.json`) bundle waveforms, insights, tags, and scenario metadata into a single portable JSON document. See [docs/context_workflow.md](docs/context_workflow.md) for the full specification.
-
----
-
-## Shared Launcher Base
-
-All 5 launcher windows inherit from `LauncherBase` (`src/launcher_base.py`):
-
-| Feature | Description |
-|---------|-------------|
-| Geometry persistence | Tracks user panel movements across sessions |
-| Overlay notifications | Fade-out overlay messages on context load/export |
-| Help overlay | Conditional first-run tips (`?` toggle) |
-| Status bar | Live metrics (RMS, THD, mode) when serial connected |
-| Tooltips | Per-panel tooltip injection (55+ tooltips) |
-| Context export/import | Toolbar buttons for session bundle file dialogs |
-| CLI arguments | `--mock` and `--load <path>` flags |
-
----
-
-## Demo Sessions
-
-Pre-built demo context files are included in `data/` for quick evaluation:
-
-| File | Scenario | Description |
-|------|----------|-------------|
-| `demo_context_baseline.json` | Normal operation | 3-phase at 120V/60Hz, clean waveforms |
-| `demo_context_fault_sag.json` | Voltage sag fault | 3-phase sag to 40%, THD spike, frequency dip, recovery |
-| `demo_sessions/demo_session_baseline.json` | End-to-end demo pipeline | Canonical v1.2 recording with 300 frames, sag + drift + recovery and insight events |
-
-Load a demo session:
-```cmd
-bin\replay.bat --load data\demo_context_fault_sag.json
-bin\insights.bat --load data\demo_context_fault_sag.json
-python src\redbyte_launcher.py --mock --app compliance --load data\demo_sessions\demo_session_baseline.json
-```
-
----
-
-## System Spec
-
-- **Target Hardware**: 3-Phase Inverter Microcontroller (VSM Firmware)
-- **Telemetry Protocol**: JSON over UART (115200 baud)
-- **Channels**: `ts`, `v_an`, `v_bn`, `v_cn`, `i_a`, `i_b`, `i_c`, `freq`, `p_mech`
-- **Configuration**: [config/system_config.json](config/system_config.json)
-
----
-
-## Testing
-
-```cmd
-python scripts\preflight_check.py
-python -m pytest tests/ -v
-python -m pytest tests\test_playwright_report_ui.py -v
-```
-
-Browser validation tests require both the Python package and Chromium browser binaries:
-
-```cmd
-pip install playwright
-python -m playwright install chromium
-```
-
-Use [docs/FRESH_MACHINE_SETUP.md](docs/FRESH_MACHINE_SETUP.md) for the full first-time setup and validation flow.
-
-Test coverage includes:
-- **Launcher stability** (`verify_launchers.py`) -- All 5 windows instantiate with correct panels and backends
-- **Deep QA** (`test_qa_deep.py`) -- Context corruption handling, theme regression, cross-app round-trip, insight serialization
-- **Serial protocol** (`test_serial_manager.py`) -- Frame parsing and mock mode
-- **HIL core engines** (`test_session_context.py`, `test_signal_engine.py`, etc.)
-
----
-
-## 📚 Documentation
-
-### Getting Started
-| Document | Description |
-|----------|-------------|
-| **[docs/FRESH_MACHINE_SETUP.md](docs/FRESH_MACHINE_SETUP.md)** | ✅ **Step-by-step first-time setup and validation** |
-| **[docs/PYTHON_SUPPORT.md](docs/PYTHON_SUPPORT.md)** | 🧭 **Explicit Python support/compatibility policy** |
-| **[docs/PROJECT_OVERVIEW.md](docs/PROJECT_OVERVIEW.md)** | 🎓 **Senior design project context & scope** |
-| [docs/QUICK_START_MODULAR.md](docs/QUICK_START_MODULAR.md) | User-friendly workflow examples |
-| [docs/index.md](docs/index.md) | Engineering documentation hub |
-
-### Architecture & Design
-| Document | Description |
-|----------|-------------|
-| **[docs/GAP_ANALYSIS.md](docs/GAP_ANALYSIS.md)** | ✨ **Plan vs. reality comparison** |
-| [docs/MODULAR_ARCHITECTURE.md](docs/MODULAR_ARCHITECTURE.md) | 5-app suite design overview |
-| [docs/launcher_architecture.md](docs/launcher_architecture.md) | Launcher class hierarchy & dependency matrix |
-| [docs/REDBYTE_HERITAGE.md](docs/REDBYTE_HERITAGE.md) | Origin story & naming rationale |
-| [docs/architecture.md](docs/architecture.md) | System architecture overview |
-
-### Integration & Deployment
-| Document | Description |
-|----------|-------------|
-| **[docs/HARDWARE_INTEGRATION.md](docs/HARDWARE_INTEGRATION.md)** | 🔌 **Serial protocol, firmware guide, troubleshooting** |
-| [docs/context_workflow.md](docs/context_workflow.md) | Context export/import JSON spec & workflow |
-| [docs/protocol.md](docs/protocol.md) | Command/telemetry protocol |
-| [docs/deployment_notes.md](docs/deployment_notes.md) | Lab machine installation |
-
-### Testing & Validation
-| Document | Description |
-|----------|-------------|
-| [docs/test_plan.md](docs/test_plan.md) | Testing strategy |
-| [docs/UX_CERTIFICATION_REPORT.md](docs/UX_CERTIFICATION_REPORT.md) | End-to-end validation results |
-
-### Presentation & Demo
-| Document | Description |
-|----------|-------------|
-| [docs/demo_script.md](docs/demo_script.md) | Capstone presentation walkthrough |
-| [docs/before_after_comparison.md](docs/before_after_comparison.md) | UX enhancement metrics |
-
----
-
-## Project Structure
+## Project Layout
 
 ```
 gfm_hil_suite/
-  bin/                  Batch launchers (.bat)
-  config/               System configuration
-  data/                 Demo context files & session storage
-  docs/                 Technical documentation
-  src/
-    launcher_base.py    Shared base class for all launchers
-    launchers/          5 modular launcher scripts
-    serial_reader.py    SerialManager backend
-    recorder.py         Recorder backend
-    scenario.py         ScenarioController backend
-  hil_core/
-    session.py          SessionContext singleton
-    signals.py          SignalEngine (FFT/RMS)
-    faults.py           FaultEngine
-    insights.py         InsightEngine + Insight dataclass
-    context.py          ContextExporter
-  ui/
-    panels/             InverterScope, PhasorView, System3DView, etc.
-    app_themes.py       Per-app theme stylesheets
-    shared/             Overlays, tooltips, splash screen
-  tests/                Pytest test suite
+├── run.py              ← entry point
+├── run.bat             ← double-click launcher (Windows)
+├── src/                ← backend: signal processing, compliance, recorder, I/O
+│   └── main.py
+├── ui/                 ← PyQt6 shell and widgets
+│   ├── app_shell.py    ← unified window shell
+│   ├── pages/          ← Overview, Diagnostics, Replay, Compliance, Console, Tools
+│   └── style.py        ← global stylesheet
+├── data/
+│   ├── sessions/       ← recorded sessions (auto-created)
+│   └── demo_sessions/  ← bundled demo sessions
+├── exports/            ← HTML reports, CSV exports (auto-created)
+├── docs/               ← reference docs
+└── tests/              ← pytest suite
 ```
-
----
-
-## Tech Stack
-
-| Component | Technology |
-|-----------|-----------|
-| UI Framework | PyQt6 + pyqtgraph |
-| Signal Processing | NumPy, SciPy (FFT, Hilbert) |
-| Serial Comms | pyserial (JSON/UART) |
-| Data Storage | pandas, JSON context files |
-| Testing | pytest, playwright |
-| Styling | QSS (Qt Style Sheets), glassmorphic design |

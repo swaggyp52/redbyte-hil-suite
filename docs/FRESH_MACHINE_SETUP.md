@@ -39,10 +39,11 @@ Use this checklist on a brand-new machine or a clean clone.
 
 ## 7. Launch app in demo mode
 
-1. `python src\redbyte_launcher.py --mock`
-2. Optional app-specific launch:
-   - `python src\redbyte_launcher.py --mock --app diagnostics`
-   - `python src\redbyte_launcher.py --mock --app replay --load data\demo_sessions\demo_session_baseline.json`
+1. `python run.py`
+2. Optional flags:
+   - `python run.py --fullscreen` (fullscreen demo mode)
+   - `python run.py --no-3d` (disable OpenGL if unavailable)
+   - `python run.py --live` (live hardware mode via serial port)
 
 ## 8. Common recovery actions
 
@@ -57,7 +58,7 @@ Use this checklist on a brand-new machine or a clean clone.
 
 ## Expected closure state
 
-- App launches in mock mode.
+- App launches in demo mode (sidebar visible, Overview page shown).
 - Full pytest run is green.
 - Browser report test runs and passes (not skipped).
 - No ambiguous interpreter behavior.

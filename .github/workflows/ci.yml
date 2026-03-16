@@ -39,4 +39,4 @@ jobs:
         env:
           QT_QPA_PLATFORM: offscreen
           PYTHONWARNINGS: error
-        run: pytest tests/ --tb=short --cov=src --cov-report=term-missing --cov-fail-under=50 -W error
+        run: pytest tests/ --tb=short --cov=src --cov=ui --cov-report=term-missing --cov-fail-under=65

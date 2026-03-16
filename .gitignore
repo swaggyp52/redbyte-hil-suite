@@ -72,4 +72,12 @@ snapshots/
 # Generated local artifacts
 exports/health_audit/*
 !exports/health_audit/.gitkeep
+exports/*.html
+exports/*.png
+exports/*.csv
 temp/*.json
+
+# Runtime data
+data/sessions/
+data/insights_log.json
+config/last_layout.json

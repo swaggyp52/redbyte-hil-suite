@@ -1,313 +1,187 @@
-# 🎬 Complete Demo Walkthrough Guide
+# Demo Walkthrough
 
-**Duration**: 10 minutes  
-**Audience**: Capstone evaluation committee  
-**Goal**: Show professional, reliable, production-grade HIL testing software
+**Duration**: 8–10 minutes
+**Audience**: Capstone evaluation committee
+**Goal**: Show the full HIL monitoring lifecycle — live waveforms, fault detection, replay, and IEEE compliance
 
 ---
 
 ## Pre-Demo Checklist
 
-- [ ] App is running (`python scripts/demo_ui_integration.py`)
-- [ ] Data is available for export (or will generate during demo)
-- [ ] Understand the 5 features (controls, telemetry, CSV, stale detection, recovery)
-- [ ] Have talking points memorized (see below)
-- [ ] Backup plan: Screenshots if live demo fails
+- [ ] App is running: `python run.py`
+- [ ] App opens on **Overview** page (sidebar visible on the left)
+- [ ] Session bar at top shows `■ READY`
+- [ ] No previous sessions left open from prior runs
 
 ---
 
-## Demo Flow (10 minutes)
+## Demo Flow
 
-### **SEGMENT 1: Introduction (1 minute)**
+### SEGMENT 1 — Overview & Launch (1 minute)
+
+**Navigate to:** Overview page (already open at startup)
 
 **Talking Point:**
-> "Welcome. You're looking at the RedByte GFM HIL Verifier Suite - 
-> a professional-grade Hardware-in-the-Loop testing platform for grid-forming 
-> inverters. This is what capstone-quality software looks like.
-> 
-> Let me show you five things that make this reliable and production-ready."
+> "This is the RedByte GFM HIL Suite — a Hardware-in-the-Loop diagnostics platform
+> for grid-forming inverters using a Virtual Synchronous Machine control model.
+> The sidebar on the left gives us six functional areas. Let me start a session."
 
-**Show on screen:**
-- Point to main window title: "HIL Verifier Suite - RedByte PROD"
-- Point to toolbar: Simulation controls, telemetry, export buttons
-- Point to 3D visualization (if available): Live data updating
+**Click: Start Demo Session**
+
+The app:
+- Starts the DemoAdapter (50 Hz synthetic 3-phase telemetry)
+- Begins recording the session automatically
+- Navigates to the **Console** page
 
 ---
 
-### **SEGMENT 2: Live Data & Monitoring (2 minutes)**
+### SEGMENT 2 — Console Overview (2 minutes)
 
-**Click: ▶️ Run Button**
+**You are now on:** Console page
 
 **Talking Point:**
-> "First - let's start a simulation. One click. See the frame rate appear 
-> in the toolbar: 📡 20.5 Hz. That's live telemetry from the inverter.
-> 
-> Every second, this updates. Real-time monitoring is critical because 
-> you need to know instantly if something fails. No guessing."
+> "The Console page is the single-screen overview. Top bar shows live metrics:
+> frequency, RMS voltage, THD, and output power — all updating in real time.
+> Below that: three-phase waveforms on the left, phasor diagram in the centre,
+> and an AI-driven insights panel on the right."
 
-**Show on screen:**
-- Telemetry health label showing frame rate
-- Status label showing "Running" (green)
-- Confirm: **Run button disabled, Pause button enabled**
-- 3D visualization updating (if available)
-
-**Key talking point:**
-> "This frame rate - 20.5 Hz - that's not a dummy value. That's derived 
-> from actual telemetry samples. If we lose connection, this will tell us."
+**Point to:**
+- Header bar: `FREQ 60.02 Hz`, `RMS 120.3 V`, `THD 1.2%`, `P 0.99 kW`
+- Status badge (top right): `✓ STABLE` (green)
+- InverterScope (left): V_abc and I_abc waveforms animating at 25 Hz
+- PhasorView (centre): three phasor vectors rotating
+- InsightsPanel (right): empty or showing baseline info
 
 ---
 
-### **SEGMENT 3: Failure Detection (3 minutes)**
+### SEGMENT 3 — Fault Injection & Anomaly Detection (3 minutes)
+
+**Navigate to:** Diagnostics (click ⚡ in sidebar)
 
 **Talking Point:**
-> "Now for the critical part. In a real lab, you might lose USB connection, 
-> network drop, or device fault. Let me simulate that. Watch the toolbar 
-> carefully. I'm clicking Pause."
+> "The Diagnostics page gives us direct controls. I'll inject a voltage sag now
+> to simulate an under-voltage event — the kind that triggers IEEE 2800 ride-through
+> requirements."
 
-**Click: ⏸ Pause Button**
+**Click: Inject Voltage Sag** (in the FaultInjector panel, bottom-right)
+
+**What happens (watch in real time):**
+- InverterScope: V_abc compresses from ±170 V to ±100 V (60% sag)
+- PhasorView: phasor vectors shorten
+- Health card badge switches from `✓ STABLE` → `✕ FAULT ACTIVE` (red)
+- RMS metric turns red
+- After ~3 seconds: InsightsPanel shows `⚡ Voltage Sag` event cluster
 
 **Talking Point:**
-> "I just paused telemetry. Frame rate freezes. Now we wait 2 seconds..."
+> "The InsightEngine detected the anomaly and classified it automatically —
+> no manual threshold tuning. That cluster will be used for compliance scoring.
+> Let me click Console to see the full picture now."
 
-**[WAIT 2 SECONDS - WATCH FOR WARNING]**
+**Navigate to:** Console (click 📐 in sidebar)
+
+**Show:** Header badge `✕ FAULT ACTIVE`, red RMS chip, InsightsPanel cluster
+
+---
+
+### SEGMENT 4 — Replay (1 minute)
+
+**Navigate to:** Replay (click ⏵ in sidebar)
 
 **Talking Point:**
-> "There! ⚠️ STALE warning appears. Red overlay at the top of the screen.
-> The telemetry health label turns red. Our watchdog detected the failure
-> in under 2 seconds.
+> "Every session is auto-recorded as a Data Capsule — JSON that includes raw frames,
+> computed insights, and event markers. The Replay page loads the current session
+> automatically. We can scrub back to see exactly when the sag occurred."
+
+**Show:**
+- Timeline scrubber with the sag event marker visible
+- Scrub to t ≈ 7 s — waveforms replay the compression
+- Scrub back to beginning — normal waveforms
+
+---
+
+### SEGMENT 5 — IEEE 2800 Compliance (2 minutes)
+
+**Navigate to:** Compliance (click ✓ in sidebar)
+
+**Click: Run Compliance Check**
+
+**What happens:**
+- Three IEEE 2800 rules are evaluated against the recorded session:
+  - **Ride-through 50% sag** — checks minimum voltage during sag event
+  - **Frequency ±0.5 Hz** — checks freq stayed between 59.5–60.5 Hz
+  - **Voltage recovery** — checks no under-voltage persisted after fault cleared
+
+**Show:**
+- All three rows populate with measured values and PASS/FAIL chips
+- Ride-through rule: depends on sag depth — likely FAIL at 60% sag (by design)
+- Frequency rule: PASS
+- Recovery rule: PASS
+
+**Talking Point:**
+> "This is directly tied to IEEE 2800, the standard for interconnection of
+> grid-forming inverters. The compliance engine runs automatically on the
+> captured session data — no manual data entry."
+
+**Click: Export HTML Report** (or Export CSV)
+
+**Show:** Browser opens with the generated compliance report.
+
+---
+
+### SEGMENT 6 — Close (30 seconds)
+
+**Click: Stop (■)** in the session bar
+
+**Talking Point:**
+> "That's the full lifecycle:
 >
-> Why is this important? 
-> 
-> In real testing, you're running 20+ minute sessions. If data silently 
-> stops in minute 5, you don't want to realize it in minute 20. 
-> Our system alerts you immediately.
-> 
-> This is safety. This is professionalism."
-
-**Show on screen:**
-- ⚠️ Red STALE warning overlay visible
-- Telemetry label red: "📡 STALE"
-- Status label showing "Paused" (amber)
-- Confirm: **Pause button disabled, Resume button enabled**
+> 1. Live 3-phase monitoring at 25 Hz
+> 2. AI-driven anomaly detection with 3-second debounce
+> 3. Full session recording and replay
+> 4. Automated IEEE 2800 compliance scoring
+> 5. Export to HTML and CSV
+>
+> All backed by 125+ automated tests and running entirely in software —
+> ready to connect to real inverter hardware when the power stage is complete."
 
 ---
 
-### **SEGMENT 4: Recovery & Resilience (2 minutes)**
+## Backup: Load a Pre-recorded Session
 
-**Talking Point:**
-> "Now let's recover. One click Resume."
+If the live demo has issues, load the bundled baseline session:
 
-**Click: 🔁 Resume Button**
-
-**Talking Point:**
-> "Watch what happens instantly:
-> 
-> - Red warning disappears
-> - Telemetry label returns to green
-> - Frame rate resumes flowing
-> - Status returns to 'Running'
-> 
-> That's graceful recovery. No residual state, no confusion. 
-> The system knows exactly how to recover from a fault and continue testing."
-
-**Show on screen:**
-- Red warning disappears
-- Telemetry returns to green with frame rate
-- Status shows "Running" (green)
-- 3D visualization resumes updating
-- Confirm: **Pause enabled, Resume disabled**
-
-**Key talking point:**
-> "This state machine design isn't accidental. Invalid transitions are 
-> impossible. You can't accidentally break it. That's what production 
-> software requires."
+1. Navigate to **Replay** in the sidebar
+2. Click **Load Session** → open `data/demo_sessions/demo_session_baseline.json`
+3. Navigate to **Compliance** → click **Run Compliance Check**
+4. All rules populate from the pre-recorded data
 
 ---
 
-### **SEGMENT 5: Data Export (2 minutes)**
+## Common Questions
 
-**Talking Point:**
-> "Everything we just tested was recorded. Let's export the data 
-> for your analysis."
+**Q: "What hardware does this connect to?"**
+A: "The software has a serial adapter for USB UART (the Arduino breadboard prototype)
+and an OpalRT TCP adapter stub for full bench hardware. In demo mode, DemoAdapter
+generates synthetic 3-phase VSM telemetry at 50 Hz."
 
-**Click: Dropdown (if showing different formats)**
+**Q: "What is a VSM / grid-forming inverter?"**
+A: "A grid-forming inverter behaves like a virtual synchronous machine — it controls
+voltage and frequency actively, unlike grid-following inverters. This makes it suitable
+for islanded or weak-grid operation. The software monitors the VSM's health metrics."
 
-**Talking Point:**
-> "We have three export formats:
-> 
-> - **Simple CSV**: 8 essential columns - voltage, current, frequency
-> - **Detailed CSV**: All fields from the inverter telemetry
-> - **Analysis CSV**: Computed metrics - RMS values, imbalance, power factors"
+**Q: "How many tests do you have?"**
+A: "125 automated tests covering the DSP pipeline, session recorder, compliance engine,
+and all UI widgets. CI runs on every push across Ubuntu and Windows."
 
-**Select: "Detailed CSV"**
-
-**Click: 📤 Export CSV Button**
-
-**Talking Point:**
-> "One click exports. File dialog opens. Choose location."
-
-**[Complete the export dialog]**
-
-**Talking Point:**
-> "Success message shows statistics:
-> 
-> - 3,245 rows of telemetry data
-> - 24 columns measured
-> - 42.5 seconds of test duration
-> - All with metadata headers explaining each column
-> 
-> This is what professional data export looks like. 
-> You open this file and you immediately understand the structure."
-
-**Show on screen:**
-- Success dialog with export statistics
-- Confirm file was saved
-- (Optional) Open file in text editor to show metadata headers
-
----
-
-### **SEGMENT 6: Close (Final 30 seconds)**
-
-**Click: ⏹ Stop Button** (if wanted, or just summarize)
-
-**Final Talking Point:**
-> "That's the complete lifecycle of professional HIL testing:
-> 
-> 1. **Control**: One-click Start, Pause, Resume, Stop
-> 2. **Monitor**: Real-time frame rate in toolbar
-> 3. **Detect**: Automatic stale data warning after 2 seconds
-> 4. **Recover**: Graceful resume with clean state
-> 5. **Export**: Professional CSV with metadata
-> 
-> Every feature is backed by:
-> - 98 automated tests (0 failures)
-> - State machine preventing invalid operations
-> - Signal/slot architecture for clean code
-> - Production-grade error handling
-> 
-> This is what capstone-quality engineering looks like."
-
----
-
-## Backup Scenarios
-
-### If Live Demo Fails
-
-Have these screenshots ready:
-- Demo with simulation running
-- Pause with stale warning visible
-- CSV export dialog with statistics
-- Test output showing 98 passing tests
-
-### If Evaluators Ask Questions
-
-**Q: "What if I click buttons really fast?"**  
-A: "Impossible to break. State machine prevents invalid transitions. 
-Try it - pause button is disabled when paused, so you can't double-pause."
-
-**Q: "How do you know telemetry is real?"**  
-A: "Frame rate comes directly from telemetry timestamps. Every frame 
-updates the counter. If data stops, frame rate freezes. Try it - Pause 
-and watch the frame rate stop updating."
-
-**Q: "Can this handle real hardware?"**  
-A: "Yes. We have graceful fallback for missing OpenGL, USB errors, 
-network drops - all tested. This is validated with 98 automated tests."
-
-**Q: "Why 2-second timeout?"**  
-A: "Configurable. 2 seconds is typical for HIL systems - fast enough to 
-catch problems but slow enough to tolerate normal network jitter."
-
----
-
-## Key Messages to Emphasize
-
-### ✅ Reliability
-- State machine prevents invalid operations
-- No way to accidentally break it
-- 98 automated tests validate behavior
-
-### ✅ Safety
-- 2-second watchdog detects failures immediately
-- Visual warning is unmistakable
-- Production-grade error handling
-
-### ✅ Professionalism
-- One-click controls (no menus diving)
-- Color-coded status (green/amber/red)
-- Metadata in exports (no ambiguity)
-- Real-time monitoring (no black boxes)
-
-### ✅ Robustness
-- Graceful recovery from pause
-- Clean state management
-- Tested with 98 automated tests
-- Fallback for missing dependencies (OpenGL, etc)
-
----
-
-## Timing Notes
-
-- **Intro**: 1 min (set context)
-- **Run**: 30 sec (show monitoring)
-- **Pause**: 1 min (explain watchdog)
-- **Stale warning appears**: 2 sec (wait, let them see)
-- **Resume**: 1 min (explain recovery)
-- **Export**: 1 min (show data)
-- **Close**: 30 sec (summary)
-
-**Total: ~7 minutes of talking + ~3 minutes of demo interactions = 10 minutes**
+**Q: "What does IEEE 2800 require?"**
+A: "Three key requirements we test: ride-through for a 50% voltage sag for at least
+160 ms, frequency staying within ±0.5 Hz, and voltage recovering within spec
+after a fault clears."
 
 ---
 
 ## What NOT to Do
 
-❌ Don't apologize for anything  
-❌ Don't go into implementation details unless asked  
-❌ Don't click randomly - have a purpose for every click  
-❌ Don't fill silence - let the UI speak for itself  
-❌ Don't try to explain everything - let observations do the work  
-
----
-
-## What TO Do
-
-✅ Use confident body language  
-✅ Point to features as you describe them  
-✅ Let the UI feedback speak ("See the red warning?" not "I coded a warning")  
-✅ Emphasize automation ("One click", "Automatic detection")  
-✅ Connect features to real-world lab needs  
-✅ Answer questions directly with specific examples  
-
----
-
-## Success Criteria
-
-After the demo, evaluators should believe:
-
-1. **This is professional** - Not a school project
-2. **This is reliable** - Won't crash during evaluation
-3. **This is useful** - Actually helps with testing
-4. **This is thorough** - Tested and validated
-5. **This is ready** - Production-grade software
-
----
-
-## Post-Demo Options
-
-If asked, show:
-- GitHub repository with all commits
-- Test suite output (98 passing tests)
-- Documentation (architecture, design decisions)
-- Time breakdown (how you managed scope)
-
----
-
-## Remember
-
-You built professional-grade software. The evaluators *want* to see it succeed. 
-Your job is to **show** them what you built, not **tell** them.
-
-Let the **UI**, **tests**, and **features** do the talking.
-
-Good luck! 🚀
+- Do not open multiple sessions before the demo — close the app and relaunch
+- Do not use `src/redbyte_launcher.py` — that is old architecture, not used
+- Do not navigate to Tools page during the demo — it is a dev-only configuration panel

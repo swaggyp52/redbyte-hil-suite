@@ -30,7 +30,7 @@ class InsightEngine(QObject):
         self._active_fault_ts = None
         self._insights = []
         self._last_emit = {}
-        self._debounce_s = 0.6
+        self._debounce_s = 3.0  # 3s per-type debounce — prevents spam in demo
 
     def update(self, frame):
         ts = frame.get("ts", time.time())
