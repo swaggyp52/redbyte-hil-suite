@@ -6,13 +6,20 @@ Grid-Forming Inverter Hardware-in-the-Loop diagnostics and validation platform.
 
 ## Quick Start
 
-**Double-click to launch:**
+**Windows — double-click to install everything:**
+```
+install.cmd
+```
+
+**Then launch:**
 ```
 run.bat
 ```
 
-**Or from terminal:**
+**Or from terminal (any OS):**
 ```bash
+pip install -e ".[dev]"
+python -m playwright install chromium
 python run.py
 ```
 
@@ -33,11 +40,18 @@ Launches in demo mode with mock telemetry — no hardware required.
 
 ## Setup (first time)
 
-```bash
-pip install -e .
+**Windows (one double-click):**
+```
+install.cmd
 ```
 
-Requires Python 3.12. See `docs/FRESH_MACHINE_SETUP.md` for full setup on a new machine.
+**Any OS (terminal):**
+```bash
+pip install -e ".[dev]"
+python -m playwright install chromium
+```
+
+Requires Python 3.12. See `docs/FRESH_MACHINE_SETUP.md` for detailed steps.
 
 ---
 
@@ -60,6 +74,9 @@ Full script: `docs/DEMO_WALKTHROUGH.md`
 gfm_hil_suite/
 ├── run.py              ← entry point
 ├── run.bat             ← double-click launcher (Windows)
+├── install.cmd         ← one-click full setup (Windows)
+├── Makefile            ← make install / run / test (Unix/Git Bash)
+├── pyproject.toml      ← all dependencies declared here
 ├── src/                ← backend: signal processing, compliance, recorder, I/O
 │   └── main.py
 ├── ui/                 ← PyQt6 shell and widgets
