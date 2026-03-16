@@ -24,7 +24,7 @@ Use this checklist on a brand-new machine or a clean clone.
 ## 4. Install dependencies
 
 1. `python -m pip install --upgrade pip`
-2. `pip install -e ".[dev]"`
+2. `pip install -r requirements.txt`
 3. `python -m playwright install chromium`
 
 ## 5. Run fail-fast preflight

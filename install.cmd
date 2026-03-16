@@ -15,7 +15,7 @@ echo [1/3] Upgrading pip...
 python -m pip install --upgrade pip --quiet
 
 echo [2/3] Installing Python dependencies...
-pip install -e ".[dev]" --quiet
+pip install -r requirements.txt --quiet
 if errorlevel 1 (
     echo [ERROR] pip install failed. Check the error above.
     pause

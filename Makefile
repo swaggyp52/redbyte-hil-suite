@@ -2,7 +2,7 @@
 
 install:
 	pip install --upgrade pip
-	pip install -e ".[dev]"
+	pip install -r requirements.txt
 	python -m playwright install chromium
 	@echo "Done. Run: python run.py"
 

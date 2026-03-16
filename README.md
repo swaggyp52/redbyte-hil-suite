@@ -18,7 +18,7 @@ run.bat
 
 **Or from terminal (any OS):**
 ```bash
-pip install -e ".[dev]"
+pip install -r requirements.txt
 python -m playwright install chromium
 python run.py
 ```
@@ -47,7 +47,7 @@ install.cmd
 
 **Any OS (terminal):**
 ```bash
-pip install -e ".[dev]"
+pip install -r requirements.txt
 python -m playwright install chromium
 ```
 
@@ -76,7 +76,7 @@ gfm_hil_suite/
 ├── run.bat             ← double-click launcher (Windows)
 ├── install.cmd         ← one-click full setup (Windows)
 ├── Makefile            ← make install / run / test (Unix/Git Bash)
-├── pyproject.toml      ← all dependencies declared here
+├── requirements.txt    ← pip install -r requirements.txt
 ├── src/                ← backend: signal processing, compliance, recorder, I/O
 │   └── main.py
 ├── ui/                 ← PyQt6 shell and widgets
