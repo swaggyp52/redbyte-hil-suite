@@ -3,14 +3,14 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "hil-verifier-suite"
+name = "redbyte-gfm"
 version = "1.0.0"
-description = "Specialized 3-Phase Inverter HIL Telemetry Platform"
+description = "Grid-Forming Inverter HIL Diagnostics Suite (Gannon University Senior Design)"
 authors = [
-  { name = "Senior Design Team", email = "team@example.com" },
+  { name = "Connor Angiel" },
 ]
 readme = "README.md"
-requires-python = ">=3.12,<3.13"
+requires-python = ">=3.12"
 dependencies = [
     "PyQt6>=6.4.0",
     "pyqtgraph>=0.13.0",
@@ -53,3 +53,8 @@ filterwarnings = [
     "ignore:datetime\\.datetime\\.utcfromtimestamp\\(\\) is deprecated and scheduled for removal in a future version.*:DeprecationWarning",
     "error",
 ]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*", "ui*"]
+exclude = ["tests*", "*.egg-info"]

@@ -8,7 +8,7 @@ if sys.version_info[:2] != SUPPORTED_PYTHON:
     raise RuntimeError(
         "Unsupported Python version for this test suite: "
         f"{sys.version_info[0]}.{sys.version_info[1]}. "
-        "Use Python 3.12 (see .python-version and docs/PYTHON_SUPPORT.md)."
+        "Use Python 3.12 (see .python-version)."
     )
 
 # Add src to path so tests can import modules

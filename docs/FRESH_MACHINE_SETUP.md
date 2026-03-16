@@ -2,6 +2,9 @@
 
 Use this checklist on a brand-new machine or a clean clone.
 
+> **One-liner option (Windows):** Download the repo, `cd gfm_hil_suite`, then
+> double-click `install.cmd` — it runs steps 3 and 4 for you. Then go straight to step 5.
+
 ## 1. Install prerequisites
 
 1. Install Python 3.12.x from python.org.
