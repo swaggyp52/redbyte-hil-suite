@@ -1,0 +1,206 @@
+"""
+Tests for src/channel_mapping.py
+
+Validates:
+  - auto_suggest_mapping inference rules
+  - ChannelMapper.apply() rename logic
+  - ChannelMapper.apply() conflict handling (two channels → same target)
+  - Profile save/load round-trip
+  - UNMAPPED channels keep original name
+  - No silent fabrication of canonical names for generic inputs
+"""
+import json
+import os
+import tempfile
+
+import numpy as np
+import pytest
+
+from src.channel_mapping import (
+    CANONICAL_SIGNALS,
+    UNMAPPED,
+    ChannelMapper,
+    auto_suggest_mapping,
+    infer_unit_from_header,
+)
+from src.file_ingestion import ImportedDataset
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# auto_suggest_mapping tests
+# ──────────────────────────────────────────────────────────────────────────────
+
+@pytest.mark.parametrize("header,expected_canonical", [
+    # Known aliases
+    ("Van",       "v_an"),
+    ("v_a",       "v_an"),
+    ("ia",        "i_a"),
+    ("Freq",      "freq"),
+    ("Pinv",      "p_mech"),
+    ("pinv",      "p_mech"),
+    ("frequency", "freq"),
+    ("vdc",       "v_dc"),
+    # NO mapping expected for generic oscilloscope channels
+    ("CH1(V)",    UNMAPPED),
+    ("CH2(V)",    UNMAPPED),
+    ("CH3(V)",    UNMAPPED),
+    ("CH4(V)",    UNMAPPED),
+    # NO mapping for totally unknown columns
+    ("MySignal",  UNMAPPED),
+    ("col_1",     UNMAPPED),
+])
+def test_auto_suggest_known_aliases(header, expected_canonical):
+    result = auto_suggest_mapping([header])
+    assert result[header] == expected_canonical, (
+        f"Expected '{header}' → '{expected_canonical}', got '{result[header]}'"
+    )
+
+
+def test_auto_suggest_rigol_headers_are_unmapped():
+    """CH1/CH2/CH3/CH4 from Rigol must NEVER be silently mapped to phase names."""
+    headers = ["Time(s)", "CH1(V)", "CH2(V)", "CH3(V)", "CH4(V)"]
+    mapping = auto_suggest_mapping(headers)
+    for ch in ("CH1(V)", "CH2(V)", "CH3(V)", "CH4(V)"):
+        assert mapping[ch] == UNMAPPED, (
+            f"'{ch}' must not be auto-mapped to a canonical name. "
+            f"Got '{mapping[ch]}'"
+        )
+
+
+def test_auto_suggest_simulation_excel_pinv():
+    headers = ["time", "Pinv"]
+    mapping = auto_suggest_mapping(headers)
+    assert mapping["Pinv"] == "p_mech"
+    # time col: mapped to UNMAPPED (not a canonical signal, it's the time axis)
+    # actually auto_suggest doesn't see time col differently; just checks signal
+    # aliases. 'time' is not in CANONICAL_SIGNALS so it won't map to anything
+    # meaningful for signals — it's not in the alias list for signals.
+    # Verify it's not mapped to a voltage/current/power signal.
+    assert mapping["time"] not in ("v_an", "v_bn", "v_cn", "i_a", "i_b", "i_c")
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# infer_unit_from_header tests
+# ──────────────────────────────────────────────────────────────────────────────
+
+@pytest.mark.parametrize("header,expected_unit", [
+    ("CH1(V)",    "V"),
+    ("Time(s)",   "s"),
+    ("Freq(Hz)",  "Hz"),
+    ("Power(W)",  "W"),
+    ("I_a(A)",    "A"),
+    ("Voltage",   "V"),
+    ("Pinv",      None),  # no unit hint
+])
+def test_infer_unit_from_header(header, expected_unit):
+    assert infer_unit_from_header(header) == expected_unit
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# ChannelMapper.apply() tests
+# ──────────────────────────────────────────────────────────────────────────────
+
+def _make_dataset(channels: dict[str, np.ndarray]) -> ImportedDataset:
+    n = len(next(iter(channels.values())))
+    return ImportedDataset(
+        source_type="rigol_csv",
+        source_path="/fake/test.csv",
+        channels=channels,
+        time=np.linspace(0, 1, n),
+        sample_rate=float(n - 1),
+        duration=1.0,
+        raw_headers=list(channels.keys()),
+    )
+
+
+def test_apply_renames_channel():
+    ds = _make_dataset({"CH1(V)": np.ones(10), "CH2(V)": np.zeros(10)})
+    mapper = ChannelMapper()
+    mapping = {"CH1(V)": "v_an", "CH2(V)": UNMAPPED}
+    result = mapper.apply(ds, mapping)
+
+    assert "v_an" in result.channels
+    assert "CH2(V)" in result.channels   # unmapped → kept as original
+    assert "CH1(V)" not in result.channels
+
+
+def test_apply_keeps_array_values():
+    arr = np.array([1.0, 2.0, 3.0])
+    ds = _make_dataset({"CH1(V)": arr})
+    mapper = ChannelMapper()
+    result = mapper.apply(ds, {"CH1(V)": "v_an"})
+    assert np.array_equal(result.channels["v_an"], arr)
+
+
+def test_apply_conflict_second_channel_keeps_original_name():
+    """Two channels mapped to the same canonical name: first wins, second kept as-is."""
+    ds = _make_dataset({
+        "CH1(V)": np.ones(5),
+        "CH2(V)": np.ones(5) * 2,
+    })
+    mapper = ChannelMapper()
+    mapping = {"CH1(V)": "v_an", "CH2(V)": "v_an"}  # conflict
+    result = mapper.apply(ds, mapping)
+
+    assert "v_an" in result.channels
+    # Second conflicting channel must be kept under original name
+    assert "CH2(V)" in result.channels
+
+
+def test_apply_unmapped_channels_warned():
+    ds = _make_dataset({"CH1(V)": np.ones(5), "CH2(V)": np.ones(5)})
+    mapper = ChannelMapper()
+    mapping = {"CH1(V)": UNMAPPED, "CH2(V)": UNMAPPED}
+    result = mapper.apply(ds, mapping)
+    # A warning should mention unmapped channels
+    assert any("unmapped" in w.lower() for w in result.warnings)
+
+
+def test_apply_preserves_dataset_identity():
+    """apply() must not mutate the original dataset."""
+    original_arr = np.array([1.0, 2.0])
+    ds = _make_dataset({"CH1(V)": original_arr})
+    ds_start_channels = dict(ds.channels)
+    mapper = ChannelMapper()
+    mapper.apply(ds, {"CH1(V)": "v_an"})
+    # Original unchanged
+    assert list(ds.channels.keys()) == list(ds_start_channels.keys())
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Profile persistence tests
+# ──────────────────────────────────────────────────────────────────────────────
+
+def test_profile_save_load_round_trip():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        profiles_path = os.path.join(tmpdir, "channel_mappings.json")
+        mapper = ChannelMapper(profiles_path=profiles_path)
+
+        mapping = {"CH1(V)": "v_an", "CH2(V)": "v_bn", "CH3(V)": UNMAPPED}
+        mapper.save_profile("rigol_3phase", mapping)
+
+        mapper2 = ChannelMapper(profiles_path=profiles_path)
+        loaded = mapper2.load_profile("rigol_3phase")
+
+        assert loaded is not None
+        assert loaded["CH1(V)"] == "v_an"
+        assert loaded["CH2(V)"] == "v_bn"
+        assert loaded["CH3(V)"] == UNMAPPED
+
+
+def test_profile_list_profiles():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        profiles_path = os.path.join(tmpdir, "channel_mappings.json")
+        mapper = ChannelMapper(profiles_path=profiles_path)
+        mapper.save_profile("alpha", {"A": "v_an"})
+        mapper.save_profile("beta", {"B": "v_bn"})
+        names = mapper.list_profiles()
+        assert "alpha" in names
+        assert "beta" in names
+
+
+def test_profile_load_nonexistent_returns_none():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        mapper = ChannelMapper(profiles_path=os.path.join(tmpdir, "cm.json"))
+        result = mapper.load_profile("does_not_exist")
+        assert result is None

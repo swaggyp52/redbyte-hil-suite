@@ -70,6 +70,7 @@ def main():
     QTimer.singleShot(2000, lambda: splash.finish_animation(window))
     window.show()
 
+    # Apply stylesheet AFTER window is shown to avoid rendering artefacts
     app.setStyleSheet(get_global_stylesheet())
 
     sys.exit(app.exec())

@@ -147,33 +147,61 @@ class ReplayStudio(QWidget):
         try:
             with open(fname, 'r') as f:
                 data = json.load(f)
-
-            frames = data.get('frames', [])
-            if not frames:
-                return
-
-            idx = len(self.sessions)
-            colors = self._session_colors[min(idx, len(self._session_colors) - 1)]
             label = os.path.basename(fname).replace('.json', '')
-
-            session = {
-                'data': data,
-                'frames': frames,
-                'label': label,
-                'colors': colors,
-                'is_primary': is_primary,
-                'path': fname,
-            }
-            self.sessions.append(session)
-
-            if is_primary:
-                self.active_session = idx
-
-            self._render_all_sessions()
-            logger.info(f"Loaded session '{label}' with {len(frames)} frames (overlay={not is_primary})")
-
+            self._load_session_from_data(data, label, is_primary, path=fname)
         except Exception as e:
             logger.error(f"Failed to load session: {e}")
+
+    def load_session_from_dict(self, data: dict, label: str = "", is_primary: bool = True):
+        """
+        Load a session from an in-memory Data Capsule dict.
+
+        Called by AppShell after an ImportDialog import.  The dict may contain
+        an extra '_dataset' key with the full-resolution ImportedDataset;
+        this is preserved in the session record for analysis tabs.
+
+        Args:
+            data:       Data Capsule dict (meta + frames + …).
+            label:      Display label for the loaded session.
+            is_primary: True = replaces the primary session.
+        """
+        if is_primary:
+            self._clear_all()
+        if not label:
+            label = data.get("meta", {}).get("session_id", "imported")
+        self._load_session_from_data(data, label, is_primary, path=None)
+
+    def _load_session_from_data(self, data: dict, label: str, is_primary: bool, path=None):
+        """Internal: accept an already-parsed Data Capsule dict."""
+        frames = data.get('frames', [])
+        if not frames:
+            logger.warning("Session '%s' has no frames — nothing to display.", label)
+            return
+
+        # Collect warnings from imported files and show them
+        import_meta = data.get('import_meta', {})
+        for w in import_meta.get('warnings', []):
+            logger.info("[Import warning] %s: %s", label, w)
+
+        idx = len(self.sessions)
+        colors = self._session_colors[min(idx, len(self._session_colors) - 1)]
+
+        session = {
+            'data': data,
+            'frames': frames,
+            'label': label,
+            'colors': colors,
+            'is_primary': is_primary,
+            'path': path,
+            '_dataset': data.get('_dataset'),  # full-res ImportedDataset or None
+        }
+        self.sessions.append(session)
+
+        if is_primary:
+            self.active_session = idx
+
+        self._render_all_sessions()
+        logger.info("Loaded session '%s' with %d frames (overlay=%s)", label, len(frames), not is_primary)
 
     def _render_all_sessions(self):
         """Re-render all loaded sessions on both plots."""
@@ -190,23 +218,60 @@ class ReplayStudio(QWidget):
             colors = session['colors']
             label = session['label']
 
+            if not frames:
+                continue
+
             t0 = frames[0]['ts']
             ts = np.array([f['ts'] - t0 for f in frames])
-
-            # Voltage waveforms
-            v_a = np.array([f.get('v_an', 0) for f in frames])
-            v_b = np.array([f.get('v_bn', 0) for f in frames])
-            v_c = np.array([f.get('v_cn', 0) for f in frames])
 
             suffix = f" ({label})" if len(self.sessions) > 1 else ""
             style = Qt.PenStyle.SolidLine if session['is_primary'] else Qt.PenStyle.DashLine
 
-            self._wave_curves.append(self.plot_wave.plot(ts, v_a, pen=pg.mkPen(colors[0], width=1, style=style), name=f"V_an{suffix}"))
-            self._wave_curves.append(self.plot_wave.plot(ts, v_b, pen=pg.mkPen(colors[1], width=1, style=style), name=f"V_bn{suffix}"))
-            self._wave_curves.append(self.plot_wave.plot(ts, v_c, pen=pg.mkPen(colors[2], width=1, style=style), name=f"V_cn{suffix}"))
+            # ── Detect plottable waveform channels ───────────────────────────
+            # Prefer canonical 3-phase voltage names; fall back to any numeric
+            # channel present (up to 6 channels to avoid clutter).
+            sample_frame = frames[0]
+            canonical_v = [
+                k for k in ('v_an', 'v_bn', 'v_cn') if k in sample_frame
+            ]
+            canonical_i = [
+                k for k in ('i_a', 'i_b', 'i_c') if k in sample_frame
+            ]
+            non_ts_keys = [
+                k for k in sample_frame
+                if k != 'ts' and isinstance(sample_frame[k], (int, float))
+            ]
 
-            # Derived metrics: compute windowed RMS, THD, frequency
-            window = 20  # samples per window
+            if canonical_v:
+                wave_channels = canonical_v
+            elif canonical_i:
+                wave_channels = canonical_i
+            else:
+                # Generic or simulation channels — use up to 6
+                wave_channels = non_ts_keys[:6]
+
+            if not wave_channels:
+                continue
+
+            # ── Build arrays and plot waveforms ──────────────────────────────
+            # Rotate through the session color tuple; wrap if more than 3 channels
+            pen_colors = [colors[i % len(colors)] for i in range(len(wave_channels))]
+
+            for ci, ch in enumerate(wave_channels):
+                arr = np.array([f.get(ch, np.nan) for f in frames])
+                pen = pg.mkPen(pen_colors[ci], width=1, style=style)
+                curve = self.plot_wave.plot(ts, arr, pen=pen, name=f"{ch}{suffix}")
+                self._wave_curves.append(curve)
+
+            # ── Derived metrics ───────────────────────────────────────────────
+            # Only compute RMS/THD/freq when a meaningful voltage channel is present
+            primary_ch = wave_channels[0]
+            primary_arr = np.array([f.get(primary_ch, np.nan) for f in frames])
+
+            # Replace NaN with 0 only for metric windowing (not for raw plot)
+            primary_arr_clean = np.where(np.isnan(primary_arr), 0.0, primary_arr)
+
+            window = 20
             n_windows = len(frames) // window
             if n_windows > 0:
                 metric_ts = []
@@ -217,32 +282,49 @@ class ReplayStudio(QWidget):
                 for w in range(n_windows):
                     start = w * window
                     end = start + window
-                    chunk_v = v_a[start:end]
+                    chunk_v = primary_arr_clean[start:end]
                     chunk_ts = ts[start:end]
 
-                    metric_ts.append(np.mean(chunk_ts))
+                    metric_ts.append(float(np.mean(chunk_ts)))
                     rms_vals.append(compute_rms(chunk_v))
+                    thd_vals.append(compute_thd(chunk_v, time_data=chunk_ts))
 
-                    thd_val = compute_thd(chunk_v, time_data=chunk_ts)
-                    thd_vals.append(thd_val)
+                    # Use 'freq' field if available; otherwise mark 0
+                    freq_slice = [
+                        f.get('freq', None) for f in frames[start:end]
+                    ]
+                    valid_freqs = [x for x in freq_slice if x is not None]
+                    freq_vals.append(float(np.mean(valid_freqs)) if valid_freqs else 0.0)
 
-                    freq_vals.append(np.mean([frames[i].get('freq', 60) for i in range(start, end)]))
-
-                metric_ts = np.array(metric_ts)
+                metric_ts_arr = np.array(metric_ts)
                 self._metric_curves.append(
-                    self.plot_metrics.plot(metric_ts, rms_vals, pen=pg.mkPen('y', width=2, style=style), name=f"RMS(V_a){suffix}")
+                    self.plot_metrics.plot(
+                        metric_ts_arr, rms_vals,
+                        pen=pg.mkPen('y', width=2, style=style),
+                        name=f"RMS({primary_ch}){suffix}",
+                    )
                 )
-                self._metric_curves.append(
-                    self.plot_metrics.plot(metric_ts, thd_vals, pen=pg.mkPen('r', width=2, style=style), name=f"THD(%){suffix}")
-                )
-                self._metric_curves.append(
-                    self.plot_metrics.plot(metric_ts, freq_vals, pen=pg.mkPen('c', width=2, style=style), name=f"Freq(Hz){suffix}")
-                )
+                if any(v > 0 for v in thd_vals):
+                    self._metric_curves.append(
+                        self.plot_metrics.plot(
+                            metric_ts_arr, thd_vals,
+                            pen=pg.mkPen('r', width=2, style=style),
+                            name=f"THD(%){suffix}",
+                        )
+                    )
+                if any(v > 0 for v in freq_vals):
+                    self._metric_curves.append(
+                        self.plot_metrics.plot(
+                            metric_ts_arr, freq_vals,
+                            pen=pg.mkPen('c', width=2, style=style),
+                            name=f"Freq(Hz){suffix}",
+                        )
+                    )
 
-            # Event markers (only for primary)
+            # ── Event markers (primary session only) ─────────────────────────
             if session['is_primary']:
                 self._ts_arr = ts
-                self._render_spectrum(ts, v_a)
+                self._render_spectrum(ts, primary_arr_clean)
                 self._load_tags(session)
                 events = session['data'].get('events', [])
                 for evt in events:
@@ -251,11 +333,30 @@ class ReplayStudio(QWidget):
                     color = 'r' if 'fault' in evt_label.lower() else 'b'
                     line = pg.InfiniteLine(pos=t_evt, angle=90, pen=pg.mkPen(color, style=Qt.PenStyle.DashLine))
                     txt = pg.TextItem(evt_label, color=color, anchor=(0, 1))
-                    txt.setPos(t_evt, np.max(v_a) if len(v_a) else 0)
+                    txt.setPos(t_evt, float(np.nanmax(primary_arr)) if len(primary_arr) else 0)
                     self.plot_wave.addItem(line)
                     self.plot_wave.addItem(txt)
                     self.markers.append(line)
                     self.markers.append(txt)
+
+                # ── Import-source notice ──────────────────────────────────────
+                import_meta = session['data'].get('import_meta', {})
+                if import_meta:
+                    src = import_meta.get('source_type', '')
+                    unmapped = [
+                        k for k, v in import_meta.get('applied_mapping', {}).items()
+                        if v in (None, '__unmapped__', '')
+                    ]
+                    if unmapped:
+                        notice_text = (
+                            f"Source: {src}  ·  "
+                            f"Unmapped channels: {', '.join(unmapped[:4])}"
+                            + (" …" if len(unmapped) > 4 else "")
+                        )
+                        notice = pg.TextItem(notice_text, color='#f59e0b', anchor=(0, 0))
+                        notice.setPos(0, float(np.nanmax(primary_arr)) if len(primary_arr) else 0)
+                        self.plot_wave.addItem(notice)
+                        self.markers.append(notice)
 
         self.play_idx = 0
         self._update_ui(0)

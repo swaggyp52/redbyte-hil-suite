@@ -3,6 +3,7 @@ import logging
 import threading
 from PyQt6.QtCore import QObject, pyqtSignal
 from src.io_adapter import SerialAdapter, DemoAdapter, OpalRTAdapter
+from src.models import normalize_frame
 
 logger = logging.getLogger(__name__)
 
@@ -87,7 +88,12 @@ class SerialManager(QObject):
             if adapter:
                 frame = adapter.read_frame()
                 if frame:
-                    self.frame_received.emit(frame)
+                    # Normalize raw frames from all adapters to canonical keys.
+                    # DemoAdapter already emits canonical keys; SerialAdapter
+                    # and OpalRTAdapter return raw hardware JSON that may use
+                    # non-canonical field names (e.g. t_ms, vdc, p_kw).
+                    normalized = normalize_frame(frame)
+                    self.frame_received.emit(normalized)
                 else:
                     time.sleep(0.001)
             else:

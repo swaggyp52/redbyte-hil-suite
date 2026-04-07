@@ -6,6 +6,7 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QSplitter,
                              QStackedWidget)
 from PyQt6.QtCore import Qt, pyqtSignal
 
+from src.session_state import ActiveSession
 from ui.replay_studio import ReplayStudio
 from ui.insights_panel import InsightsPanel
 
@@ -78,6 +79,34 @@ class ReplayPage(QWidget):
     # ─────────────────────────────────────────────────────────────
     # Public API
     # ─────────────────────────────────────────────────────────────
+
+    def load_imported_session(self, capsule: dict, session: ActiveSession) -> None:
+        """
+        Load an imported dataset capsule into the replay studio.
+
+        This is the clean external entry point for the file-import workflow.
+        Populates the summary bar from the richer ActiveSession metadata
+        (sample rate, source type, warnings) rather than guessing from frames.
+
+        Args:
+            capsule:  Data Capsule dict (from dataset_to_session()).
+            session:  ActiveSession descriptor for the same capsule.
+        """
+        label = session.label
+        self.studio._clear_all()
+        self.studio.load_session_from_dict(capsule, label=label, is_primary=True)
+
+        # Populate insights from the capsule
+        self.insights._clear_insights()
+        for evt in capsule.get("insights", []):
+            self.insights.add_insight(evt)
+
+        # Update summary bar with full import metadata
+        events = len(capsule.get("insights", []))
+        self._summary.update_from_session(session, events)
+        self._top_bar.set_loaded(label)
+        self._summary.setVisible(True)
+        self._stack.setCurrentIndex(1)
 
     def load_session(self, path: str):
         """Load a session by file path. Can be called externally."""
@@ -191,8 +220,8 @@ class _EmptyState(QWidget):
         layout.addWidget(title)
 
         desc = QLabel(
-            "Load a recorded session to view the waveform timeline,\n"
-            "derived metrics, spectrum analysis, and detected events."
+            "Import a run file from the Overview to start analysis,\n"
+            "or load a previously saved session below."
         )
         desc.setObjectName("EmptyDesc")
         desc.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -249,6 +278,27 @@ class _SessionSummaryBar(QFrame):
             self._thd.setStyleSheet(f"color: {color}; font-weight: 700;")
         else:
             self._thd.setText("Peak THD —")
+
+    def update_from_session(self, session: ActiveSession, events: int = 0) -> None:
+        """Populate the summary bar from a richer ActiveSession descriptor."""
+        self._name.setText(
+            f"{session.source_type_display}  ·  {session.source_filename}"
+        )
+        self._frames.setText(f"{session.row_count_display} rows")
+        self._duration.setText(session.duration_display)
+        self._events.setText(f"{events} event{'s' if events != 1 else ''}")
+
+        # Show sample rate instead of peak THD for imported sessions
+        # (THD is computed live during replay, not stored in import_meta)
+        self._thd.setText(f"Rate: {session.sample_rate_display}")
+        self._thd.setStyleSheet("")
+
+        # Warning indicator
+        if session.has_warnings:
+            n = len(session.warnings)
+            tip = "\n".join(session.warnings)
+            self._name.setToolTip(f"{n} warning(s):\n{tip}")
+            self._name.setStyleSheet("color: #f59e0b; font-weight: 600;")
 
 
 class _ReplayTopBar(QWidget):

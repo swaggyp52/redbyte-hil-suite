@@ -15,6 +15,7 @@ from src.recorder import Recorder
 from src.insight_engine import InsightEngine
 from src.simulation_controller import SimulationController
 from src.scenario import ScenarioController
+from src.session_state import ActiveSession
 
 from ui.sidebar import Sidebar
 from ui.session_bar import SessionBar
@@ -52,6 +53,9 @@ class AppShell(QMainWindow):
         self._mock_mode = mock_mode
         self._enable_3d = enable_3d
         self._windowed = windowed
+
+        # The currently active analysis session (imported file or loaded capsule)
+        self._current_session: ActiveSession | None = None
 
         self._init_backends()
         self._build_ui()
@@ -154,12 +158,57 @@ class AppShell(QMainWindow):
         self.sim_ctrl.state_changed.connect(self._console.on_sim_state)
 
         # Overview actions
+        self._overview.import_run_requested.connect(self._open_import_dialog)
+        self._overview.replace_file_requested.connect(self._open_import_dialog)
+        self._overview.clear_session_requested.connect(self._clear_active_session)
         self._overview.start_demo_requested.connect(self._start_demo)
         self._overview.load_session_requested.connect(self._load_session_into_replay)
         self._overview.navigate_to.connect(self._navigate)
 
         # Connection status → overview health indicator
         self.serial_mgr.connection_status.connect(self._on_connection_status)
+
+    # ──────────────────────────────────────────────────────────────
+    # File import workflow
+    # ──────────────────────────────────────────────────────────────
+
+    def _open_import_dialog(self):
+        """Open the Import Run File dialog and wire the result into ReplayStudio."""
+        from ui.import_dialog import ImportDialog
+        dlg = ImportDialog(self)
+        dlg.session_imported.connect(self._on_session_imported)
+        dlg.exec()
+
+    def _on_session_imported(self, capsule: dict):
+        """Receive an imported session capsule and make it the active session."""
+        label = capsule.get("meta", {}).get("session_id", "import")
+        session = ActiveSession.from_capsule(capsule, label=label)
+
+        self._set_active_session(session)
+        self._navigate("replay")
+        self._replay.load_imported_session(capsule, session)
+
+        source = session.source_type_display
+        self.session_bar.set_source(f"Imported: {source}")
+        self._show_toast(f"Imported: {label}", "#10b981")
+        logger.info("Imported session '%s' loaded (%s).", label, source)
+
+    # ──────────────────────────────────────────────────────────────
+    # Active session management
+    # ──────────────────────────────────────────────────────────────
+
+    def _set_active_session(self, session: ActiveSession) -> None:
+        """Store the active session and broadcast to all interested pages."""
+        self._current_session = session
+        self._overview.set_active_session(session)
+        self.session_bar.set_source(session.source_type_display)
+
+    def _clear_active_session(self) -> None:
+        """Clear the active session and reset related UI state."""
+        self._current_session = None
+        self._overview.clear_active_session()
+        self.session_bar.set_source("—")
+        logger.info("Active session cleared.")
 
     # ──────────────────────────────────────────────────────────────
     # Navigation

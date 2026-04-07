@@ -1,9 +1,12 @@
 import os
-import json
 import logging
-from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
-                             QPushButton, QLabel, QFrame, QListWidget, QListWidgetItem)
+from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout,
+                             QPushButton, QLabel, QFrame,
+                             QListWidget, QListWidgetItem)
 from PyQt6.QtCore import pyqtSignal, Qt
+
+from src.session_state import ActiveSession
+from ui.dataset_info_panel import DatasetInfoPanel
 
 logger = logging.getLogger(__name__)
 
@@ -12,74 +15,135 @@ _SESSIONS_DIRS = ["data/sessions", "data/demo_sessions"]
 
 class OverviewPage(QWidget):
     """
-    Landing screen — makes the demo path immediately obvious.
+    Landing screen.
+
+    Primary workflow: Import a real run file — leads directly to analysis.
+    Secondary workflow: Start demo session (explicitly labelled [Demo]).
+
+    When an ActiveSession is present (set via set_active_session()), the panel
+    shows file metadata and channels prominently, and the "Open in Replay"
+    action becomes primary.
 
     Signals:
-      start_demo_requested  — user clicked Start Demo Session
-      load_session_requested(path) — user picked a session file
-      navigate_to(page_key) — navigate to another page
+      import_run_requested        — user clicked Import Run File
+      start_demo_requested        — user clicked Start Demo Session [Demo]
+      load_session_requested(path)— user double-clicked a session file
+      navigate_to(page_key)       — navigate to another page
+      replace_file_requested      — user clicked Replace on the info panel
+      clear_session_requested     — user clicked Clear on the info panel
     """
 
-    start_demo_requested = pyqtSignal()
+    import_run_requested   = pyqtSignal()
+    start_demo_requested   = pyqtSignal()
     load_session_requested = pyqtSignal(str)
-    navigate_to = pyqtSignal(str)
+    navigate_to            = pyqtSignal(str)
+    replace_file_requested = pyqtSignal()
+    clear_session_requested = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
         self._build()
 
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
+
+    def set_active_session(self, session: ActiveSession) -> None:
+        """Show the dataset info panel with metadata for the given session."""
+        self._info_panel.load_session(session)
+        self._info_panel.show()
+        self._no_session_hint.hide()
+
+    def clear_active_session(self) -> None:
+        """Hide the dataset info panel (no session loaded)."""
+        self._info_panel.clear()
+        self._no_session_hint.show()
+
+    def set_health(self, connected: bool, mode: str):
+        self._health.update(connected, mode)
+
+    def refresh(self):
+        self._refresh_sessions()
+
+    # ------------------------------------------------------------------
+    # Construction
+    # ------------------------------------------------------------------
+
     def _build(self):
         root = QVBoxLayout(self)
         root.setContentsMargins(32, 32, 32, 32)
-        root.setSpacing(24)
+        root.setSpacing(20)
 
-        # ── Title ──
+        # ── Title ──────────────────────────────────────────────────────
         title = QLabel("RedByte GFM HIL Suite")
         title.setObjectName("OverviewTitle")
         root.addWidget(title)
 
-        subtitle = QLabel("Grid-Forming Inverter  ·  Hardware-in-the-Loop Diagnostics & Validation")
+        subtitle = QLabel(
+            "Grid-Forming Inverter  ·  Hardware-in-the-Loop Diagnostics & Validation"
+        )
         subtitle.setObjectName("OverviewSubtitle")
         root.addWidget(subtitle)
 
-        # ── System Health ──
+        # ── System health row ──────────────────────────────────────────
         self._health = _HealthRow()
         root.addWidget(self._health)
 
-        # ── Action Cards ──
+        # ── Active session panel (hidden until a session is loaded) ────
+        self._info_panel = DatasetInfoPanel()
+        self._info_panel.replace_requested.connect(self.replace_file_requested)
+        self._info_panel.clear_requested.connect(self.clear_session_requested)
+        self._info_panel.open_replay_requested.connect(
+            lambda: self.navigate_to.emit("replay")
+        )
+        self._info_panel.hide()
+        root.addWidget(self._info_panel)
+
+        # Hint shown when no session is active
+        self._no_session_hint = QLabel(
+            "No dataset loaded  —  import a run file to begin analysis"
+        )
+        self._no_session_hint.setObjectName("NoSessionHint")
+        self._no_session_hint.setStyleSheet(
+            "color:#475569; font-size:13px; padding:4px 0;"
+        )
+        root.addWidget(self._no_session_hint)
+
+        # ── Action Cards ──────────────────────────────────────────────
         cards_row = QWidget()
         cards_layout = QHBoxLayout(cards_row)
         cards_layout.setContentsMargins(0, 0, 0, 0)
         cards_layout.setSpacing(16)
 
-        cards = [
-            ("⚡", "Start Demo Session",
-             "Launch live diagnostics with mock telemetry",
-             "diagnostics", True),
-            ("📂", "Load Session",
-             "Open a saved session for replay or compliance",
-             "replay", False),
+        # Import is always primary — it's the entry point to real work
+        cards_data = [
+            ("📂", "Import Run File",
+             "Load a CSV, Excel, or JSON file and start analysis",
+             None, True),
             ("⏵", "Open Replay",
-             "Browse timeline, metrics, and spectrum",
+             "Browse timeline, metrics, and spectrum of loaded sessions",
              "replay", False),
             ("✓", "Run Compliance",
              "Validate a session against IEEE 2800 checks",
              "compliance", False),
+            ("⚡", "Start Demo Session",
+             "[Demo] Launch diagnostics with simulated telemetry",
+             "diagnostics", False),
         ]
 
-        for icon, label, desc, nav_key, is_primary in cards:
+        for icon, label, desc, nav_key, is_primary in cards_data:
             card = _ActionCard(icon, label, desc, is_primary)
-            if label == "Start Demo Session":
+            if label == "Import Run File":
+                card.clicked.connect(self.import_run_requested)
+            elif label == "Start Demo Session":
                 card.clicked.connect(self.start_demo_requested)
-            elif label == "Load Session":
-                card.clicked.connect(lambda _, k="replay": self.navigate_to.emit(k))
             else:
                 card.clicked.connect(lambda _, k=nav_key: self.navigate_to.emit(k))
             cards_layout.addWidget(card)
 
         root.addWidget(cards_row)
 
-        # ── Recent Sessions ──
+        # ── Recent Sessions ───────────────────────────────────────────
         recent_label = QLabel("Recent Sessions")
         recent_label.setObjectName("SectionLabel")
         root.addWidget(recent_label)
@@ -95,7 +159,6 @@ class OverviewPage(QWidget):
         self._refresh_sessions()
 
     def _refresh_sessions(self):
-        """Populate recent sessions list from known session directories."""
         self._session_list.clear()
         files = []
         for d in _SESSIONS_DIRS:
@@ -119,17 +182,12 @@ class OverviewPage(QWidget):
             self.load_session_requested.emit(path)
             self.navigate_to.emit("replay")
 
-    def set_health(self, connected: bool, mode: str):
-        self._health.update(connected, mode)
-
-    def refresh(self):
-        self._refresh_sessions()
-
 
 class _ActionCard(QFrame):
     clicked = pyqtSignal()
 
-    def __init__(self, icon: str, label: str, desc: str, primary: bool = False, parent=None):
+    def __init__(self, icon: str, label: str, desc: str,
+                 primary: bool = False, parent=None):
         super().__init__(parent)
         self.setObjectName("ActionCardPrimary" if primary else "ActionCard")
         self.setCursor(Qt.CursorShape.PointingHandCursor)
