@@ -25,19 +25,24 @@ Use this checklist on a brand-new machine or a clean clone.
 
 1. `python -m pip install --upgrade pip`
 2. `pip install -r requirements.txt`
-3. `python -m playwright install chromium`
+3. For dev/testing (optional, required to run the test suite):
+   - `pip install -r requirements-dev.txt`
+4. For Excel import support (optional):
+   - `pip install openpyxl` (or included in requirements-dev.txt)
 
-## 5. Run fail-fast preflight
+## 5. Verify import
 
-1. `python scripts\preflight_check.py`
-2. Expected result: all required checks pass.
-3. Optional OpenGL warnings are acceptable if you do not need 3D OpenGL paths.
+1. `python -c "import PyQt6; import pyqtgraph; import numpy; import scipy; print('OK')"`
+2. Expected result: prints `OK` with no errors.
+3. If any import fails, re-run `pip install -r requirements.txt`.
 
 ## 6. Run tests
 
-1. Full suite:
-   - `python -m pytest tests/ -v`
-2. Browser validation specifically:
+1. Full suite (requires requirements-dev.txt installed):
+   - `python -m pytest tests/ --ignore=tests/test_ui_integration.py -q`
+2. Expected: 332 passing, 3 skipped (Excel tests skip automatically if openpyxl absent).
+3. Playwright UI test (requires playwright, separate install):
+   - `pip install playwright && python -m playwright install chromium`
    - `python -m pytest tests\test_playwright_report_ui.py -v`
 
 ## 7. Launch app in demo mode
@@ -52,16 +57,15 @@ Use this checklist on a brand-new machine or a clean clone.
 
 - Wrong Python selected:
   - Recreate venv using `py -3.12 -m venv .venv`
-- Playwright import fails:
-  - `pip install playwright`
-- Browser launch fails:
-  - `python -m playwright install chromium`
+- Missing runtime deps:
+  - `pip install -r requirements.txt`
+- Missing test deps:
+  - `pip install -r requirements-dev.txt`
 - OpenGL import warning:
   - `pip install PyOpenGL PyOpenGL_accelerate`
 
 ## Expected closure state
 
 - App launches in demo mode (sidebar visible, Overview page shown).
-- Full pytest run is green.
-- Browser report test runs and passes (not skipped).
+- Full pytest run shows 332 passing, 3 skipped, 0 failures.
 - No ambiguous interpreter behavior.

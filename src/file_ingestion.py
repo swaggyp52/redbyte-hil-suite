@@ -12,7 +12,7 @@ are made here.  Channel renaming to canonical names is handled separately by
 ChannelMapper (src/channel_mapping.py).
 
 Performance notes:
-  - Rigol CSV files are read via pandas in 100 k-row chunks.
+  - Rigol CSV files are read with stdlib csv in 100 k-row chunks.
   - In-memory sample cap is 2 M rows per channel to guard against OOM.
   - Trailing NaN rows (a common Rigol artifact beyond the trigger window) are
     trimmed and a warning is raised.
@@ -121,7 +121,7 @@ def ingest_file(path: str) -> ImportedDataset:
 
 def _ingest_rigol_csv(path: str) -> ImportedDataset:
     """
-    Parse a Rigol DSO CSV capture.
+    Parse a Rigol DSO CSV capture using only stdlib csv (no pandas required).
 
     Expected layout::
 
@@ -130,9 +130,11 @@ def _ingest_rigol_csv(path: str) -> ImportedDataset:
         ...
 
     Some Rigol firmware versions prepend metadata lines (e.g. ``X,Y,``).
-    This function scans for the actual header row before handing off to pandas.
+    This function scans for the actual header row before reading data.
+    Data is read in chunks of _CHUNK_ROWS rows to bound peak memory use.
+    Bad rows (non-parseable as float) are silently skipped with a warning.
     """
-    import pandas as pd
+    import csv as _csv
 
     warnings: list[str] = []
     meta: dict = {"file_size_bytes": os.path.getsize(path)}
@@ -148,44 +150,76 @@ def _ingest_rigol_csv(path: str) -> ImportedDataset:
             parts = [p.strip() for p in line.split(",")]
             try:
                 float(parts[0])
-                # First parseable cell is numeric → we hit a data row before
-                # a header.  Use previous line as header (or row 0).
+                # First parseable cell is numeric → data started before header.
+                # The previously identified header_row_idx stays.
                 break
             except ValueError:
                 header_row_idx = i
                 break
 
-    # ── Chunked read ─────────────────────────────────────────────────────────
+    # ── Chunked read with stdlib csv ─────────────────────────────────────────
+    columns: Optional[list[str]] = None
+    arrays: dict[str, list] = {}
+    total_rows = 0
+    bad_rows = 0
+
     try:
-        reader = pd.read_csv(
-            path,
-            skiprows=header_row_idx,
-            chunksize=_CHUNK_ROWS,
-            on_bad_lines="warn",
-        )
-        columns: Optional[list[str]] = None
-        arrays: dict[str, list] = {}
-        total_rows = 0
+        with open(path, "r", newline="", errors="replace") as fh:
+            reader = _csv.reader(fh)
+            # Skip preamble rows before the header
+            for _ in range(header_row_idx):
+                next(reader, None)
 
-        for chunk in reader:
-            if total_rows >= _MAX_SAMPLES:
-                warnings.append(
-                    f"File truncated at {_MAX_SAMPLES:,} rows "
-                    f"(sample cap reached; further data not loaded)."
-                )
-                break
-            if columns is None:
-                columns = list(chunk.columns)
-                for col in columns:
-                    arrays[col] = []
+            # Header row
+            header_row = next(reader, None)
+            if header_row is None:
+                raise IngestionError(f"Rigol CSV '{path}' has no header row.")
+            columns = [c.strip() for c in header_row if c.strip()]
+            if not columns:
+                raise IngestionError(f"Rigol CSV '{path}' header is empty.")
             for col in columns:
-                arrays[col].extend(chunk[col].tolist())
-            total_rows += len(chunk)
+                arrays[col] = []
 
+            n_cols = len(columns)
+            chunk_count = 0
+
+            for row in reader:
+                if total_rows >= _MAX_SAMPLES:
+                    warnings.append(
+                        f"File truncated at {_MAX_SAMPLES:,} rows "
+                        f"(sample cap reached; further data not loaded)."
+                    )
+                    break
+
+                # Skip rows that don't have enough columns or contain non-float
+                if len(row) < n_cols:
+                    bad_rows += 1
+                    continue
+                try:
+                    parsed = [float(row[i]) for i in range(n_cols)]
+                except (ValueError, IndexError):
+                    bad_rows += 1
+                    continue
+
+                for i, col in enumerate(columns):
+                    arrays[col].append(parsed[i])
+
+                total_rows += 1
+                chunk_count += 1
+                if chunk_count >= _CHUNK_ROWS:
+                    chunk_count = 0  # just keeps memory from fragmenting badly
+
+    except IngestionError:
+        raise
     except Exception as exc:
         raise IngestionError(
             f"Failed to read Rigol CSV '{path}': {exc}"
         ) from exc
+
+    if bad_rows > 0:
+        warnings.append(
+            f"{bad_rows:,} non-parseable row(s) skipped during CSV read."
+        )
 
     if not columns or total_rows == 0:
         raise IngestionError(

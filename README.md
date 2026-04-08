@@ -19,7 +19,6 @@ run.bat
 **Or from terminal (any OS):**
 ```bash
 pip install -r requirements.txt
-python -m playwright install chromium
 python run.py
 ```
 
@@ -48,7 +47,11 @@ install.cmd
 **Any OS (terminal):**
 ```bash
 pip install -r requirements.txt
-python -m playwright install chromium
+```
+
+For dev/testing (optional):
+```bash
+pip install -r requirements-dev.txt
 ```
 
 Requires Python 3.12. See `docs/FRESH_MACHINE_SETUP.md` for detailed steps.
@@ -96,7 +99,8 @@ gfm_hil_suite/
 ├── run.bat             ← double-click launcher (Windows)
 ├── install.cmd         ← one-click full setup (Windows)
 ├── Makefile            ← make install / run / test (Unix/Git Bash)
-├── requirements.txt    ← pip install -r requirements.txt
+├── requirements.txt    ← runtime deps (pip install -r requirements.txt)
+├── requirements-dev.txt← dev/test deps (pytest, openpyxl, black, mypy)
 ├── src/                ← backend: signal processing, compliance, recorder, I/O
 │   └── main.py
 ├── ui/                 ← PyQt6 shell and widgets
@@ -108,7 +112,7 @@ gfm_hil_suite/
 │   └── demo_sessions/  ← bundled demo sessions
 ├── exports/            ← HTML reports, CSV exports (auto-created)
 ├── docs/               ← reference docs
-└── tests/              ← pytest suite (287 passing)
+└── tests/              ← pytest suite (332 passing)
 ```
 
 ---
@@ -120,8 +124,9 @@ gfm_hil_suite/
 pytest tests/ --ignore=tests/test_ui_integration.py -q
 ```
 
-287 tests passing across signal processing, file ingestion, channel mapping,
+332 tests passing across signal processing, file ingestion, channel mapping,
 event detection, session comparison, and compliance subsystems.
+3 tests intentionally skipped (openpyxl not installed — Excel import tests bypass automatically).
 
 ---
 

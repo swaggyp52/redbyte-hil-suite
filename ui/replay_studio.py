@@ -43,10 +43,6 @@ class ReplayStudio(QWidget):
 
         self.layout = QVBoxLayout(self)
 
-        header = QLabel("Replay Studio — Session Timeline")
-        header.setStyleSheet("font-size: 12pt; font-weight: 700; color: #38bdf8;")
-        self.layout.addWidget(header)
-
         # --- Toolbar ---
         ctrl = QHBoxLayout()
         self.btn_load = QPushButton("Load Session")
@@ -80,8 +76,8 @@ class ReplayStudio(QWidget):
         self.tabs = QTabWidget()
         self.layout.addWidget(self.tabs)
 
-        # Tab 1: Voltage Waveform Timeline
-        self.plot_wave = pg.PlotWidget(title="Voltage Waveforms")
+        # Tab 1: Waveform Timeline (title updated dynamically on load)
+        self.plot_wave = pg.PlotWidget(title="Waveforms")
         self.plot_wave.setBackground('#0b0f14')
         self.plot_wave.showGrid(x=True, y=True, alpha=0.3)
         self.plot_wave.setLabel('left', 'Voltage', units='V')
@@ -231,7 +227,8 @@ class ReplayStudio(QWidget):
 
         self._render_all_sessions()
         self._update_comparison_tab()
-        self._update_event_lane()
+        # Defer event detection so the waveform plots appear immediately.
+        QTimer.singleShot(0, self._update_event_lane)
         logger.info("Loaded session '%s' with %d frames (overlay=%s)", label, len(frames), not is_primary)
 
     def _render_all_sessions(self):
@@ -284,6 +281,15 @@ class ReplayStudio(QWidget):
             if not wave_channels:
                 continue
 
+            # Update waveform tab title to reflect the primary channel type
+            if session['is_primary']:
+                if canonical_v:
+                    self.plot_wave.setTitle("Voltage Waveforms")
+                elif canonical_i:
+                    self.plot_wave.setTitle("Current Waveforms")
+                else:
+                    self.plot_wave.setTitle("Waveforms")
+
             # ── Build arrays and plot waveforms ──────────────────────────────
             # Rotate through the session color tuple; wrap if more than 3 channels
             pen_colors = [colors[i % len(colors)] for i in range(len(wave_channels))]
@@ -302,7 +308,9 @@ class ReplayStudio(QWidget):
             # Replace NaN with 0 only for metric windowing (not for raw plot)
             primary_arr_clean = np.where(np.isnan(primary_arr), 0.0, primary_arr)
 
-            window = 20
+            # Adaptive windowing: cap at 500 windows to avoid large FFT loops
+            # on the main thread for big datasets.
+            window = max(20, len(frames) // 500)
             n_windows = len(frames) // window
             if n_windows > 0:
                 metric_ts = []
@@ -511,6 +519,8 @@ class ReplayStudio(QWidget):
     def _on_wave_click(self, event):
         if not self.sessions or self.active_session is None:
             return
+        if not event.double():
+            return  # Require double-click to add a tag (avoids accidental dialogs)
         mouse_point = self.plot_wave.plotItem.vb.mapSceneToView(event.scenePos())
         t = mouse_point.x()
         tag, ok = QInputDialog.getText(self, "Add Tag", "Tag label:")

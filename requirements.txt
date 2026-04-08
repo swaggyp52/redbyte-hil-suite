@@ -1,19 +1,19 @@
-# Runtime dependencies
+# RedByte GFM HIL Suite — runtime dependencies
+# Install with:  pip install -r requirements.txt
+#
+# Python 3.12 required.
+#
+# Optional extras:
+#   Excel import (.xlsx/.xls):  pip install openpyxl
+#   Dev tooling:                pip install -r requirements-dev.txt
+
 PyQt6>=6.4.0
 pyqtgraph>=0.13.0
 pyserial>=3.5
-pandas>=2.0.0
 numpy>=1.24.0
 scipy>=1.10.0
 matplotlib>=3.8.0
 python-dotenv>=1.0.0
 
-# Test dependencies
-pytest>=7.0.0
-pytest-cov>=4.0.0
-playwright>=1.40.0
-
-# Dev tooling
-black
-isort
-mypy
+# openpyxl — only needed to import .xlsx simulation files
+# openpyxl>=3.1.0
