@@ -9,6 +9,10 @@ import os
 import logging
 import numpy as np
 from src.signal_processing import compute_rms, compute_thd, compute_fft
+from src.event_detector import detect_events
+from src.comparison import dataset_from_capsule
+from ui.comparison_panel import ComparisonPanel
+from ui.event_lane import EventLane
 
 logger = logging.getLogger(__name__)
 
@@ -104,12 +108,21 @@ class ReplayStudio(QWidget):
         self.plot_spectrum.addItem(self._spectrum_label)
         self._spectrum_peaks.sigClicked.connect(self._on_spectrum_click)
 
+        # Tab 4: Comparison
+        self._comparison_tab = ComparisonPanel()
+        self.tabs.addTab(self._comparison_tab, "Compare")
+
+        # Tab 5: Events
+        self._event_lane = EventLane()
+        self.tabs.addTab(self._event_lane, "Events")
+
         # Interactive Scrubber
         self.scrubber = pg.InfiniteLine(pos=0, angle=90, movable=True, pen=pg.mkPen('w', width=2))
         self.scrubber.sigDragged.connect(self._on_scrubber_dragged)
         self.scrubber.sigPositionChangeFinished.connect(self._on_scrubber_release)
         self.plot_wave.addItem(self.scrubber)
         self.plot_wave.scene().sigMouseClicked.connect(self._on_wave_click)
+        self._event_lane.event_selected.connect(self._seek_to_time)
 
         self.markers = []
         self._ts_arr = np.array([])
@@ -201,6 +214,8 @@ class ReplayStudio(QWidget):
             self.active_session = idx
 
         self._render_all_sessions()
+        self._update_comparison_tab()
+        self._update_event_lane()
         logger.info("Loaded session '%s' with %d frames (overlay=%s)", label, len(frames), not is_primary)
 
     def _render_all_sessions(self):
@@ -375,6 +390,42 @@ class ReplayStudio(QWidget):
         self._metric_curves = []
         self._ts_arr = np.array([])
         self.lbl_time.setText("0.00s")
+        self._comparison_tab.clear()
+        self._event_lane.clear()
+
+    def _update_comparison_tab(self) -> None:
+        """Auto-populate the Compare tab when two sessions are available."""
+        if len(self.sessions) >= 2:
+            self._comparison_tab.set_sessions(self.sessions[0], self.sessions[1])
+
+    def _update_event_lane(self) -> None:
+        """Detect events in the primary session and populate the Events tab."""
+        primary = next((s for s in self.sessions if s.get('is_primary')), None)
+        if primary is None:
+            return
+
+        dataset = primary.get('_dataset')
+        if dataset is None:
+            try:
+                dataset = dataset_from_capsule(primary.get('data', {}))
+            except Exception as exc:
+                logger.debug("Event lane: cannot reconstruct dataset: %s", exc)
+                return
+
+        try:
+            events = detect_events(dataset)
+            self._event_lane.load_events(events)
+            logger.info("Event detection: %d events found in '%s'",
+                        len(events), primary.get('label', '?'))
+        except Exception as exc:
+            logger.warning("Event detection failed: %s", exc)
+
+    def _seek_to_time(self, ts: float) -> None:
+        """Seek the waveform scrubber to *ts* seconds and switch to Waveforms tab."""
+        self.scrubber.setValue(ts)
+        self.tabs.setCurrentIndex(0)  # Switch to Waveforms
+        # Trigger the scrubber drag handler to update the UI
+        self._on_scrubber_dragged()
 
     def _clear_markers(self):
         for m in self.markers:

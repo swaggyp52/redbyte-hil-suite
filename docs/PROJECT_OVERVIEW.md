@@ -1,315 +1,274 @@
-# Project Overview: RedByte HIL Verifier Suite
+# Project Overview: RedByte GFM HIL Suite
 
-**Senior Design Capstone Project**  
-**Date:** Academic Year 2025-2026  
-**Team:** Cyber Engineering + Electrical Engineering Collaboration
-
----
-
-## 🎓 What is This Project?
-
-This is a **senior design capstone project** that demonstrates the safe testing of **three-phase power inverters** using Hardware-in-the-Loop (HIL) simulation. The RedByte HIL Verifier Suite is the **software contribution** that transforms raw simulation data into actionable insights.
-
-### The Problem
-
-Modern power grids are transitioning to renewable energy sources (solar, wind), which use **inverters** to convert DC power into AC power compatible with the grid. These **grid-forming inverters** must handle extreme fault conditions:
-
-- **Voltage sags** (sudden drops in voltage during faults)
-- **Frequency deviations** (grid instability)
-- **Phase imbalances** (unequal loading across phases)
-- **Harmonic distortions** (non-sinusoidal waveforms)
-
-Testing these scenarios on **real power grids is dangerous and impractical** - faults could damage equipment or cause blackouts.
-
-### The Solution: Hardware-in-the-Loop (HIL)
-
-HIL simulation creates a **virtual electrical environment** that interfaces with **real inverter hardware**. Instead of connecting to a physical grid, the inverter connects to a simulator that:
-
-1. **Emulates the grid** (voltage sources, loads, impedances)
-2. **Exchanges signals** with the real inverter (voltages, currents, control signals)
-3. **Injects faults safely** (software-controlled disturbances)
-4. **Captures responses** in real-time
-
-This allows engineers to **push the inverter to its limits** without safety risks.
-
-### This Software's Role
-
-The RedByte HIL Verifier Suite provides:
-
-1. **Real-Time Monitoring:** Visualize waveforms, phasors, and 3D rotor dynamics as the simulation runs
-2. **Fault Injection Control:** Program and trigger fault scenarios (voltage sags, frequency drifts, etc.)
-3. **Automated Diagnostics:** AI-powered event detection flags anomalies automatically
-4. **Compliance Validation:** Automated testing against IEEE 1547 grid connection standards
-5. **Timeline Replay:** DVR-like playback of captured sessions for detailed analysis
-
-**In essence:** This software makes HIL testing **accessible, automated, and professional**.
+**Senior Design Capstone Project — Gannon University**
+**Academic Year 2025–2026**
+**Team:** Cyber Engineering + Electrical Engineering
 
 ---
 
-## 🏗️ How HIL Simulation Works
+## What Is This Project?
+
+The **RedByte GFM HIL Suite** is a desktop engineering analysis platform for
+**Grid-Forming Inverters (GFM)** built on the **Virtual Synchronous Machine (VSM)** control model.
+It is the software contribution to a senior design capstone that spans both Cyber Engineering
+(this codebase) and Electrical Engineering (hardware, firmware, control algorithms).
+
+The software is designed to be used in two complementary ways:
+
+1. **Import and analyze captured test data** — load oscilloscope captures (Rigol CSV),
+   simulation output (Excel), or session files (JSON) and run automated power-quality analysis.
+2. **Live monitoring** — connect to a VSM inverter system via UART and watch waveforms,
+   compute metrics, inject faults, and record sessions in real time.
+
+As of April 2026, the import-and-analyze path is fully operational. The live-monitoring path
+works in demo mode (synthetic telemetry). Connecting to the full 3-phase inverter hardware
+is the next integration milestone after the power stage is completed by the EE team.
+
+---
+
+## The Problem This Solves
+
+Grid-forming inverters are a critical enabling technology for renewable energy integration.
+They must respond correctly to grid disturbances — voltage sags, frequency excursions,
+harmonic injection — without tripping offline. Testing this behavior requires:
+
+- Capturing high-bandwidth waveforms during fault events
+- Computing power-quality metrics (RMS, THD, phasors) from raw oscilloscope data
+- Verifying compliance with interconnection standards (IEEE 2800)
+- Comparing measured inverter behavior against simulation predictions
+
+Before this tool existed, that workflow required stitching together oscilloscope software,
+spreadsheets, and manual threshold checks. This suite consolidates it into a single desktop
+application with automated event detection, side-by-side session comparison, and a compliance
+scorecard — no domain expertise required to interpret the results.
+
+---
+
+## Who Is This For?
+
+**Primary audience:** The Gannon EE capstone team, using the suite during hardware-in-the-loop
+testing of the 3-phase VSI prototype.
+
+**Secondary audience:** Any lab engineer analyzing power-quality data from oscilloscope captures
+or simulation runs — the import pipeline handles Rigol DSO CSV files and simulation Excel output.
+
+---
+
+## What Sources Does It Currently Support?
+
+| Source | Format | Status |
+|--------|--------|--------|
+| Rigol oscilloscope captures | `.csv` | Operational |
+| Simulation output | `.xlsx` / `.xls` | Operational |
+| Previously recorded sessions | `.json` (Data Capsule v1.2) | Operational |
+| DemoAdapter (synthetic 3-phase) | in-memory | Operational (demo mode) |
+| Arduino Uno R3 breadboard prototype | UART JSON at 115200 baud | Structurally wired; schema mismatch (DC-bus only, not 3-phase) |
+| Full 3-phase VSI hardware | UART JSON at 115200 baud | Planned — not yet built |
+
+The Arduino prototype sends `t_ms, vdc, freq, p_kw, q_kvar, fault` — a DC-bus summary frame.
+The software translates these fields through `normalize_frame()` in `src/models.py` so they
+appear in the correct canonical slots.  Once the full 3-phase inverter hardware is built, adding
+the expanded telemetry fields requires only alias entries in `normalize_frame()` — no UI changes.
+
+---
+
+## What Analysis Does It Currently Provide?
+
+### File Import Pipeline
+- Auto-detect CSV / Excel / JSON formats; parse and normalize to internal `ImportedDataset`
+- Channel mapping dialog: map source column names to canonical signal names (e.g., `CH1(V) → v_an`)
+- Save and load per-instrument mapping profiles
+
+### Waveform Replay
+- Timeline scrubber over captured sessions
+- Overlaid multi-session comparison (dual-load A vs. B)
+- Delta traces and channel-level statistical comparison
+- FFT spectrum view; metrics tab (RMS, peak, σ, THD per channel)
+
+### Automated Event Detection
+Eight deterministic detectors run over every imported dataset:
+
+| Detector | What it flags | Severity |
+|----------|--------------|----------|
+| Voltage sag | Per-cycle RMS < 90% of nominal | warning / critical |
+| Voltage swell | Per-cycle RMS > 110% of nominal | warning |
+| Frequency excursion | Deviation > 0.5 Hz from 60 Hz for ≥ 100 ms | warning / critical |
+| Flatline | Signal std < 0.1% of range in any 50 ms window | warning |
+| Step change | Single-sample Δ > 8% of total signal range | warning / critical |
+| Clipping / saturation | ≥ 5 ms of samples at signal min or max | warning |
+| Duplicate channel | Pearson r ≥ 0.999 between any channel pair | info |
+| THD spike | FFT-based total harmonic distortion > 10% | warning / critical |
+
+Results appear in the **Events** tab of the Replay Studio with:
+- Severity color-coded rows (critical / warning / info)
+- Engineering summary cards (worst sag depth, max freq deviation, max THD, max flatline duration, confidence range)
+- Click a row → replay scrubber jumps to that timestamp
+- Double-click the Note column → inline annotation (in-memory)
+
+### Compliance Checking
+Simplified IEEE 2800 rule set (3 rules):
+- **Ride-through:** Minimum voltage during any sag event ≥ 50% nominal
+- **Frequency stability:** Frequency stays within ±0.5 Hz of nominal
+- **Voltage recovery:** No sustained under-voltage after a fault clears
+
+Scorecard shows measured value, threshold, and PASS / FAIL for each rule.
+
+### Real-Time Diagnostics (Demo Mode / Hardware Mode)
+- 3-phase waveform scope at 25 Hz
+- Phasor diagram with Hilbert-transform extraction
+- Live metrics header (RMS, THD, frequency, power)
+- Insight engine (3-second debounce, anomaly clustering)
+- Fault injector controls (sag, frequency drift, clear)
+- Session recording → auto-saved Data Capsule JSON
+
+---
+
+## What This Software Does NOT Do (Yet)
+
+| Capability | Status |
+|------------|--------|
+| Real-time 3-phase waveforms from full inverter hardware | Planned — hardware not yet built |
+| Unified pipeline merging live telemetry with import analysis | Planned (Prompt 3) |
+| Large-file background workers (>500k samples) | Planned (Prompt 2) |
+| Persistent annotation storage (survives app restart) | Planned — currently in-memory only |
+| HTML / CSV report export from compliance page | Stubbed |
+| OpalRT / Typhoon HIL adapter | Stub only |
+
+---
+
+## What "Truthful Analysis" Means
+
+**No signal fabrication.** If a channel is absent from the source file, it does not appear in
+the analysis. The software will not invent `v_bn` from `v_an` by applying a 120° shift, will not
+synthesize a time axis from frame indices if the timestamps are unreliable, and will not fill
+missing samples with zeros or averages.
+
+Concretely:
+- Rigol channels `CH1(V)–CH4(V)` are left `[unmapped]` until a human explicitly assigns them.
+- All event detection runs on the actual signal samples in the imported file.
+- The compliance checker evaluates only the measurements present in the session;
+  it does not assume a field is within spec because it was not recorded.
+
+---
+
+## How the Architecture Supports Future Hardware Integration
+
+The entire software stack is insulated from hardware-specific details by a thin
+normalization layer:
 
 ```
-┌─────────────────┐         ┌─────────────────┐
-│  Real Inverter  │ ←──→    │  HIL Simulator  │
-│   Hardware      │ signals │ (Virtual Grid)  │
-└─────────────────┘         └─────────────────┘
-        │                            │
-        └────────────┬───────────────┘
-                     │
-                     ↓
-         ┌───────────────────────┐
-         │  RedByte Suite (This  │
-         │  Software) via UART   │
-         └───────────────────────┘
-                Monitor, Control, Analyze
+Hardware / File → ingest or adapter → normalize_frame() → canonical dict
+                                                              ↓
+                                           All analysis, display, recording
 ```
 
-### Data Flow
+To add a new hardware source (e.g., the completed 3-phase VSI outputting `v_an/v_bn/v_cn`):
+1. Write an `IOAdapter` subclass in `src/io_adapter.py`
+2. Add alias entries to `_KEY_ALIASES` in `src/models.py`
+3. Register the adapter in `AppShell._init_backends()`
 
-1. **HIL Simulator generates signals:** The simulator computes grid voltages, load currents, and frequency based on inverter outputs
-2. **Inverter responds:** The physical inverter's controller adjusts switching to maintain stability
-3. **Telemetry captured:** Signals are sent to PC via UART (JSON format)
-4. **RedByte Suite processes:** Software displays waveforms, calculates metrics (RMS, THD, frequency), and logs events
+No UI changes are needed. The waveform scope, phasor view, event detectors, compliance checker,
+and session recorder all autodiscover available channels from the normalized frame.
 
-### Key Measurements
-
-The software monitors:
-
-- **Phase Voltages (V_an, V_bn, V_cn):** Three-phase voltages (ideally 120° apart, equal magnitude)
-- **Phase Currents (I_a, I_b, I_c):** Current flowing through each phase
-- **Frequency:** Should be 60 Hz nominal (59.5-60.5 Hz acceptable range)
-- **RMS Values:** Root Mean Square voltage/current (effective magnitude)
-- **THD (Total Harmonic Distortion):** Measure of waveform purity (<5% target)
-- **Power Output:** Real power delivered by inverter (Watts)
+See `docs/INGESTION_PIPELINE.md` for step-by-step instructions.
 
 ---
 
-## 🎯 Project Objectives
+## End-to-End Demo Story
 
-### Primary Goals
+The recommended demo flow for the capstone evaluation:
 
-1. **Develop Professional HIL Software:** Build a production-quality monitoring and control suite
-2. **Demonstrate Fault Injection:** Show inverter response to voltage sags, frequency shifts, phase outages
-3. **Validate Compliance:** Automatically test against IEEE 1547 Low Voltage Ride-Through (LVRT) standards
-4. **Enable Post-Test Analysis:** Provide replay and comparison tools for iterative design
+1. **Overview page → Import Run File** — open a Rigol CSV capture from the bench oscilloscope
+2. **Channel mapping dialog** — assign `CH1(V) → v_an`, `CH2(V) → i_a`, etc.
+3. **Replay Studio → Waveforms** — inspect the full capture timeline; scrub to the fault window
+4. **Replay Studio → Events** — automated event detection shows flagged anomalies; click a row to jump
+5. **Replay Studio → Compare** — load a second run (pre-fault baseline) and compare side by side
+6. **Compliance page → Run Compliance Check** — IEEE 2800 scorecard based on the imported data
+7. **Replay Studio → Spectrum** — FFT spectrum of the fault window; THD readout
 
-### Technical Objectives
-
-- **Real-time visualization:** <50ms latency from data capture to display
-- **Modular architecture:** Separate apps for distinct workflows (live monitoring vs. replay vs. compliance)
-- **Automated diagnostics:** Detect anomalies without manual inspection
-- **Cross-platform compatibility:** Works on lab machines and laptops (Windows primary)
-
-### Educational Objectives
-
-This project demonstrates competency in:
-
-- **Systems integration** (hardware + software)
-- **Real-time data processing** (threading, signal processing)
-- **Professional software engineering** (testing, documentation, modularity)
-- **Domain-specific knowledge** (power electronics, grid codes, phasor theory)
+This demo works entirely from file import — no hardware required, no mock data generated by the
+software itself. Every number shown traces back to samples in the file the user selected.
 
 ---
 
-## 🧑‍🤝‍🧑 Team Structure
+## Architecture Summary
 
-### Cyber Engineering (You)
-**Responsibilities:**
-- Software architecture and implementation
-- User interface design (PyQt6)
-- Data visualization (waveforms, phasors, 3D)
-- Automated diagnostics and validation logic
-- Testing and documentation
-
-**Deliverables:**
-- RedByte HIL Verifier Suite (this repository)
-- 5 specialized applications
-- 54 passing tests
-- Comprehensive documentation
-
-### Electrical Engineering (Teammates)
-**Responsibilities:**
-- Inverter hardware design and assembly
-- VSM (Virtual Synchronous Machine) control algorithm
-- HIL simulation model (grid, loads)
-- Firmware for telemetry streaming
-
-**Integration Point:**
-The EE team provides the **UART telemetry stream** that this software consumes. They also define the **fault scenarios** to be tested.
-
----
-
-## 🔬 What Makes This Project Impressive?
-
-### 1. Real-World Application
-This isn't a toy project - HIL testing is used by **Tesla, SolarEdge, ABB, and Siemens** for inverter validation. Grid codes like IEEE 1547 **require** this level of testing before equipment can connect to the grid.
-
-### 2. Technical Complexity
-- **Multi-threaded architecture:** Background threads for serial I/O, UI runs on main thread
-- **Signal processing:** FFT for harmonic analysis, Hilbert transform for phasor extraction
-- **Event-driven design:** Qt signals for decoupled components
-- **3D visualization:** OpenGL rendering of rotor dynamics
-
-### 3. Professional Quality
-- **54 passing tests** with proper mocking and event loop handling
-- **Type hints** throughout codebase
-- **Modular design:** 5 apps sharing common LauncherBase
-- **User experience:** Tooltips, keyboard shortcuts, splash screens, themes
-
-### 4. Exceeds Original Plan
-The initial plan called for 1 monolithic app. The final implementation delivers **5 specialized apps** with cross-app context handoff, automated insight clustering, and timeline-based replay.
+```
+gfm_hil_suite/
+├── run.py                          Entry point → src/main.py → AppShell
+├── src/
+│   ├── io_adapter.py               DemoAdapter (mock), SerialAdapter (UART), OpalRTAdapter (stub)
+│   ├── serial_reader.py            SerialManager threaded frame bus
+│   ├── models.py                   normalize_frame() — single normalization point for all sources
+│   ├── signal_processing.py        RMS, THD (FFT), phasor (Hilbert), step metrics
+│   ├── recorder.py / replayer.py   Session v1.2 "Data Capsule" JSON format
+│   ├── insight_engine.py           Anomaly detection with 3-second debounce
+│   ├── compliance_checker.py       Simplified IEEE 2800 (3 rules)
+│   ├── file_ingestion.py           ImportedDataset — ingest .csv/.xlsx/.json
+│   ├── channel_mapping.py          ChannelMapper, auto_suggest_mapping, UNMAPPED sentinel
+│   ├── dataset_converter.py        dataset_to_session() + decimation + full-res access
+│   ├── session_state.py            ActiveSession dataclass
+│   ├── event_detector.py           DetectedEvent + detect_events() — 8 batch detectors
+│   └── comparison.py               align_datasets, compare_channels, delta traces
+├── ui/
+│   ├── app_shell.py                Unified shell — owns all managers, wires all Qt signals
+│   ├── pages/                      6 pages: Overview, Diagnostics, Replay, Compliance, Tools, Console
+│   ├── replay_studio.py            ReplayStudio — Waveforms, Metrics, Spectrum, Compare, Events tabs
+│   ├── event_lane.py               EventLane widget — event list + stats cards + annotations
+│   ├── comparison_panel.py         ComparisonPanel — dual-session overlay + delta + metrics
+│   ├── dataset_info_panel.py       Source metadata widget with channel summary
+│   ├── inverter_scope.py           25 Hz real-time waveform scope
+│   ├── phasor_view.py              Phasor diagram with Hilbert extraction
+│   └── fault_injector.py           Fault command panel
+└── tests/                          287 passing tests (as of April 2026)
+```
 
 ---
 
-## 📊 System Capabilities
+## Current Test Coverage
 
-### Real-Time Monitoring (Diagnostics App)
-- **Inverter Scope:** 3-phase waveform plotting at 25 Hz refresh rate
-- **Phasor Diagram:** Vector representation of phase relationships
-- **3D System View:** Animated rotor showing VSM virtual angle, power flow visualization
-- **Insights Panel:** Automatic anomaly detection (THD warnings, frequency drift, phase imbalance)
+287 tests passing across all modules (excluding UI integration tests that require a display
+server). Run with:
 
-### Fault Injection
-- **Voltage Sags:** 10-90% magnitude reduction, 0.1-5 second duration
-- **Frequency Deviations:** ±5 Hz steps to test PLL tracking
-- **Phase Outages:** Simulate broken conductor
-- **Harmonic Injection:** Add 5th/7th harmonics (future feature)
+```bash
+cd gfm_hil_suite
+pytest tests/ --ignore=tests/test_ui_integration.py -q
+```
 
-### Compliance Testing (Compliance Lab)
-- **IEEE 1547 LVRT:** Low Voltage Ride-Through validation
-- **Frequency Nadir:** Ensure frequency doesn't drop below 57 Hz
-- **Recovery Time:** Measure step response <5 seconds
-- **Pass/Fail Scorecard:** Automated grading with RMSE metrics
+Key test files:
 
-### Analysis Tools (Replay Studio + Insight Studio)
-- **Timeline Playback:** Scrub through captured sessions, variable speed
-- **Tag System:** Annotate critical moments
-- **Event Clustering:** Group insights by type (THD, frequency, imbalance)
-- **Session Comparison:** Compare two test runs (future feature)
+| File | Covers | Tests |
+|------|--------|-------|
+| `test_event_detector.py` | All 8 detectors, DetectedEvent, graceful degradation | 27 |
+| `test_comparison.py` | align_datasets, delta traces, compare_channels | 34 |
+| `test_file_ingestion.py` | Rigol CSV, Excel, JSON, NaN trimming, no fabrication | ~30 |
+| `test_channel_mapping.py` | auto_suggest, apply(), UNMAPPED invariant, profiles | ~20 |
+| `test_dataset_converter.py` | Decimation, frame content, round-trip, full-res | ~20 |
+| `test_compliance_checker.py` | IEEE 2800 rule evaluation | ~15 |
+| `test_signal_processing.py` | RMS, THD, phasor extraction | ~12 |
 
 ---
 
-## 🚀 Demo Scenarios
+## What Makes This a Strong Senior Design Project
 
-### Scenario 1: Voltage Sag Response
-**Setup:**
-1. Launch Diagnostics in mock mode
-2. System running at 120V RMS, 60 Hz nominal
+1. **It solves a real problem.** The Gannon EE team has actual oscilloscope captures from the
+   breadboard prototype. This tool processes them and produces structured engineering results.
 
-**Execute:**
-1. Open Fault Injector panel
-2. Select "Voltage Sag 50%"
-3. Set duration: 2.0 seconds
-4. Click "Apply Fault"
+2. **The scope is honest.** The project documentation distinguishes clearly between what is
+   implemented, what is wired but not yet usable (live 3-phase hardware), and what comes next.
+   This is more credible to evaluators than inflated claims.
 
-**Observe:**
-- Scope shows voltage drop to 60V
-- Phasor diagram vectors shrink
-- 3D view power flow lines thin out
-- Insights panel logs "Voltage Sag Critical" event
+3. **The architecture is forward-compatible.** Adding full 3-phase hardware requires three
+   targeted changes (one adapter file, a few alias entries, one config line). The rest of the
+   stack is already correct.
 
-**Validation:**
-- Inverter stays connected (doesn't trip)
-- Voltage recovers to 118-122V within 0.5 seconds
-- Scorecard shows "PASS" for IEEE 1547 LVRT
+4. **The analysis is algorithmic and deterministic.** Event detection results can be reproduced
+   exactly from the source file. Every flagged event traces to a specific sample window with a
+   recorded metric and confidence score.
 
-### Scenario 2: Frequency Undershoot
-**Setup:**
-1. Launch Diagnostics with loaded session
-2. Replay previous test run
-
-**Execute:**
-1. Open Replay Studio
-2. Scrub timeline to t=5.2s (frequency nadir event)
-
-**Observe:**
-- Frequency drops to 59.2 Hz (captured in replay)
-- Insights panel highlights "Frequency Undershoot Warning"
-- Rotor animation slows proportionally
-
-**Analysis:**
-- Export insights to JSON
-- Compare with IEEE 1547 threshold (59.5 Hz minimum)
-- Generate HTML report for documentation
+5. **The test coverage matches the complexity.** 287 tests cover the signal processing, ingestion,
+   channel mapping, event detection, session comparison, and compliance subsystems independently.
 
 ---
 
-## 📐 Design Philosophy: Why "RedByte"?
-
-The name "RedByte" comes from a prior project: **RedByte OS**, a React-based windowing system with modular apps (logic gate designer, CPU builder, etc.). That project demonstrated:
-
-- Multi-window management (drag, resize, focus)
-- App registry system (launch, close, state management)
-- Context sharing (global state for cross-app communication)
-
-**For this senior design project:**
-- The **windowing framework** was adapted (PyQt6 instead of React)
-- The **app modularity** concept was preserved (5 specialized apps)
-- The **branding** was retained (RedByte Suite Selector, themed apps)
-
-**Key Insight:** By reusing architectural patterns, development time was slashed by ~40%, allowing focus on domain-specific features (phasor diagrams, fault injection, compliance validation).
-
----
-
-## 🎯 Success Metrics
-
-### Technical Metrics
-- ✅ **54/54 tests passing** - Full test coverage of critical paths
-- ✅ **<50ms latency** - Real-time data pipeline from serial to display
-- ✅ **5 apps operational** - All launchers instantiate without errors
-- ✅ **Zero crash bugs** - Graceful handling of disconnects, invalid data
-
-### User Experience Metrics
-- ✅ **55+ tooltips** - Comprehensive UI guidance
-- ✅ **5 themed apps** - Consistent visual identity per workflow
-- ✅ **Keyboard shortcuts** - Accessible navigation (Ctrl+H for help, Ctrl+Q to quit)
-- ✅ **Splash screen animation** - Professional startup experience
-
-### Academic Metrics
-- ✅ **20+ documentation files** - Markdown docs covering all aspects
-- ✅ **Comprehensive README** - 233 lines with badges, architecture, quick start
-- ✅ **API reference** - Function signatures and module interfaces
-- ✅ **Demo script prepared** - Capstone presentation walkthrough ready
-
----
-
-## 🔗 Quick Links
-
-- **Main README:** [README.md](../README.md)
-- **Architecture Overview:** [MODULAR_ARCHITECTURE.md](MODULAR_ARCHITECTURE.md)
-- **Gap Analysis:** [GAP_ANALYSIS.md](GAP_ANALYSIS.md) - Plan vs. Reality comparison
-- **Quick Start Guide:** [QUICK_START_MODULAR.md](QUICK_START_MODULAR.md)
-- **Capstone Demo Script:** [demo_script.md](demo_script.md)
-- **Test Report:** [../PROJECT_COMPLETE.md](../PROJECT_COMPLETE.md)
-
----
-
-## 💡 Key Takeaways for Evaluators
-
-1. **This is production-quality software** - Not a prototype, but a deployable HIL testing suite
-2. **Exceeds original scope** - 5 apps delivered vs. 1 planned, with advanced features like insight clustering
-3. **Demonstrates systems thinking** - Integration of hardware, simulation, software, and standards compliance
-4. **Professional engineering practices** - Testing, documentation, modularity, version control
-5. **Real-world impact** - Directly applicable to renewable energy industry and grid modernization efforts
-
-**Recommended Evaluation Focus:**
-- Technical complexity (multi-threading, signal processing, Qt architecture)
-- User experience (theme system, tooltips, workflow design)
-- Testing rigor (54 tests, mocking, event loop handling)
-- Documentation quality (20+ markdown files, API references)
-
----
-
-## 📞 Contact & Contribution
-
-This is a senior design capstone project. For questions or collaboration:
-
-- **Repository:** `gfm_hil_suite`
-- **Documentation:** `docs/` directory
-- **Tests:** `tests/` directory (run with `python -m pytest tests/ -v`)
-
-**Project Status:** ✅ **COMPLETE** - Ready for capstone demonstration and deployment
-
----
-
-*Last Updated: February 1, 2026*
+*Last Updated: April 2026*

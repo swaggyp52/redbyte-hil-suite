@@ -55,14 +55,34 @@ Requires Python 3.12. See `docs/FRESH_MACHINE_SETUP.md` for detailed steps.
 
 ---
 
+## Capabilities
+
+- **Import & analyze** Rigol oscilloscope captures (CSV), simulation output (Excel), or saved sessions (JSON)
+- **Automated event detection** — 8 deterministic detectors: voltage sag/swell, frequency excursion, flatline, step change, clipping, duplicate channels, THD spike
+- **Engineering summary cards** — worst sag depth, max freq deviation, max THD, max flatline duration per session
+- **Jump-to-event replay** — click any detected event to seek the waveform scrubber to that timestamp
+- **Inline annotations** — double-click any event row to add a note
+- **Session comparison** — dual-load overlay with delta traces and per-channel statistics
+- **IEEE 2800 compliance scorecard** — automated ride-through, frequency stability, and recovery checks
+- **Live demo mode** — synthetic 3-phase VSM telemetry for presentations without hardware
+
+---
+
 ## Demo Walkthrough
 
-1. App opens on **Overview** — click **Start Demo Session**
-2. **Console** — single-screen view: live waveforms, phasor diagram, metrics header
-3. Navigate to **Diagnostics** — click **Inject Voltage Sag** — anomaly appears in insights panel
-4. Click **Replay** in the sidebar — session loads automatically, scrub the timeline
-5. Click **Compliance** — run IEEE 2800 checks, see the scorecard fill in
-6. Export HTML report or CSV from the compliance page
+**Import-first (recommended — uses real data):**
+1. App opens on **Overview** — click **Import Run File**
+2. Select a CSV/Excel/JSON file; assign channel mappings in the dialog
+3. **Replay → Waveforms** — scrub the full capture timeline
+4. **Replay → Events** — automated event detection; click any row to jump to that moment
+5. **Replay → Compare** — load a second session for side-by-side comparison
+6. **Compliance** — run IEEE 2800 checks against the imported data
+
+**Demo mode (no file needed):**
+1. **Overview → Start Demo Session** (labeled [Demo])
+2. **Diagnostics → Inject Voltage Sag** — anomaly appears in insights panel
+3. **Replay → Waveforms** — scrub the recorded fault window
+4. **Compliance → Run Compliance Check**
 
 Full script: `docs/DEMO_WALKTHROUGH.md`
 
@@ -88,5 +108,30 @@ gfm_hil_suite/
 │   └── demo_sessions/  ← bundled demo sessions
 ├── exports/            ← HTML reports, CSV exports (auto-created)
 ├── docs/               ← reference docs
-└── tests/              ← pytest suite
+└── tests/              ← pytest suite (287 passing)
 ```
+
+---
+
+## Tests
+
+```bash
+# Run all tests (display server not required)
+pytest tests/ --ignore=tests/test_ui_integration.py -q
+```
+
+287 tests passing across signal processing, file ingestion, channel mapping,
+event detection, session comparison, and compliance subsystems.
+
+---
+
+## Reference Docs
+
+| Doc | Contents |
+|-----|---------|
+| `docs/PROJECT_OVERVIEW.md` | What this is, capabilities, architecture summary |
+| `docs/architecture.md` | Module layout, data flow diagrams, key invariants |
+| `docs/DEMO_WALKTHROUGH.md` | 10-minute capstone demo script |
+| `docs/INGESTION_PIPELINE.md` | Import pipeline, data format assumptions, adding new hardware |
+| `docs/HARDWARE_INTEGRATION.md` | Serial protocol, firmware requirements, troubleshooting |
+| `docs/FRESH_MACHINE_SETUP.md` | First-time install steps |
