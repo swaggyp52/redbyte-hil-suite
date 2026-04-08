@@ -30,7 +30,7 @@ python run.py
 
 Or on Windows, double-click **`run.bat`**.
 
-The app opens in **demo mode** — no hardware required.
+The app opens on **Overview** (import-first) — no hardware required.
 
 ---
 
@@ -103,6 +103,7 @@ pytest tests/ --ignore=tests/test_ui_integration.py -q
 | Flag | Effect |
 |------|--------|
 | `--fullscreen` | Full-screen window |
+| `--demo` | Demo telemetry mode (synthetic data) |
 | `--live` | Hardware mode (auto-detect port) |
 | `--live --port COM5` | Hardware mode on explicit port |
 | `--no-3d` | Disable OpenGL (use if display errors occur) |

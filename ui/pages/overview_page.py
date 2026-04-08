@@ -80,7 +80,7 @@ class OverviewPage(QWidget):
         root.addWidget(title)
 
         subtitle = QLabel(
-            "Grid-Forming Inverter  ·  Engineering Analysis for Power Quality & Inverter Behavior"
+            "Real-data-first analysis for Grid-Forming Inverter waveforms, events, and compliance"
         )
         subtitle.setObjectName("OverviewSubtitle")
         root.addWidget(subtitle)
@@ -104,7 +104,9 @@ class OverviewPage(QWidget):
         self._no_session_hint = QLabel(
             "No dataset loaded.\n"
             "Import a run file to start — or drag and drop a file anywhere on this window.\n"
-            "Supported: CSV (oscilloscope/telemetry), XLSX (simulation), JSON (saved session)."
+            "Supported: CSV (oscilloscope/telemetry), XLSX (simulation), JSON (saved session).\n"
+            "Truthful analysis: raw source data is preserved, missing channels are never fabricated, "
+            "and unsupported files are rejected with clear guidance."
         )
         self._no_session_hint.setObjectName("NoSessionHint")
         self._no_session_hint.setStyleSheet(

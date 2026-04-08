@@ -202,11 +202,10 @@ class AppShell(QMainWindow):
 
     def dragEnterEvent(self, event):
         if event.mimeData().hasUrls():
-            for url in event.mimeData().urls():
-                ext = os.path.splitext(url.toLocalFile())[1].lower()
-                if ext in self._SUPPORTED_EXTS:
-                    event.acceptProposedAction()
-                    return
+            # Accept all file drags so unsupported drops receive a clear
+            # in-app explanation instead of being ignored by Qt.
+            event.acceptProposedAction()
+            return
         event.ignore()
 
     def dropEvent(self, event):

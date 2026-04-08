@@ -22,7 +22,8 @@ pip install -r requirements.txt
 python run.py
 ```
 
-Launches in demo mode with mock telemetry — no hardware required.
+Launches to the Overview page (real-data-first) so you can import a run immediately.
+Demo telemetry remains available and clearly labeled from Overview.
 
 ---
 
@@ -30,8 +31,9 @@ Launches in demo mode with mock telemetry — no hardware required.
 
 | Command | Mode |
 |---|---|
-| `python run.py` | Demo mode, windowed |
-| `python run.py --fullscreen` | Demo mode, fullscreen |
+| `python run.py` | Overview-first launch, windowed |
+| `python run.py --demo` | Demo telemetry mode, windowed |
+| `python run.py --demo --fullscreen` | Demo telemetry mode, fullscreen |
 | `python run.py --live` | Live hardware mode (auto-detect serial port) |
 | `python run.py --live --port COM5` | Live hardware on specific port (e.g. COM5) |
 | `python run.py --no-3d` | Disable 3D (if OpenGL unavailable) |

@@ -3,8 +3,9 @@
 RedByte GFM HIL Suite — entry point.
 
 Usage:
-    python run.py              # launch (windowed, demo mode)
-    python run.py --fullscreen # fullscreen demo
+    python run.py              # launch (windowed, overview/import-first)
+    python run.py --demo       # demo telemetry mode (windowed)
+    python run.py --demo --fullscreen # fullscreen demo
     python run.py --live       # live hardware mode (reads port from system_config.json)
     python run.py --live --port COM5  # live hardware on explicit port
     python run.py --no-3d      # disable 3D view if OpenGL unavailable
@@ -17,23 +18,30 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from src.main import main
 
-if __name__ == "__main__":
-    # Default: demo mode + windowed (safe for any machine)
-    # Override by passing explicit args
-    defaults = ["--demo", "--windowed"]
-    if "--fullscreen" in sys.argv:
-        sys.argv.remove("--fullscreen")
-        defaults = ["--demo"]
-    if "--live" in sys.argv:
-        sys.argv.remove("--live")
-        defaults = ["--windowed"]
-    if "--no-3d" in sys.argv:
-        defaults.append("--no-3d")
-        sys.argv.remove("--no-3d")
 
-    # Inject defaults only if no conflicting args present
+def resolve_startup_args(argv: list[str]) -> list[str]:
+    """Normalize convenience flags into args accepted by src.main."""
+    resolved = list(argv)
+
+    # Product default: open windowed on Overview so the first action is
+    # real-data import. Demo mode is opt-in via --demo.
+    defaults = ["--windowed"]
+
+    # Back-compat convenience flag: main parser does not expose --live,
+    # but users may pass it to mean "not demo; use configured/explicit port".
+    if "--live" in resolved:
+        resolved.remove("--live")
+
+    if "--fullscreen" in resolved:
+        resolved.remove("--fullscreen")
+        defaults = []
+
     for d in defaults:
-        if d not in sys.argv:
-            sys.argv.append(d)
+        if d not in resolved:
+            resolved.append(d)
 
+    return resolved
+
+if __name__ == "__main__":
+    sys.argv = resolve_startup_args(sys.argv)
     main()

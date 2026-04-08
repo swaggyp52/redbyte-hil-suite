@@ -15,7 +15,7 @@ echo [1/2] Upgrading pip...
 python -m pip install --upgrade pip --quiet
 
 echo [2/2] Installing Python dependencies (including openpyxl for Excel import)...
-pip install -r requirements.txt --quiet
+python -m pip install -r requirements.txt --quiet
 if errorlevel 1 (
     echo [ERROR] pip install failed. Check the error above.
     pause

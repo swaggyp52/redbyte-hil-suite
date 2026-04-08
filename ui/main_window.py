@@ -798,6 +798,18 @@ class MainWindow(QMainWindow):
         self.last_auto_pin_time[title] = current_time
         logger.debug(f"Auto-pinned {title} to {position}")
 
+    def closeEvent(self, event):
+        """Ensure background loops are stopped before Qt teardown."""
+        try:
+            self.sim_ctrl.stop()
+            self.telemetry_sim.stop()
+            if hasattr(self.telemetry_watchdog, "timer"):
+                self.telemetry_watchdog.timer.stop()
+            self.serial_mgr.stop()
+        except Exception as exc:
+            logger.debug("MainWindow cleanup warning: %s", exc)
+        super().closeEvent(event)
+
     def _capture_scene(self, event_type="snapshot", event_name="scene"):
         """Capture scene snapshots with rich auto-annotations"""
         os.makedirs("snapshots", exist_ok=True)

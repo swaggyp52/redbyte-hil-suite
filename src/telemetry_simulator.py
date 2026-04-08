@@ -69,9 +69,17 @@ class TelemetrySimulator(QObject):
     
     def stop(self):
         """Stop frame generation"""
+        was_running = self.running
         self.running = False
         self.paused = False
-        logger.info("Telemetry simulation stopped")
+
+        thread = self.thread
+        if thread and thread.is_alive() and thread is not threading.current_thread():
+            thread.join(timeout=0.5)
+
+        self.thread = None
+        if was_running:
+            logger.info("Telemetry simulation stopped")
     
     def _simulate_loop(self):
         """Main simulation loop - generates frames at 20 Hz"""
