@@ -23,9 +23,14 @@ python run.py
 ```
 
 Run commands from the repository root (`gfm_hil_suite/`).
-If multiple Python installations exist, prefer the repo-local interpreter:
+If multiple Python installations exist, prefer the repo-local interpreter.
+Windows:
 ```powershell
 .\.venv\Scripts\python.exe run.py
+```
+macOS/Linux:
+```bash
+.venv/bin/python run.py
 ```
 
 Launches to the Overview page (real-data-first) so you can import a run immediately.

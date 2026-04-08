@@ -122,7 +122,7 @@ def test_drop_unsupported_file_shows_clear_guidance(qapp, monkeypatch):
 def test_supported_import_reaches_replay_with_events_compare_and_export(qapp):
     shell = AppShell(demo_mode=False, mock_mode=False, enable_3d=False, windowed=True)
 
-    dataset = ingest_file("data/sessions/session_20260311_110824.json")
+    dataset = ingest_file("data/demo_sessions/session_nominal.json")
     capsule = dataset_to_session(dataset)
     capsule["_dataset"] = dataset
 
