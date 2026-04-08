@@ -178,22 +178,24 @@ class ComparisonPanel(QWidget):
         # ── Empty state guidance (shown until both sessions loaded) ──
         self._empty_hint = QLabel(
             "Load a session in the Replay tab, then click <b>Add Overlay</b> "
-            "to load a second session.\n\n"
+            "to load a second session.<br><br>"
             "Once both datasets (A and B) are loaded, use <b>Auto-Align</b> to "
             "time-synchronise them and <b>Compare</b> to see overlay and delta plots."
         )
         self._empty_hint.setWordWrap(True)
         self._empty_hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._empty_hint.setStyleSheet(
-            "color: #64748b; font-size: 11px; padding: 32px 24px; "
-            "background: rgba(15,17,21,180); border: 1px dashed #1e293b; "
+            "color: #64748b; font-size: 9pt; padding: 32px 24px; "
+            "background: rgba(15,17,21,180); border: 1px dashed rgba(31,41,55,180); "
             "border-radius: 10px;"
         )
         root.addWidget(self._empty_hint)
 
         # ── Confidence label (shown after auto-align) ─────────────
         self._align_info = QLabel("")
-        self._align_info.setStyleSheet("color: #94a3b8; font-size: 10px;")
+        self._align_info.setStyleSheet(
+            "color: #94a3b8; font-size: 9pt; font-weight: 600; padding: 2px 4px;"
+        )
         root.addWidget(self._align_info)
 
         # ── Splitter: overlay + delta plots ──────────────────────
@@ -223,8 +225,8 @@ class ComparisonPanel(QWidget):
         root.addWidget(sep)
 
         metrics_scroll = QScrollArea()
-        metrics_scroll.setFixedHeight(70)
-        metrics_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
+        metrics_scroll.setFixedHeight(80)
+        metrics_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         metrics_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         metrics_scroll.setWidgetResizable(True)
         self._metrics_inner = QWidget()
@@ -272,7 +274,9 @@ class ComparisonPanel(QWidget):
 
         conf_pct = int(confidence * 100)
         colour = "#10b981" if confidence > 0.7 else "#f59e0b" if confidence > 0.4 else "#ef4444"
-        self._align_info.setStyleSheet(f"color: {colour}; font-size: 10px;")
+        self._align_info.setStyleSheet(
+            f"color: {colour}; font-size: 9pt; font-weight: 600; padding: 2px 4px;"
+        )
         self._align_info.setText(
             f"Auto-align on '{channel}': offset {offset_s*1000:.1f} ms  "
             f"(confidence {conf_pct}%)"
@@ -300,7 +304,7 @@ class ComparisonPanel(QWidget):
         if candidates:
             dup_warn = detect_duplicate_datasets(ds_a, ds_b, channel=candidates[0])
             if dup_warn:
-                self._align_info.setStyleSheet("color: #f59e0b; font-size: 10px;")
+                self._align_info.setStyleSheet("color: #f59e0b; font-size: 9pt; font-weight: 600; padding: 2px 4px;")
                 self._align_info.setText(f"\u26a0 {dup_warn}")
 
         result = compare_datasets(
@@ -376,15 +380,12 @@ class ComparisonPanel(QWidget):
     def _add_metric_chip(self, channel: str, r) -> None:
         chip = QFrame()
         chip.setObjectName("MetricChip")
-        chip.setStyleSheet(
-            "QFrame#MetricChip { background: #1e293b; border-radius: 6px; padding: 4px; }"
-        )
         v = QVBoxLayout(chip)
         v.setContentsMargins(8, 4, 8, 4)
         v.setSpacing(2)
 
         title = QLabel(channel)
-        title.setStyleSheet("font-weight: 700; color: #e2e8f0; font-size: 10px;")
+        title.setStyleSheet("font-weight: 700; color: #e2e8f0; font-size: 9pt;")
 
         corr_val = r.correlation
         corr_txt = f"{corr_val:.3f}" if corr_val == corr_val else "N/A"  # NaN check
@@ -393,7 +394,7 @@ class ComparisonPanel(QWidget):
         body = QLabel(
             f"RMS: {rms_txt}  |  Peak: {r.peak_abs_error:.4f}  |  r={corr_txt}"
         )
-        body.setStyleSheet("color: #94a3b8; font-size: 9px;")
+        body.setStyleSheet("color: #94a3b8; font-size: 8pt; font-family: 'JetBrains Mono', 'Consolas', monospace;")
 
         v.addWidget(title)
         v.addWidget(body)
@@ -405,7 +406,7 @@ class ComparisonPanel(QWidget):
     def _add_skip_chip(self, channel: str) -> None:
         chip = QLabel(f"⊘ {channel}")
         chip.setStyleSheet(
-            "background: #292524; color: #78716c; border-radius: 4px; padding: 4px 8px; font-size: 9px;"
+            "background: #292524; color: #78716c; border-radius: 4px; padding: 4px 8px; font-size: 8pt;"
         )
         count = self._metrics_layout.count()
         self._metrics_layout.insertWidget(count - 1, chip)

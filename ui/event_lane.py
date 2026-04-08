@@ -183,7 +183,7 @@ class EventLane(QWidget):
         self._summary_bar.setSpacing(8)
 
         self._lbl_total = QLabel("No events detected")
-        self._lbl_total.setStyleSheet("color: #94a3b8; font-size: 11px;")
+        self._lbl_total.setStyleSheet("color: #94a3b8; font-size: 9pt; font-weight: 600;")
 
         self._badge_critical = self._make_badge("critical")
         self._badge_warning  = self._make_badge("warning")
@@ -196,12 +196,11 @@ class EventLane(QWidget):
         root.addLayout(self._summary_bar)
 
         # ── Filter bar ────────────────────────────────────────────────
-        filter_row = QHBoxLayout()
-        filter_row.setSpacing(8)
-
-        filter_label = QLabel("Filter:")
-        filter_label.setStyleSheet("color: #64748b; font-size: 10px;")
-        filter_row.addWidget(filter_label)
+        filter_bar = QFrame()
+        filter_bar.setObjectName("EventFilterBar")
+        filter_row = QHBoxLayout(filter_bar)
+        filter_row.setContentsMargins(8, 4, 8, 4)
+        filter_row.setSpacing(10)
 
         self._sev_combo = QComboBox()
         self._sev_combo.addItems(["All Severities", "Critical", "Warning", "Info"])
@@ -216,27 +215,24 @@ class EventLane(QWidget):
         filter_row.addWidget(self._kind_combo)
 
         self._chk_hide_info = QCheckBox("Hide info-level")
-        self._chk_hide_info.setStyleSheet("color: #94a3b8; font-size: 10px;")
         self._chk_hide_info.toggled.connect(lambda _: self._refresh())
         filter_row.addWidget(self._chk_hide_info)
 
         filter_row.addStretch()
 
         self._lbl_showing = QLabel("")
-        self._lbl_showing.setStyleSheet("color: #475569; font-size: 10px;")
+        self._lbl_showing.setStyleSheet("color: #475569; font-size: 9pt;")
         filter_row.addWidget(self._lbl_showing)
 
-        root.addLayout(filter_row)
+        root.addWidget(filter_bar)
 
         # ── Engineering stats cards ───────────────────────────────────
         self._stats_frame = QFrame()
-        self._stats_frame.setStyleSheet(
-            "QFrame { background: #0d1117; border: 1px solid #1e293b; border-radius: 4px; }"
-        )
+        self._stats_frame.setObjectName("EventStatsFrame")
         stats_grid = QGridLayout(self._stats_frame)
-        stats_grid.setContentsMargins(8, 6, 8, 6)
-        stats_grid.setHorizontalSpacing(16)
-        stats_grid.setVerticalSpacing(4)
+        stats_grid.setContentsMargins(10, 8, 10, 8)
+        stats_grid.setHorizontalSpacing(20)
+        stats_grid.setVerticalSpacing(2)
 
         # Build label pairs: (title_label, value_label) for each stat card
         self._stat_labels: dict[str, QLabel] = {}
@@ -245,12 +241,10 @@ class EventLane(QWidget):
             col *= 2  # pairs occupy 2 grid columns each
 
             title_lbl = QLabel(caption)
-            title_lbl.setStyleSheet("color: #64748b; font-size: 9px;")
+            title_lbl.setObjectName("StatTitle")
 
             val_lbl = QLabel("--")
-            val_lbl.setStyleSheet(
-                "color: #e2e8f0; font-size: 11px; font-weight: 600;"
-            )
+            val_lbl.setObjectName("StatValue")
             self._stat_labels[key] = val_lbl
 
             stats_grid.addWidget(title_lbl, row * 2,     col)
@@ -258,12 +252,6 @@ class EventLane(QWidget):
 
         self._stats_frame.setVisible(False)
         root.addWidget(self._stats_frame)
-
-        # ── Separator ────────────────────────────────────────────────
-        sep = QFrame()
-        sep.setFrameShape(QFrame.Shape.HLine)
-        sep.setStyleSheet("color: #1e293b;")
-        root.addWidget(sep)
 
         # ── Event table ──────────────────────────────────────────────
         self._tree = QTreeWidget()
@@ -277,20 +265,26 @@ class EventLane(QWidget):
         self._tree.setStyleSheet("""
             QTreeWidget {
                 background: #0b0f14;
-                alternate-background-color: #111827;
+                alternate-background-color: #0f1319;
                 color: #e2e8f0;
-                border: 1px solid #1e293b;
-                font-size: 10px;
+                border: 1px solid rgba(31, 41, 55, 120);
+                border-radius: 6px;
+                font-size: 9pt;
             }
             QHeaderView::section {
-                background: #1e293b;
+                background: rgba(30, 41, 59, 200);
                 color: #94a3b8;
-                font-size: 10px;
+                font-size: 8pt;
+                font-weight: 600;
                 border: none;
-                padding: 4px;
+                border-right: 1px solid rgba(31, 41, 55, 100);
+                padding: 5px 6px;
+            }
+            QTreeWidget::item {
+                padding: 3px 0;
             }
             QTreeWidget::item:selected {
-                background: #1e3a5f;
+                background: rgba(59, 130, 246, 80);
             }
         """)
         self._tree.header().setDefaultSectionSize(100)
@@ -313,7 +307,7 @@ class EventLane(QWidget):
         bg = _SEV_BADGE_BG.get(severity, "#64748b")
         badge.setStyleSheet(
             f"background: {bg}; color: #fff; border-radius: 8px; "
-            f"padding: 1px 7px; font-size: 10px; font-weight: 700;"
+            f"padding: 1px 7px; font-size: 8pt; font-weight: 700;"
         )
         badge.setFixedHeight(18)
         return badge

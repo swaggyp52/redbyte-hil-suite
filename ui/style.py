@@ -723,4 +723,103 @@ def get_global_stylesheet():
         font-weight: 700;
         color: #334155;
     }
+
+    /* === CHECKBOX (filters, channel toggles) === */
+    QCheckBox {
+        color: #94a3b8;
+        font-size: 9pt;
+        spacing: 5px;
+    }
+    QCheckBox::indicator {
+        width: 14px;
+        height: 14px;
+        border: 1px solid rgba(71, 85, 105, 120);
+        border-radius: 3px;
+        background: rgba(15, 23, 42, 200);
+    }
+    QCheckBox::indicator:checked {
+        background: rgba(16, 185, 129, 200);
+        border-color: #10b981;
+    }
+    QCheckBox::indicator:hover {
+        border-color: rgba(100, 116, 139, 180);
+    }
+
+    /* === COMPARE LABELS (A / B dataset) === */
+    #CompareLabel {
+        color: #cbd5e1;
+        font-weight: 700;
+        font-size: 9pt;
+        background: rgba(30, 41, 59, 140);
+        border: 1px solid rgba(71, 85, 105, 80);
+        border-radius: 4px;
+        padding: 3px 10px;
+    }
+
+    /* === METRIC CHIPS (compare metrics strip) === */
+    #MetricChip {
+        background: rgba(30, 41, 59, 160);
+        border: 1px solid rgba(31, 41, 55, 120);
+        border-radius: 6px;
+        padding: 4px 8px;
+    }
+
+    /* === INSIGHTS PANEL === */
+    #InsightsHeader {
+        color: #10b981;
+        font-size: 11pt;
+        font-weight: 700;
+        letter-spacing: 0.3px;
+    }
+    #InsightsSubhead {
+        color: #475569;
+        font-size: 8pt;
+    }
+    #InsightsToolBtn {
+        background: transparent;
+        border: 1px solid rgba(71, 85, 105, 60);
+        border-radius: 4px;
+        color: #64748b;
+        font-size: 8pt;
+        font-weight: 600;
+        padding: 2px 8px;
+    }
+    #InsightsToolBtn:hover {
+        background: rgba(30, 41, 59, 140);
+        color: #94a3b8;
+        border-color: rgba(100, 116, 139, 100);
+    }
+
+    /* === EVENT LANE === */
+    #EventFilterBar {
+        background: rgba(11, 15, 20, 160);
+        border-bottom: 1px solid rgba(31, 41, 55, 120);
+        padding: 4px 8px;
+    }
+    #EventStatsFrame {
+        background: rgba(13, 17, 23, 220);
+        border: 1px solid rgba(31, 41, 55, 150);
+        border-radius: 6px;
+    }
+    #StatTitle {
+        color: #64748b;
+        font-size: 8pt;
+        font-weight: 600;
+    }
+    #StatValue {
+        color: #e2e8f0;
+        font-size: 10pt;
+        font-weight: 700;
+        font-family: 'JetBrains Mono', 'Consolas', 'Courier New', monospace;
+    }
+
+    /* === CHECK RESULT CARD === */
+    #CheckCard {
+        border-radius: 8px;
+        background: rgba(15, 17, 21, 200);
+    }
+    #CheckMark {
+        font-weight: 700;
+        font-size: 10pt;
+    }
     """

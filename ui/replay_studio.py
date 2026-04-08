@@ -88,7 +88,8 @@ class ReplayStudio(QWidget):
         # Crosshair readout label
         self._readout = QLabel("")
         self._readout.setStyleSheet(
-            "color: #94a3b8; font-family: monospace; font-size: 10px; padding: 0 8px;"
+            "color: #94a3b8; font-family: 'JetBrains Mono', 'Consolas', monospace;"
+            " font-size: 8pt; padding: 0 8px;"
         )
         ctrl.addWidget(self._readout)
         self.layout.addLayout(ctrl)
@@ -100,7 +101,7 @@ class ReplayStudio(QWidget):
         ch_bar_layout.setContentsMargins(4, 2, 4, 2)
         ch_bar_layout.setSpacing(8)
         ch_lbl = QLabel("Channels:")
-        ch_lbl.setStyleSheet("color: #64748b; font-size: 10px;")
+        ch_lbl.setStyleSheet("color: #64748b; font-size: 8pt; font-weight: 600;")
         ch_bar_layout.addWidget(ch_lbl)
         self._channel_checks: dict[str, QCheckBox] = {}
         ch_bar_layout.addStretch()

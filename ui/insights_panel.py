@@ -63,9 +63,39 @@ class InsightsPanel(QWidget):
         self.layout.setContentsMargins(8, 8, 8, 8)
         self.layout.setSpacing(6)
         
-        header = QLabel("Insights")
-        header.setStyleSheet("font-size: 12pt; font-weight: 700; color: #10b981;")
-        self.layout.addWidget(header)
+        # Header row with title + compact tool buttons
+        header_row = QHBoxLayout()
+        header_row.setSpacing(6)
+
+        header_col = QVBoxLayout()
+        header_col.setSpacing(0)
+        header = QLabel("Analysis")
+        header.setObjectName("InsightsHeader")
+        header_col.addWidget(header)
+        subhead = QLabel("Event summary & clusters")
+        subhead.setObjectName("InsightsSubhead")
+        header_col.addWidget(subhead)
+        header_row.addLayout(header_col)
+
+        header_row.addStretch()
+
+        self.btn_expand_all = QPushButton("▼ All")
+        self.btn_expand_all.setObjectName("InsightsToolBtn")
+        self.btn_expand_all.setFixedHeight(22)
+        self.btn_expand_all.clicked.connect(self._expand_all)
+        self.btn_collapse_all = QPushButton("▶ All")
+        self.btn_collapse_all.setObjectName("InsightsToolBtn")
+        self.btn_collapse_all.setFixedHeight(22)
+        self.btn_collapse_all.clicked.connect(self._collapse_all)
+        self.btn_clear = QPushButton("Clear")
+        self.btn_clear.setObjectName("InsightsToolBtn")
+        self.btn_clear.setFixedHeight(22)
+        self.btn_clear.clicked.connect(self._clear_insights)
+
+        header_row.addWidget(self.btn_expand_all)
+        header_row.addWidget(self.btn_collapse_all)
+        header_row.addWidget(self.btn_clear)
+        self.layout.addLayout(header_row)
 
         # Summary frame (populated by load_event_summary)
         self._summary_frame = QFrame()
@@ -79,24 +109,9 @@ class InsightsPanel(QWidget):
         self._summary_frame.setVisible(False)
         self.layout.addWidget(self._summary_frame)
         
-        # Control buttons
-        ctrl_layout = QHBoxLayout()
-        self.btn_expand_all = QPushButton("Expand All")
-        self.btn_expand_all.clicked.connect(self._expand_all)
-        self.btn_collapse_all = QPushButton("Collapse All")
-        self.btn_collapse_all.clicked.connect(self._collapse_all)
-        self.btn_clear = QPushButton("Clear")
-        self.btn_clear.clicked.connect(self._clear_insights)
-        
-        ctrl_layout.addWidget(self.btn_expand_all)
-        ctrl_layout.addWidget(self.btn_collapse_all)
-        ctrl_layout.addWidget(self.btn_clear)
-        ctrl_layout.addStretch()
-        self.layout.addLayout(ctrl_layout)
-        
         # Tree widget for clustered insights
         self.tree = QTreeWidget()
-        self.tree.setHeaderLabels(["Event Clusters"])
+        self.tree.setHeaderLabels(["Detected Events"])
         self.tree.setStyleSheet("""
             QTreeWidget {
                 background: rgba(15, 17, 21, 200);
@@ -233,7 +248,7 @@ class InsightsPanel(QWidget):
     def _add_summary_line(self, text: str, color: str) -> None:
         lbl = QLabel(text)
         lbl.setWordWrap(True)
-        lbl.setStyleSheet(f"color: {color}; font-size: 10px; font-weight: 600;")
+        lbl.setStyleSheet(f"color: {color}; font-size: 9pt; font-weight: 600;")
         self._summary_layout.addWidget(lbl)
     
     def _get_icon(self, insight_type):

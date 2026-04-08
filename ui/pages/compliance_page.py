@@ -259,7 +259,7 @@ class _NoSessionPrompt(QWidget):
         icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(icon)
 
-        title = QLabel("Compliance Lab")
+        title = QLabel("IEEE 2800 Compliance")
         title.setObjectName("EmptyTitle")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(title)
@@ -342,9 +342,9 @@ class _CheckResultCards(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setObjectName("CheckResultCards")
-        self.setFixedHeight(88)
+        self.setFixedHeight(96)
         self._layout = QHBoxLayout(self)
-        self._layout.setContentsMargins(16, 8, 16, 8)
+        self._layout.setContentsMargins(16, 10, 16, 10)
         self._layout.setSpacing(12)
 
     def set_results(self, results: list[dict]):
@@ -461,7 +461,7 @@ class _ComplianceTopBar(QWidget):
         layout.setContentsMargins(16, 0, 16, 0)
         layout.setSpacing(8)
 
-        self._lbl = QLabel("Compliance Lab  —  IEEE 2800 validation")
+        self._lbl = QLabel("Compliance  ·  IEEE 2800 Validation")
         self._lbl.setObjectName("PageTitle")
         layout.addWidget(self._lbl)
         layout.addStretch()
@@ -494,12 +494,12 @@ class _ExportBar(QWidget):
         layout.setSpacing(8)
         layout.addStretch()
 
-        btn_html = QPushButton("Export Engineering Report")
+        btn_html = QPushButton("Export Report")
         btn_html.setObjectName("ExportBtn")
         btn_html.clicked.connect(self.html_clicked)
-        btn_csv = QPushButton("Export Session CSV")
+        btn_csv = QPushButton("Session CSV")
         btn_csv.clicked.connect(self.csv_clicked)
-        btn_events = QPushButton("Export Events CSV")
+        btn_events = QPushButton("Events CSV")
         btn_events.clicked.connect(self.events_clicked)
 
         layout.addWidget(btn_html)
