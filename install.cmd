@@ -22,6 +22,14 @@ if errorlevel 1 (
     exit /b 1
 )
 
+echo [Optional] Installing Playwright Chromium (for browser UI tests)...
+python -m playwright install chromium >nul 2>&1
+if errorlevel 1 (
+    echo [WARN] Playwright browser install skipped or unavailable.
+    echo        Core app setup is complete. Browser-based tests may require:
+    echo        python -m playwright install chromium
+)
+
 echo.
 echo ============================================
 echo  Setup complete!
