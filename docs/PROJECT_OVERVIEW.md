@@ -76,7 +76,12 @@ the expanded telemetry fields requires only alias entries in `normalize_frame()`
 
 ### File Import Pipeline
 - Auto-detect CSV / Excel / JSON formats; parse and normalize to internal `ImportedDataset`
+- Large-file ingestion runs on a background thread — ingesting a 1M-row 1 MHz Rigol capture does not block the UI
 - Channel mapping dialog: map source column names to canonical signal names (e.g., `CH1(V) → v_an`)
+  - Per-channel value range column (min → max) immediately surfaces dead or constant channels in amber
+  - Duplicate-column warning fires automatically when two source channels carry identical data
+    (encountered in the field: `VSGFrequency_Simulation.xlsx` contains `Pinv` power data
+    despite its filename suggesting frequency — a labeling error surfaced by the range and duplicate checks)
 - Save and load per-instrument mapping profiles
 
 ### Waveform Replay
@@ -155,8 +160,8 @@ analysis pages). No intermediate file save is required before exporting.
 | Capability | Status |
 |------------|--------|
 | Real-time 3-phase waveforms from full inverter hardware | Planned — hardware not yet built |
-| Unified pipeline merging live telemetry with import analysis | Planned (Prompt 3) |
-| Large-file background workers (>500k samples) | Planned (Prompt 2) |
+| Unified pipeline merging live telemetry with import analysis | Done — live recording uses same capsule path as import |
+| Large-file background workers (>500k samples) | Done — import dialog spawns a daemon thread; UI stays responsive for 1M+ row Rigol captures |
 | Persistent annotation storage (survives app restart) | Planned — currently in-memory only |
 | OpalRT / Typhoon HIL adapter | Stub only |
 
@@ -249,15 +254,15 @@ gfm_hil_suite/
 │   ├── inverter_scope.py           25 Hz real-time waveform scope
 │   ├── phasor_view.py              Phasor diagram with Hilbert extraction
 │   └── fault_injector.py           Fault command panel
-└── tests/                          332 passing tests (as of April 2026)
+└── tests/                          407 passing tests, 3 skipped (as of April 2026)
 ```
 
 ---
 
 ## Current Test Coverage
 
-332 tests passing across all modules (excluding UI integration tests that require a display
-server). Run with:
+407 tests passing (3 skipped — Excel tests requiring pandas) across all modules (excluding UI
+integration tests that require a display server). Run with:
 
 ```bash
 cd gfm_hil_suite
@@ -271,7 +276,7 @@ Key test files:
 | `test_session_exporter.py` | Truth-first CSV/events/JSON/HTML export; missing channel → empty cell invariant | 45 |
 | `test_event_detector.py` | All 8 detectors, DetectedEvent, graceful degradation | 27 |
 | `test_comparison.py` | align_datasets, delta traces, compare_channels | 34 |
-| `test_file_ingestion.py` | Rigol CSV, Excel, JSON, NaN trimming, no fabrication | ~30 |
+| `test_file_ingestion.py` | Rigol CSV (incl. 1 MHz), Excel, JSON, NaN trimming, ms→s conversion, dead-channel detection, no fabrication guarantee | ~44 |
 | `test_channel_mapping.py` | auto_suggest, apply(), UNMAPPED invariant, profiles | ~20 |
 | `test_dataset_converter.py` | Decimation, frame content, round-trip, full-res | ~20 |
 | `test_compliance_checker.py` | IEEE 2800 rule evaluation | ~15 |
@@ -296,8 +301,9 @@ Key test files:
    exactly from the source file. Every flagged event traces to a specific sample window with a
    recorded metric and confidence score.
 
-5. **The test coverage matches the complexity.** 332 tests cover the signal processing, ingestion,
+5. **The test coverage matches the complexity.** 407 tests cover the signal processing, ingestion,
    channel mapping, event detection, session comparison, compliance, and export subsystems independently.
+   The ingestion tests include 1 MHz Rigol format, dead-channel detection, and explicit no-fabrication assertions.
 
 ---
 

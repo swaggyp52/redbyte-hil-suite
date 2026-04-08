@@ -238,6 +238,9 @@ def _ingest_rigol_csv(path: str) -> ImportedDataset:
         )
 
     raw_time = np.array(arrays[time_col], dtype=float)
+    if _time_column_is_milliseconds(time_col):
+        raw_time = raw_time / 1000.0
+        meta["time_unit_converted"] = "ms_to_s"
     t0 = raw_time[0]
     time_arr = raw_time - t0
 
@@ -373,6 +376,9 @@ def _ingest_simulation_excel(path: str) -> ImportedDataset:
         sample_rate = 0.0
     else:
         raw_time = df[time_col].to_numpy(dtype=float)
+        if _time_column_is_milliseconds(time_col):
+            raw_time = raw_time / 1000.0
+            meta["time_unit_converted"] = "ms_to_s"
         time_arr = raw_time - raw_time[0]
         sample_rate = _estimate_sample_rate(time_arr)
 
@@ -513,7 +519,13 @@ def _ingest_data_capsule_json(path: str) -> ImportedDataset:
 
 _TIME_COL_HINTS: frozenset[str] = frozenset({
     "time", "time(s)", "time(ms)", "time(us)", "time(ns)",
-    "t", "ts", "timestamp", "seconds", "time_s", "time_ms",
+    "t", "ts", "t_ms", "t_s", "timestamp", "seconds", "time_s", "time_ms",
+})
+
+# Column names (lowercased) that indicate values are in milliseconds.
+# When matched, the time axis is divided by 1000 to produce seconds.
+_MS_TIME_HINTS: frozenset[str] = frozenset({
+    "t_ms", "time_ms", "time(ms)", "timestamp_ms",
 })
 
 
@@ -522,12 +534,18 @@ def _find_time_column(columns: list[str]) -> Optional[str]:
     for col in columns:
         if col.strip().lower() in _TIME_COL_HINTS:
             return col
-    # Fuzzy: starts with "time" or "t("
+    # Fuzzy: starts with "time" or equals "t"
     for col in columns:
         lo = col.strip().lower()
         if lo.startswith("time") or lo == "t":
             return col
     return None
+
+
+def _time_column_is_milliseconds(col_name: str) -> bool:
+    """Return True when the time column stores milliseconds rather than seconds."""
+    lo = col_name.strip().lower()
+    return lo in _MS_TIME_HINTS or lo.endswith("_ms") or lo.endswith("(ms)")
 
 
 def _estimate_sample_rate(time_arr: np.ndarray) -> float:

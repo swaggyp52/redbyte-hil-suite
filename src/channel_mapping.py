@@ -132,13 +132,15 @@ def auto_suggest_mapping(headers: list[str]) -> dict[str, str]:
         elif lo in (
             "p", "p_mech", "p_inv", "pinv", "pout", "p_out",
             "active_power", "real_power", "p_e", "power",
+            "p_kw", "pkw", "p_w",
         ):
             target = "p_mech"
         elif "pinv" in lo or "p_inv" in lo:
             target = "p_mech"
 
         # ── Reactive power ───────────────────────────────────────────────────
-        elif lo in ("q", "q_inv", "q_out", "reactive", "reactive_power"):
+        elif lo in ("q", "q_inv", "q_out", "reactive", "reactive_power",
+                    "q_kvar", "qkvar", "q_var"):
             target = "q"
 
         # ── DC bus ───────────────────────────────────────────────────────────

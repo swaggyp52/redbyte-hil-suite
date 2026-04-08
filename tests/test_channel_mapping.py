@@ -204,3 +204,38 @@ def test_profile_load_nonexistent_returns_none():
         mapper = ChannelMapper(profiles_path=os.path.join(tmpdir, "cm.json"))
         result = mapper.load_profile("does_not_exist")
         assert result is None
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# VSM / Arduino telemetry header aliases
+# ──────────────────────────────────────────────────────────────────────────────
+
+@pytest.mark.parametrize("header,expected", [
+    ("p_kw",    "p_mech"),
+    ("P_KW",    "p_mech"),
+    ("q_kvar",  "q"),
+    ("Q_KVAR",  "q"),
+    ("pkw",     "p_mech"),
+    ("qkvar",   "q"),
+    ("q_var",   "q"),
+])
+def test_vsm_power_aliases(header, expected):
+    result = auto_suggest_mapping([header])
+    assert result[header] == expected, (
+        f"Expected '{header}' → '{expected}', got '{result[header]}'"
+    )
+
+
+def test_vsm_full_header_set_mapping():
+    """All VSM telemetry headers map correctly; fault left unmapped."""
+    headers = ["t_ms", "vdc", "freq", "p_kw", "q_kvar", "fault"]
+    result = auto_suggest_mapping(headers)
+
+    assert result["vdc"]    == "v_dc"
+    assert result["freq"]   == "freq"
+    assert result["p_kw"]   == "p_mech"
+    assert result["q_kvar"] == "q"
+    # fault is a boolean flag — should NOT be mapped to any canonical signal
+    assert result["fault"]  == UNMAPPED
+    # t_ms is the time column — not a signal channel, also unmapped is fine
+    assert result["t_ms"]   == UNMAPPED

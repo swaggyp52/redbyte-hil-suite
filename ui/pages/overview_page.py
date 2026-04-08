@@ -80,13 +80,14 @@ class OverviewPage(QWidget):
         root.addWidget(title)
 
         subtitle = QLabel(
-            "Grid-Forming Inverter  ·  Hardware-in-the-Loop Diagnostics & Validation"
+            "Grid-Forming Inverter  ·  Engineering Analysis for Power Quality & Inverter Behavior"
         )
         subtitle.setObjectName("OverviewSubtitle")
         root.addWidget(subtitle)
 
-        # ── System health row ──────────────────────────────────────────
+        # ── Live connection indicator (hidden unless actively connected) ──
         self._health = _HealthRow()
+        self._health.hide()   # Only shown when live telemetry is active
         root.addWidget(self._health)
 
         # ── Active session panel (hidden until a session is loaded) ────
@@ -101,7 +102,7 @@ class OverviewPage(QWidget):
 
         # Hint shown when no session is active
         self._no_session_hint = QLabel(
-            "No dataset loaded  —  import a run file to begin analysis"
+            "No dataset loaded  —  import a run file (CSV, Excel, or JSON) to begin analysis"
         )
         self._no_session_hint.setObjectName("NoSessionHint")
         self._no_session_hint.setStyleSheet(
@@ -241,7 +242,7 @@ class _HealthRow(QFrame):
     def update(self, connected: bool, mode: str):
         if connected:
             self._dot.setStyleSheet("color: #10b981;")
-            self._lbl.setText(f"Telemetry: Connected  ·  Mode: {mode}")
+            self._lbl.setText(f"Live: {mode}  (connected)")
+            self.show()
         else:
-            self._dot.setStyleSheet("color: #64748b;")
-            self._lbl.setText(f"Telemetry: Not connected  ·  Mode: {mode}")
+            self.hide()

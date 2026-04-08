@@ -94,7 +94,7 @@ class ReplayStudio(QWidget):
         self.tabs.addTab(self.plot_metrics, "Metrics")
 
         # Tab 3: Spectrum
-        self.plot_spectrum = pg.PlotWidget(title="Spectrum (V_an)")
+        self.plot_spectrum = pg.PlotWidget(title="Spectrum")
         self.plot_spectrum.setBackground('#0b0f14')
         self.plot_spectrum.showGrid(x=True, y=True, alpha=0.3)
         self.plot_spectrum.setLabel('bottom', 'Frequency', units='Hz')
@@ -256,18 +256,27 @@ class ReplayStudio(QWidget):
             style = Qt.PenStyle.SolidLine if session['is_primary'] else Qt.PenStyle.DashLine
 
             # ── Detect plottable waveform channels ───────────────────────────
-            # Prefer canonical 3-phase voltage names; fall back to any numeric
-            # channel present (up to 6 channels to avoid clutter).
+            # Prefer canonical 3-phase voltage names, then DC bus, then current;
+            # fall back to any numeric channel present (up to 6 channels).
+            # Boolean/flag channels (only 0/1 values) are excluded from all paths.
             sample_frame = frames[0]
             canonical_v = [
-                k for k in ('v_an', 'v_bn', 'v_cn') if k in sample_frame
+                k for k in ('v_an', 'v_bn', 'v_cn', 'v_dc') if k in sample_frame
             ]
             canonical_i = [
                 k for k in ('i_a', 'i_b', 'i_c') if k in sample_frame
             ]
+
+            def _is_boolean_channel(key: str) -> bool:
+                """Return True when the channel only contains 0/1 values (flag column)."""
+                vals = {f.get(key) for f in frames[:40]
+                        if isinstance(f.get(key), (int, float))}
+                return bool(vals) and vals.issubset({0, 1, 0.0, 1.0})
+
             non_ts_keys = [
                 k for k in sample_frame
                 if k != 'ts' and isinstance(sample_frame[k], (int, float))
+                and not _is_boolean_channel(k)
             ]
 
             if canonical_v:
@@ -281,14 +290,20 @@ class ReplayStudio(QWidget):
             if not wave_channels:
                 continue
 
-            # Update waveform tab title to reflect the primary channel type
+            # Update waveform tab title and Y-axis to reflect the primary channel type
             if session['is_primary']:
-                if canonical_v:
+                if 'v_dc' in wave_channels and not any(k in wave_channels for k in ('v_an', 'v_bn', 'v_cn')):
+                    self.plot_wave.setTitle("DC Bus Voltage")
+                    self.plot_wave.setLabel('left', 'Voltage', units='V')
+                elif canonical_v:
                     self.plot_wave.setTitle("Voltage Waveforms")
+                    self.plot_wave.setLabel('left', 'Voltage', units='V')
                 elif canonical_i:
                     self.plot_wave.setTitle("Current Waveforms")
+                    self.plot_wave.setLabel('left', 'Current', units='A')
                 else:
                     self.plot_wave.setTitle("Waveforms")
+                    self.plot_wave.setLabel('left', 'Value')
 
             # ── Build arrays and plot waveforms ──────────────────────────────
             # Rotate through the session color tuple; wrap if more than 3 channels
@@ -363,6 +378,7 @@ class ReplayStudio(QWidget):
             # ── Event markers (primary session only) ─────────────────────────
             if session['is_primary']:
                 self._ts_arr = ts
+                self.plot_spectrum.setTitle(f"Spectrum  ·  {primary_ch}")
                 self._render_spectrum(ts, primary_arr_clean)
                 self._load_tags(session)
                 events = session['data'].get('events', [])

@@ -20,6 +20,7 @@ from src.file_ingestion import (
     IngestionError,
     _estimate_sample_rate,
     _find_time_column,
+    _time_column_is_milliseconds,
     ingest_file,
 )
 
@@ -186,6 +187,7 @@ def test_rigol_csv_no_fabricated_canonical_channels():
 # ──────────────────────────────────────────────────────────────────────────────
 
 def test_simulation_excel_basic_ingestion():
+    pytest.importorskip("pandas")
     with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as tf:
         path = tf.name
     try:
@@ -203,6 +205,7 @@ def test_simulation_excel_basic_ingestion():
 
 def test_simulation_excel_duplicate_column_warning():
     """Files with identical columns should generate a warning."""
+    pytest.importorskip("pandas")
     with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as tf:
         path = tf.name
     try:
@@ -218,6 +221,7 @@ def test_simulation_excel_duplicate_column_warning():
 
 
 def test_simulation_excel_time_starts_at_zero():
+    pytest.importorskip("pandas")
     with tempfile.NamedTemporaryFile(suffix=".xlsx", delete=False) as tf:
         path = tf.name
     try:
@@ -319,3 +323,219 @@ def test_estimate_sample_rate_empty():
 
 def test_estimate_sample_rate_single():
     assert _estimate_sample_rate(np.array([0.0])) == 0.0
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# VSM / Arduino telemetry CSV tests (t_ms time column + ms→s conversion)
+# ──────────────────────────────────────────────────────────────────────────────
+
+def _write_vsm_csv(path: str, n_rows: int = 30):
+    """Write a VSM/Arduino-style telemetry CSV with t_ms time column."""
+    with open(path, "w") as f:
+        f.write("t_ms,vdc,freq,p_kw,q_kvar,fault\n")
+        for i in range(n_rows):
+            t_ms = 499 + i * 103
+            vdc = 450.0 + 10 * np.sin(2 * np.pi * i / n_rows)
+            freq = 60.0 + 0.02 * np.sin(2 * np.pi * i / n_rows)
+            p_kw = 1.0
+            q_kvar = 0.2 * np.sin(2 * np.pi * i / n_rows)
+            fault = 1 if i > n_rows * 0.8 else 0
+            f.write(f"{t_ms},{vdc:.2f},{freq:.4f},{p_kw:.2f},{q_kvar:.3f},{fault}\n")
+
+
+@pytest.mark.parametrize("header,expected", [
+    # Exact hint matches
+    ("t_ms",        "t_ms"),
+    ("time_ms",     "time_ms"),
+    ("time(ms)",    "time(ms)"),
+    ("Time(s)",     "Time(s)"),
+    ("ts",          "ts"),
+    # Fuzzy match — starts with "time"
+    ("TimeAxis",    "TimeAxis"),
+    # Non-time columns → None
+    ("vdc",         None),
+    ("CH1(V)",      None),
+])
+def test_find_time_column_extended(header, expected):
+    assert _find_time_column([header]) == expected
+
+
+@pytest.mark.parametrize("col,expected_ms", [
+    ("t_ms",         True),
+    ("time_ms",      True),
+    ("time(ms)",     True),
+    ("timestamp_ms", True),
+    ("Time(s)",      False),
+    ("ts",           False),
+    ("time",         False),
+    ("t",            False),
+])
+def test_time_column_is_milliseconds(col, expected_ms):
+    assert _time_column_is_milliseconds(col) == expected_ms
+
+
+def test_vsm_csv_ingests_without_error():
+    """VSM telemetry CSV (t_ms header) must ingest successfully."""
+    with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as tf:
+        path = tf.name
+    try:
+        _write_vsm_csv(path, n_rows=30)
+        ds = ingest_file(path)
+        assert ds.row_count == 30
+        assert "vdc" in ds.channels
+        assert "freq" in ds.channels
+        assert "p_kw" in ds.channels
+        assert "q_kvar" in ds.channels
+        assert "fault" in ds.channels
+        assert "t_ms" not in ds.channels       # time col excluded from channels
+    finally:
+        os.unlink(path)
+
+
+def test_vsm_csv_time_axis_in_seconds():
+    """t_ms values must be converted to seconds; axis starts at 0."""
+    with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as tf:
+        path = tf.name
+    try:
+        _write_vsm_csv(path, n_rows=30)
+        ds = ingest_file(path)
+        assert abs(ds.time[0]) < 1e-9, "Time axis must start at 0"
+        # 30 samples at ~103 ms each ≈ 3.0 s total; not 3000 s
+        assert ds.duration < 10.0, f"Duration {ds.duration:.1f}s looks like ms not converted"
+        assert ds.duration > 0.5, "Duration must be positive"
+    finally:
+        os.unlink(path)
+
+
+def test_vsm_csv_sample_rate_near_10hz():
+    """t_ms at ~103 ms intervals → ~9.7 Hz sample rate, NOT 0.01 Hz."""
+    with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as tf:
+        path = tf.name
+    try:
+        _write_vsm_csv(path, n_rows=30)
+        ds = ingest_file(path)
+        assert ds.sample_rate > 5.0, (
+            f"Sample rate {ds.sample_rate} Hz looks wrong — "
+            "t_ms values may not have been converted to seconds"
+        )
+        assert ds.sample_rate < 50.0, f"Sample rate {ds.sample_rate} Hz unexpectedly high"
+    finally:
+        os.unlink(path)
+
+
+def test_vsm_csv_source_type_is_rigol_csv():
+    """VSM CSV files are ingested via the CSV ingestor (same source_type as Rigol)."""
+    with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as tf:
+        path = tf.name
+    try:
+        _write_vsm_csv(path)
+        ds = ingest_file(path)
+        assert ds.source_type == "rigol_csv"
+    finally:
+        os.unlink(path)
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Rigol 1 MHz oscilloscope format tests
+# (Mirrors the real RigolDS0.csv / RigolDS1.csv files used in development)
+# ──────────────────────────────────────────────────────────────────────────────
+
+def _write_rigol_1mhz_csv(path: str, n_channels: int = 3,
+                           n_rows: int = 500, dead_last_ch: bool = False):
+    """
+    Write a Rigol-style CSV at 1 MHz sample rate.
+
+    n_channels: 3 → Time(s) + CH1..CH3  (mirrors RigolDS0.csv)
+                4 → Time(s) + CH1..CH4  (mirrors RigolDS1.csv)
+    dead_last_ch: if True, last channel is nearly zero (mirrors CH4 in RigolDS1)
+    """
+    headers = ["Time(s)"] + [f"CH{i+1}(V)" for i in range(n_channels)]
+    dt = 1e-6  # 1 MHz
+    with open(path, "w", newline="") as f:
+        f.write(",".join(headers) + "\n")
+        t = -0.0002  # Rigol time axis often starts slightly before 0
+        for i in range(n_rows):
+            row = [f"{t:.8f}"]
+            for ch in range(n_channels):
+                if dead_last_ch and ch == n_channels - 1:
+                    # Near-zero dead channel (like CH4 in RigolDS1)
+                    row.append(f"{-0.004 + 0.001 * (i % 2):.4f}")
+                else:
+                    row.append(f"{1.8 * np.sin(2 * np.pi * 60 * t - ch * 2.094):.4f}")
+            f.write(",".join(row) + "\n")
+            t += dt
+
+
+def test_rigol_1mhz_3channel_basic():
+    """3-channel Rigol CSV (RigolDS0 style) ingests cleanly."""
+    with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as tf:
+        path = tf.name
+    try:
+        _write_rigol_1mhz_csv(path, n_channels=3, n_rows=500)
+        ds = ingest_file(path)
+
+        assert ds.source_type == "rigol_csv"
+        assert ds.row_count == 500
+        assert set(ds.channel_names) == {"CH1(V)", "CH2(V)", "CH3(V)"}
+        assert "Time(s)" not in ds.channels
+        assert abs(ds.time[0]) < 1e-9  # normalized to start at 0
+        assert len(ds.time) == 500
+        # All channel arrays match time length
+        for ch, arr in ds.channels.items():
+            assert len(arr) == 500, f"Channel {ch} wrong length"
+    finally:
+        os.unlink(path)
+
+
+def test_rigol_1mhz_sample_rate_detection():
+    """1 MHz time step (1e-6 s) must be detected as ~1 000 000 Hz."""
+    with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as tf:
+        path = tf.name
+    try:
+        _write_rigol_1mhz_csv(path, n_channels=3, n_rows=1000)
+        ds = ingest_file(path)
+        # Allow ±10% — the median-based estimator is not exact for small files
+        assert ds.sample_rate > 500_000, (
+            f"Expected ~1 MHz sample rate, got {ds.sample_rate:.0f} Hz"
+        )
+        assert ds.sample_rate < 2_000_000, (
+            f"Sample rate {ds.sample_rate:.0f} Hz unreasonably high"
+        )
+    finally:
+        os.unlink(path)
+
+
+def test_rigol_1mhz_4channel_dead_ch4():
+    """CH4 with near-zero values (like RigolDS1) is ingested but not silently dropped."""
+    with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as tf:
+        path = tf.name
+    try:
+        _write_rigol_1mhz_csv(path, n_channels=4, n_rows=500, dead_last_ch=True)
+        ds = ingest_file(path)
+
+        assert "CH4(V)" in ds.channel_names, "Dead channel must still be present"
+        ch4 = ds.channels["CH4(V)"]
+        # Verify the channel is nearly zero (range < 0.01V)
+        valid = ch4[~np.isnan(ch4)]
+        assert len(valid) > 0
+        span = float(valid.max() - valid.min())
+        assert span < 0.02, f"CH4 span {span:.4f}V — expected near-zero dead channel"
+    finally:
+        os.unlink(path)
+
+
+def test_rigol_1mhz_no_canonical_channels():
+    """1 MHz Rigol CSV must not produce canonical names without channel mapping."""
+    with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as tf:
+        path = tf.name
+    try:
+        _write_rigol_1mhz_csv(path, n_channels=3, n_rows=200)
+        ds = ingest_file(path)
+        canonical = {"v_an", "v_bn", "v_cn", "i_a", "i_b", "i_c", "freq", "p_mech"}
+        collision = canonical & set(ds.channel_names)
+        assert not collision, (
+            f"Rigol ingestor must NOT map channels to canonical names automatically. "
+            f"Found: {collision}"
+        )
+    finally:
+        os.unlink(path)
