@@ -25,6 +25,11 @@ def main():
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
     parser.add_argument("--no-3d", action="store_true", help="Disable 3D view")
     parser.add_argument("--windowed", action="store_true", help="Stay windowed in demo mode")
+    parser.add_argument(
+        "--port", default="",
+        help="Serial port for live hardware mode (e.g. COM5, /dev/ttyUSB0). "
+             "Reads system_config.json default if not specified.",
+    )
     args = parser.parse_args()
 
     env_demo = os.getenv("DEMO_MODE", "0") == "1"
@@ -60,11 +65,24 @@ def main():
     mock = args.demo or args.mock or args.autoplay or env_demo
     windowed = args.windowed or env_windowed
 
+    # Resolve live port: CLI arg > system_config.json > empty (falls back to demo)
+    live_port = args.port
+    if not live_port and not demo:
+        try:
+            import json as _json
+            cfg_path = os.path.join(os.path.dirname(__file__), "..", "config", "system_config.json")
+            with open(cfg_path) as _f:
+                _cfg = _json.load(_f)
+            live_port = _cfg.get("hardware", {}).get("port", "")
+        except Exception:
+            live_port = ""
+
     window = AppShell(
         demo_mode=demo,
         mock_mode=mock,
         enable_3d=not args.no_3d and opengl_ok,
         windowed=windowed,
+        live_port=live_port,
     )
 
     QTimer.singleShot(2000, lambda: splash.finish_animation(window))

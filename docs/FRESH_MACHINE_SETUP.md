@@ -40,7 +40,7 @@ Use this checklist on a brand-new machine or a clean clone.
 
 1. Full suite (requires requirements-dev.txt installed):
    - `python -m pytest tests/ --ignore=tests/test_ui_integration.py -q`
-2. Expected: 332 passing, 3 skipped (Excel tests skip automatically if openpyxl absent).
+2. Expected: 352 passing, 3 skipped (Excel tests skip automatically if openpyxl absent).
 3. Playwright UI test (requires playwright, separate install):
    - `pip install playwright && python -m playwright install chromium`
    - `python -m pytest tests\test_playwright_report_ui.py -v`
@@ -67,5 +67,5 @@ Use this checklist on a brand-new machine or a clean clone.
 ## Expected closure state
 
 - App launches in demo mode (sidebar visible, Overview page shown).
-- Full pytest run shows 332 passing, 3 skipped, 0 failures.
+- Full pytest run shows 352 passing, 3 skipped, 0 failures.
 - No ambiguous interpreter behavior.

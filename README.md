@@ -112,7 +112,7 @@ gfm_hil_suite/
 │   └── demo_sessions/  ← bundled demo sessions
 ├── exports/            ← HTML reports, CSV exports (auto-created)
 ├── docs/               ← reference docs
-└── tests/              ← pytest suite (332 passing)
+└── tests/              ← pytest suite (352 passing)
 ```
 
 ---
@@ -124,8 +124,8 @@ gfm_hil_suite/
 pytest tests/ --ignore=tests/test_ui_integration.py -q
 ```
 
-332 tests passing across signal processing, file ingestion, channel mapping,
-event detection, session comparison, and compliance subsystems.
+352 tests passing across signal processing, file ingestion, channel mapping,
+event detection, session comparison, compliance, and live telemetry subsystems.
 3 tests intentionally skipped (openpyxl not installed — Excel import tests bypass automatically).
 
 ---

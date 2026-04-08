@@ -44,7 +44,8 @@ class AppShell(QMainWindow):
     """
 
     def __init__(self, demo_mode: bool = False, mock_mode: bool = False,
-                 enable_3d: bool = True, windowed: bool = False, parent=None):
+                 enable_3d: bool = True, windowed: bool = False,
+                 live_port: str = "", parent=None):
         super().__init__(parent)
         self.setWindowTitle("RedByte GFM HIL Suite")
         self.resize(1440, 900)
@@ -53,6 +54,8 @@ class AppShell(QMainWindow):
         self._mock_mode = mock_mode
         self._enable_3d = enable_3d
         self._windowed = windowed
+        # Serial port for live hardware mode (empty = not configured)
+        self._live_port = live_port
 
         # The currently active analysis session (imported file or loaded capsule)
         self._current_session: ActiveSession | None = None
@@ -239,15 +242,31 @@ class AppShell(QMainWindow):
 
     def _on_run(self):
         if self.sim_ctrl.start():
-            mode = "DEMO" if self._mock_mode or self._demo_mode else "LIVE"
-            self.session_bar.set_mode(mode)
-            source = "MOCK" if self._mock_mode or self._demo_mode else "SERIAL"
-            self.session_bar.set_source(source)
-            self.serial_mgr.start_mock_mode()
+            use_mock = self._mock_mode or self._demo_mode
+            if use_mock:
+                mode_label = "DEMO"
+                source_label = "MOCK"
+                self.serial_mgr.start_mock_mode()
+            elif self._live_port:
+                mode_label = "LIVE"
+                source_label = self._live_port
+                self.serial_mgr.connect_serial(self._live_port)
+            else:
+                # No explicit port — warn and fall back to demo
+                logger.warning(
+                    "_on_run: no live_port configured; falling back to DEMO mode. "
+                    "Pass --port <COMx> to use real hardware."
+                )
+                mode_label = "DEMO"
+                source_label = "MOCK (no port)"
+                self.serial_mgr.start_mock_mode()
+
+            self.session_bar.set_mode(mode_label)
+            self.session_bar.set_source(f"Live: {source_label}")
             self.recorder.start()
             self.session_bar.set_recording(True)
-            self._show_toast("Recording started", "#10b981")
-            logger.info("Simulation started")
+            self._show_toast(f"Recording started — {mode_label}", "#10b981")
+            logger.info("Simulation started (%s)", mode_label)
 
     def _on_pause(self):
         self.sim_ctrl.pause()
@@ -258,12 +277,35 @@ class AppShell(QMainWindow):
         self.sim_ctrl.stop()
         self.serial_mgr.stop()
         self.session_bar.set_recording(False)
+
+        # Capture in-memory capsule BEFORE recorder.stop() clears its buffer.
+        live_capsule = self.recorder.to_capsule()
+
         saved = self.recorder.stop()
         if saved:
             name = os.path.basename(saved)
-            logger.info(f"Session saved: {saved}")
+            logger.info("Session saved: %s", saved)
             self.session_bar.set_source(f"Saved: {name}")
-            self._show_toast(f"Session saved  —  {name}", "#10b981")
+
+        # Auto-bridge: load the recorded session into the unified analysis
+        # pipeline (same flow as an imported file) if there are enough frames.
+        frames = live_capsule.get("frames", [])
+        if len(frames) >= 10:
+            session = ActiveSession.from_capsule(live_capsule)
+            self._set_active_session(session)
+            self._replay.load_imported_session(live_capsule, session)
+            self._compliance.load_from_capsule(live_capsule, session)
+            self.session_bar.set_analysis_mode(True)
+            self.session_bar.set_source("Analysis: Live session")
+            self._show_toast(
+                f"Session recorded ({len(frames)} frames) — loaded for analysis",
+                "#10b981",
+            )
+            logger.info("Live session (%d frames) auto-loaded for analysis.", len(frames))
+        else:
+            if saved:
+                self._show_toast(f"Session saved  —  {os.path.basename(saved)}", "#10b981")
+
         self._overview.refresh()
 
     def _show_toast(self, text: str, color: str = "#10b981"):

@@ -5,7 +5,8 @@ RedByte GFM HIL Suite — entry point.
 Usage:
     python run.py              # launch (windowed, demo mode)
     python run.py --fullscreen # fullscreen demo
-    python run.py --live       # live hardware mode (requires serial connection)
+    python run.py --live       # live hardware mode (reads port from system_config.json)
+    python run.py --live --port COM5  # live hardware on explicit port
     python run.py --no-3d      # disable 3D view if OpenGL unavailable
 """
 import sys

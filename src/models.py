@@ -1,8 +1,9 @@
 """
 Canonical data models and normalisation helpers for RedByte HIL Suite.
 
-    normalize_frame()     – normalise raw frames into TelemetryFrame schema
-    make_insight_event()  – build canonical InsightEvent dicts
+    normalize_frame()         – normalise raw frames into TelemetryFrame schema
+    present_canonical_keys()  – frozenset of canonical keys PRESENT in a raw frame
+    make_insight_event()      – build canonical InsightEvent dicts
 
 Canonical TelemetryFrame keys
   Required : ts, v_an, v_bn, v_cn, i_a, i_b, i_c, freq, p_mech
@@ -134,6 +135,29 @@ def normalize_frame(raw: dict[str, Any]) -> dict[str, Any]:
                 frame[key] = 0.0
 
     return frame
+
+
+def present_canonical_keys(raw: dict[str, Any]) -> frozenset[str]:
+    """Return canonical channel keys that were PRESENT in the raw frame.
+
+    Unlike ``normalize_frame()`` (which fills missing required keys with 0.0),
+    this only returns keys that had actual source data.  Use it to distinguish
+    channels that were physically measured from ones that were zero-filled.
+
+    The ``ts`` key is excluded — it is metadata, not a measured channel.
+
+    Args:
+        raw: Raw frame dict as returned by an IOAdapter.
+
+    Returns:
+        frozenset of canonical channel key strings.
+    """
+    keys: set[str] = set()
+    for raw_key in raw:
+        canonical = _KEY_ALIASES.get(raw_key, raw_key)
+        keys.add(canonical)
+    keys.discard("ts")
+    return frozenset(keys)
 
 
 # ---------------------------------------------------------------------------

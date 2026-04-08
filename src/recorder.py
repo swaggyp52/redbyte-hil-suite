@@ -105,6 +105,31 @@ class Recorder:
             found.update(f.keys())
         return sorted(found & canonical)
 
+    def to_capsule(self) -> dict:
+        """Return the current recorded data as an in-memory Data Capsule dict.
+
+        Unlike ``stop()``, this does NOT stop recording or write to disk.
+        The returned dict has the same schema as a saved session file (v1.2)
+        and can be passed directly to ``ActiveSession.from_capsule()`` or the
+        ReplayStudio without first saving to disk.
+
+        Returns an empty capsule (zero frames) if recording has not started.
+        """
+        return {
+            "meta": {
+                "version":              _SESSION_FORMAT_VERSION,
+                "session_id":           self.session_id or "live",
+                "start_time":           self.start_time.isoformat() if self.start_time else "",
+                "frame_count":          len(self.buffer),
+                "sample_rate_estimate": self._estimate_sample_rate(),
+                "channels":             self._detected_channels(),
+                "source_type":          "live",
+            },
+            "frames":   list(self.buffer),    # copy — caller must not mutate
+            "insights": list(self.insights),
+            "events":   list(self.events),
+        }
+
     def _save_to_disk(self) -> str | None:
         Path(self.data_dir).mkdir(parents=True, exist_ok=True)
         capsule = {

@@ -7,6 +7,7 @@ from ui.inverter_scope import InverterScope
 from ui.phasor_view import PhasorView
 from ui.fault_injector import FaultInjector
 from ui.insights_panel import InsightsPanel
+from ui.live_status_panel import LiveStatusPanel
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +38,12 @@ class DiagnosticsPage(QWidget):
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
+
+        # Live source status — shows adapter, fps, active channels, warnings
+        self.live_status = LiveStatusPanel()
+        root.addWidget(self.live_status)
+        serial_mgr.connection_status.connect(self.live_status.set_connected)
+        serial_mgr.live_stats_updated.connect(self.live_status.update_stats)
 
         # System health card — replaces the raw status strip
         self._health = _SystemHealthCard()
