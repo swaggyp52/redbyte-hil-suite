@@ -187,6 +187,19 @@ class ReplayStudio(QWidget):
             label = data.get("meta", {}).get("session_id", "imported")
         self._load_session_from_data(data, label, is_primary, path=None)
 
+    def get_primary_capsule(self) -> dict | None:
+        """Return the primary session's Data Capsule dict, or None if no session loaded."""
+        primary = next((s for s in self.sessions if s.get("is_primary")), None)
+        return primary["data"] if primary is not None else None
+
+    def get_events(self) -> list:
+        """Return detected events for the primary session (read-only copy)."""
+        return self._event_lane.get_events()
+
+    def get_annotations(self) -> dict:
+        """Return user annotations keyed by ts_start string."""
+        return self._event_lane.get_annotations()
+
     def _load_session_from_data(self, data: dict, label: str, is_primary: bool, path=None):
         """Internal: accept an already-parsed Data Capsule dict."""
         frames = data.get('frames', [])

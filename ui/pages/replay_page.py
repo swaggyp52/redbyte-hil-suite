@@ -25,6 +25,7 @@ class ReplayPage(QWidget):
     def __init__(self, recorder, serial_mgr, parent=None):
         super().__init__(parent)
         self._session_path = None
+        self._capsule: dict | None = None
         self._build(recorder, serial_mgr)
 
     def _build(self, recorder, serial_mgr):
@@ -76,6 +77,7 @@ class ReplayPage(QWidget):
         # Wire top bar
         self._top_bar.load_clicked.connect(self._on_load)
         self._top_bar.export_csv_clicked.connect(self._on_export_csv)
+        self._top_bar.export_events_clicked.connect(self._on_export_events_csv)
         self._top_bar.export_png_clicked.connect(self.studio._export_plot)
 
     # ─────────────────────────────────────────────────────────────
@@ -95,6 +97,7 @@ class ReplayPage(QWidget):
             session:  ActiveSession descriptor for the same capsule.
         """
         label = session.label
+        self._capsule = capsule
         self.studio._clear_all()
         self.studio.load_session_from_dict(capsule, label=label, is_primary=True)
 
@@ -115,12 +118,14 @@ class ReplayPage(QWidget):
         if not path or not os.path.exists(path):
             return
         self._session_path = path
+        self._capsule = None  # cleared until JSON loads
         try:
             with open(path) as f:
                 data = json.load(f)
         except Exception as exc:
             logger.error(f"Failed to load session: {exc}")
             return
+        self._capsule = data
 
         self.studio._clear_all()
         self.studio._load_session(path, is_primary=True)
@@ -177,17 +182,33 @@ class ReplayPage(QWidget):
             self.load_session(fname)
 
     def _on_export_csv(self):
-        if not self._session_path:
+        capsule = self._capsule or self.studio.get_primary_capsule()
+        if capsule is None:
             return
         path, _ = QFileDialog.getSaveFileName(
-            self, "Export CSV", "exports/replay_export.csv", "CSV (*.csv)"
+            self, "Export Session CSV", "exports/session_export.csv", "CSV (*.csv)"
         )
         if path:
             try:
-                from src.csv_exporter import CSVExporter
-                CSVExporter().export_session(self._session_path, path)
+                from src.session_exporter import export_session_csv
+                export_session_csv(capsule, path)
             except Exception as exc:
                 logger.error(f"CSV export failed: {exc}")
+
+    def _on_export_events_csv(self):
+        events = self.studio.get_events()
+        if not events:
+            return
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export Events CSV", "exports/events_export.csv", "CSV (*.csv)"
+        )
+        if path:
+            try:
+                from src.session_exporter import export_events_csv
+                annotations = self.studio.get_annotations()
+                export_events_csv(events, annotations, path)
+            except Exception as exc:
+                logger.error(f"Events CSV export failed: {exc}")
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -312,8 +333,9 @@ class _SessionSummaryBar(QFrame):
 
 
 class _ReplayTopBar(QWidget):
-    load_clicked     = pyqtSignal()
+    load_clicked       = pyqtSignal()
     export_csv_clicked = pyqtSignal()
+    export_events_clicked = pyqtSignal()
     export_png_clicked = pyqtSignal()
 
     def __init__(self, parent=None):
@@ -332,12 +354,16 @@ class _ReplayTopBar(QWidget):
 
         btn_load = QPushButton("Load Session")
         btn_load.clicked.connect(self.load_clicked)
-        btn_csv = QPushButton("Export CSV")
+        btn_csv = QPushButton("Export Session CSV")
+        btn_csv.setObjectName("ExportBtn")
         btn_csv.clicked.connect(self.export_csv_clicked)
+        btn_events = QPushButton("Export Events CSV")
+        btn_events.setObjectName("ExportBtn")
+        btn_events.clicked.connect(self.export_events_clicked)
         btn_png = QPushButton("Export PNG")
         btn_png.clicked.connect(self.export_png_clicked)
 
-        for btn in [btn_load, btn_csv, btn_png]:
+        for btn in [btn_load, btn_csv, btn_events, btn_png]:
             layout.addWidget(btn)
 
     def set_loaded(self, name: str):

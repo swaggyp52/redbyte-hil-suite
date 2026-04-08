@@ -29,6 +29,9 @@ class CompliancePage(QWidget):
         self._session_path = None
         self._session_data = None
         self._state = "no_session"
+        self._last_results: list = []
+        self._last_events:  list = []
+        self._last_annotations: dict = {}
         self._build(scenario_ctrl)
 
     def _build(self, scenario_ctrl):
@@ -84,6 +87,7 @@ class CompliancePage(QWidget):
         self._top_bar.run_clicked.connect(self._on_run_tests)
         bottom.html_clicked.connect(self._on_export_html)
         bottom.csv_clicked.connect(self._on_export_csv)
+        bottom.events_clicked.connect(self._on_export_events_csv)
 
     # ─────────────────────────────────────────────────────────────
     # Public API
@@ -137,6 +141,16 @@ class CompliancePage(QWidget):
         self._state = "loaded"
         logger.info("Compliance page pre-loaded from imported capsule: %s", name)
 
+    def set_events(self, events: list, annotations: dict | None = None) -> None:
+        """
+        Receive the latest detected events from the replay studio.
+
+        Called by AppShell after event detection completes so the compliance
+        page has full context for its HTML report export.
+        """
+        self._last_events = list(events)
+        self._last_annotations = dict(annotations or {})
+
     # ─────────────────────────────────────────────────────────────
     # Internal
     # ─────────────────────────────────────────────────────────────
@@ -164,6 +178,7 @@ class CompliancePage(QWidget):
         self._scorecard.update_score(passed, total)
         self._scorecard.setVisible(True)
         self._check_cards.set_results(results)
+        self._last_results = results
         self.dashboard.set_compliance(results)
         self.dashboard.add_entry({
             "ts":       time.time(),
@@ -176,28 +191,47 @@ class CompliancePage(QWidget):
         self._state = "results"
 
     def _on_export_html(self):
-        if not self._session_path:
+        if not self._session_data:
             return
         try:
-            from src.report_generator import generate_report
-            out_path = generate_report(self._session_path, output_dir="exports")
+            from src.session_exporter import generate_html_report
+            compliance = self._last_results if self._last_results else None
+            out_path = generate_html_report(
+                self._session_data,
+                self._last_events or None,
+                compliance,
+                output_dir="exports",
+            )
             if out_path and os.path.exists(str(out_path)):
                 webbrowser.open_new_tab(f"file:///{os.path.abspath(str(out_path))}")
         except Exception as exc:
             logger.error(f"HTML report failed: {exc}")
 
     def _on_export_csv(self):
-        if not self._session_path:
+        if not self._session_data:
             return
         path, _ = QFileDialog.getSaveFileName(
-            self, "Export CSV", "exports/compliance.csv", "CSV (*.csv)"
+            self, "Export Session CSV", "exports/compliance_session.csv", "CSV (*.csv)"
         )
         if path:
             try:
-                from src.csv_exporter import CSVExporter
-                CSVExporter().export_session(self._session_path, path, format_type="detailed")
+                from src.session_exporter import export_session_csv
+                export_session_csv(self._session_data, path)
             except Exception as exc:
                 logger.error(f"CSV export failed: {exc}")
+
+    def _on_export_events_csv(self):
+        if not self._last_events:
+            return
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export Events CSV", "exports/compliance_events.csv", "CSV (*.csv)"
+        )
+        if path:
+            try:
+                from src.session_exporter import export_events_csv
+                export_events_csv(self._last_events, self._last_annotations, path)
+            except Exception as exc:
+                logger.error(f"Events CSV export failed: {exc}")
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -446,8 +480,9 @@ class _ComplianceTopBar(QWidget):
 
 
 class _ExportBar(QWidget):
-    html_clicked = pyqtSignal()
-    csv_clicked  = pyqtSignal()
+    html_clicked   = pyqtSignal()
+    csv_clicked    = pyqtSignal()
+    events_clicked = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -459,11 +494,14 @@ class _ExportBar(QWidget):
         layout.setSpacing(8)
         layout.addStretch()
 
-        btn_html = QPushButton("Export HTML Report")
+        btn_html = QPushButton("Export Engineering Report")
         btn_html.setObjectName("ExportBtn")
         btn_html.clicked.connect(self.html_clicked)
-        btn_csv = QPushButton("Export CSV")
+        btn_csv = QPushButton("Export Session CSV")
         btn_csv.clicked.connect(self.csv_clicked)
+        btn_events = QPushButton("Export Events CSV")
+        btn_events.clicked.connect(self.events_clicked)
 
         layout.addWidget(btn_html)
         layout.addWidget(btn_csv)
+        layout.addWidget(btn_events)

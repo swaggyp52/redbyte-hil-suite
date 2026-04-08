@@ -168,6 +168,9 @@ class AppShell(QMainWindow):
         # Connection status → overview health indicator
         self.serial_mgr.connection_status.connect(self._on_connection_status)
 
+        # Forward detected events to compliance page for full report context
+        self._replay.studio.events_detected.connect(self._on_events_detected)
+
     # ──────────────────────────────────────────────────────────────
     # File import workflow
     # ──────────────────────────────────────────────────────────────
@@ -293,6 +296,15 @@ class AppShell(QMainWindow):
         self._replay.load_session(path)
         self._compliance.load_session(path)
         self._console.load_session(path)
+
+    def _on_events_detected(self, _n: int) -> None:
+        """
+        After event detection runs, forward events to the compliance page so
+        it has full context when generating the engineering report.
+        """
+        events      = self._replay.studio.get_events()
+        annotations = self._replay.studio.get_annotations()
+        self._compliance.set_events(events, annotations)
 
     def _on_connection_status(self, connected: bool, source: str):
         self._overview.set_health(connected, "MOCK" if "MOCK" in source else source)

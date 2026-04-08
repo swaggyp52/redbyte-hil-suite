@@ -151,6 +151,14 @@ class EventLane(QWidget):
         self._events = []
         self._refresh()
 
+    def get_events(self) -> list:
+        """Return the current list of DetectedEvent objects (read-only copy)."""
+        return list(self._events)
+
+    def get_annotations(self) -> dict:
+        """Return the current annotations dict keyed by ts_start string."""
+        return dict(self._annotations)
+
     # ------------------------------------------------------------------
     # Build
     # ------------------------------------------------------------------
