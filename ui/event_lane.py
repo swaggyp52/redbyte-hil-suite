@@ -20,6 +20,8 @@ from typing import Optional
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QBrush, QColor
 from PyQt6.QtWidgets import (
+    QCheckBox,
+    QComboBox,
     QFrame,
     QGridLayout,
     QHBoxLayout,
@@ -144,6 +146,14 @@ class EventLane(QWidget):
     def load_events(self, events: list[DetectedEvent]) -> None:
         """Replace the current event list with *events* and refresh the view."""
         self._events = list(events)
+        # Populate kind combo with unique event types
+        self._kind_combo.blockSignals(True)
+        self._kind_combo.clear()
+        self._kind_combo.addItem("All Types")
+        kinds = sorted({e.kind for e in events})
+        for k in kinds:
+            self._kind_combo.addItem(_KIND_LABELS.get(k, k))
+        self._kind_combo.blockSignals(False)
         self._refresh()
 
     def clear(self) -> None:
@@ -184,6 +194,39 @@ class EventLane(QWidget):
             self._summary_bar.addWidget(w)
         self._summary_bar.addStretch()
         root.addLayout(self._summary_bar)
+
+        # ── Filter bar ────────────────────────────────────────────────
+        filter_row = QHBoxLayout()
+        filter_row.setSpacing(8)
+
+        filter_label = QLabel("Filter:")
+        filter_label.setStyleSheet("color: #64748b; font-size: 10px;")
+        filter_row.addWidget(filter_label)
+
+        self._sev_combo = QComboBox()
+        self._sev_combo.addItems(["All Severities", "Critical", "Warning", "Info"])
+        self._sev_combo.setFixedWidth(130)
+        self._sev_combo.currentIndexChanged.connect(lambda _: self._refresh())
+        filter_row.addWidget(self._sev_combo)
+
+        self._kind_combo = QComboBox()
+        self._kind_combo.addItem("All Types")
+        self._kind_combo.setFixedWidth(150)
+        self._kind_combo.currentIndexChanged.connect(lambda _: self._refresh())
+        filter_row.addWidget(self._kind_combo)
+
+        self._chk_hide_info = QCheckBox("Hide info-level")
+        self._chk_hide_info.setStyleSheet("color: #94a3b8; font-size: 10px;")
+        self._chk_hide_info.toggled.connect(lambda _: self._refresh())
+        filter_row.addWidget(self._chk_hide_info)
+
+        filter_row.addStretch()
+
+        self._lbl_showing = QLabel("")
+        self._lbl_showing.setStyleSheet("color: #475569; font-size: 10px;")
+        filter_row.addWidget(self._lbl_showing)
+
+        root.addLayout(filter_row)
 
         # ── Engineering stats cards ───────────────────────────────────
         self._stats_frame = QFrame()
@@ -282,6 +325,32 @@ class EventLane(QWidget):
     def _refresh(self) -> None:
         self._tree.clear()
 
+        # ── Apply filters ────────────────────────────────────────────
+        sev_filter = self._sev_combo.currentText().lower()
+        kind_filter_text = self._kind_combo.currentText()
+        hide_info = self._chk_hide_info.isChecked()
+
+        # Reverse-lookup kind key from label
+        kind_key_filter = None
+        if kind_filter_text != "All Types":
+            for k, v in _KIND_LABELS.items():
+                if v == kind_filter_text:
+                    kind_key_filter = k
+                    break
+            if kind_key_filter is None:
+                kind_key_filter = kind_filter_text  # raw kind name
+
+        filtered: list[DetectedEvent] = []
+        for e in self._events:
+            if hide_info and e.severity == "info":
+                continue
+            if sev_filter not in ("all severities",) and e.severity != sev_filter and sev_filter != "all severities":
+                continue
+            if kind_key_filter and e.kind != kind_key_filter:
+                continue
+            filtered.append(e)
+
+        # ── Unfiltered totals for badges ─────────────────────────────
         n_critical = sum(1 for e in self._events if e.severity == "critical")
         n_warning  = sum(1 for e in self._events if e.severity == "warning")
         n_info     = sum(1 for e in self._events if e.severity == "info")
@@ -298,7 +367,7 @@ class EventLane(QWidget):
 
         # Stats cards
         if n_total > 0:
-            stats = _compute_stats(self._events)
+            stats = _compute_stats(filtered if filtered else self._events)
             for key, val_lbl in self._stat_labels.items():
                 val_lbl.setText(stats.get(key, "--"))
             self._stats_frame.setVisible(True)
@@ -309,7 +378,13 @@ class EventLane(QWidget):
         bg_warn, fg_warn = _SEV_COLORS["warning"]
         bg_info, fg_info = _SEV_COLORS["info"]
 
-        for event in self._events:
+        # Show filter status
+        if len(filtered) != n_total:
+            self._lbl_showing.setText(f"Showing {len(filtered)} of {n_total}")
+        else:
+            self._lbl_showing.setText("")
+
+        for event in filtered:
             dur  = event.ts_end - event.ts_start
             kind = _KIND_LABELS.get(event.kind, event.kind)
             note = self._annotations.get(self._annotation_key(event.ts_start), "")

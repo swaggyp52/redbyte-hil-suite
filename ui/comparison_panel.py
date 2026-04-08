@@ -98,6 +98,9 @@ class ComparisonPanel(QWidget):
         self._lbl_a.setText(f"A: {label_a}")
         self._lbl_b.setText(f"B: {label_b}")
 
+        # Hide empty-state guidance once both sessions are available
+        self._empty_hint.setVisible(False)
+
         # Populate channel selector
         self._populate_channels()
 
@@ -111,6 +114,7 @@ class ComparisonPanel(QWidget):
         self._channel_combo.clear()
         self._btn_align.setEnabled(False)
         self._btn_compare.setEnabled(False)
+        self._empty_hint.setVisible(True)
         self._clear_plots()
         self._clear_metrics()
 
@@ -170,6 +174,22 @@ class ComparisonPanel(QWidget):
         self._btn_align.setToolTip("Load two sessions first")
         self._btn_compare.setEnabled(False)
         self._btn_compare.setToolTip("Load two sessions first")
+
+        # ── Empty state guidance (shown until both sessions loaded) ──
+        self._empty_hint = QLabel(
+            "Load a session in the Replay tab, then click <b>Add Overlay</b> "
+            "to load a second session.\n\n"
+            "Once both datasets (A and B) are loaded, use <b>Auto-Align</b> to "
+            "time-synchronise them and <b>Compare</b> to see overlay and delta plots."
+        )
+        self._empty_hint.setWordWrap(True)
+        self._empty_hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._empty_hint.setStyleSheet(
+            "color: #64748b; font-size: 11px; padding: 32px 24px; "
+            "background: rgba(15,17,21,180); border: 1px dashed #1e293b; "
+            "border-radius: 10px;"
+        )
+        root.addWidget(self._empty_hint)
 
         # ── Confidence label (shown after auto-align) ─────────────
         self._align_info = QLabel("")

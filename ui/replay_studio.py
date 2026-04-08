@@ -1,5 +1,6 @@
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QPushButton, QHBoxLayout,
-                             QLabel, QFileDialog, QComboBox, QTabWidget, QInputDialog)
+                             QLabel, QFileDialog, QComboBox, QTabWidget, QInputDialog,
+                             QCheckBox, QFrame, QGridLayout)
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 import pyqtgraph as pg
 import pyqtgraph.exporters
@@ -27,6 +28,8 @@ class ReplayStudio(QWidget):
     """
     # Emitted after event detection completes so parent can update summaries.
     events_detected = pyqtSignal(int)
+    # Carries the full list of DetectedEvent objects for the insights panel.
+    events_ready = pyqtSignal(list)
 
     def __init__(self, recorder, serial_mgr):
         super().__init__()
@@ -50,16 +53,26 @@ class ReplayStudio(QWidget):
 
         self.btn_overlay = QPushButton("Add Overlay")
         self.btn_overlay.clicked.connect(self._add_overlay)
-        self.btn_overlay.setToolTip("Load a second session to overlay for comparison")
+        self.btn_overlay.setToolTip("Load a primary session first")
+        self.btn_overlay.setEnabled(False)
 
         self.btn_clear = QPushButton("Clear All")
         self.btn_clear.clicked.connect(self._clear_all)
+        self.btn_clear.setEnabled(False)
 
         self.btn_play = QPushButton("Play")
         self.btn_play.clicked.connect(self._toggle_play)
+        self.btn_play.setEnabled(False)
 
         self.btn_export = QPushButton("Export Plot")
         self.btn_export.clicked.connect(self._export_plot)
+        self.btn_export.setEnabled(False)
+        self.btn_export.setToolTip("Load a session first")
+
+        self.btn_reset_zoom = QPushButton("Reset Zoom")
+        self.btn_reset_zoom.setToolTip("Reset all plots to auto-range")
+        self.btn_reset_zoom.clicked.connect(self._reset_zoom)
+        self.btn_reset_zoom.setEnabled(False)
 
         self.lbl_time = QLabel("0.00s")
 
@@ -67,10 +80,31 @@ class ReplayStudio(QWidget):
         ctrl.addWidget(self.btn_overlay)
         ctrl.addWidget(self.btn_clear)
         ctrl.addWidget(self.btn_play)
+        ctrl.addWidget(self.btn_reset_zoom)
         ctrl.addWidget(self.btn_export)
         ctrl.addWidget(self.lbl_time)
         ctrl.addStretch()
+
+        # Crosshair readout label
+        self._readout = QLabel("")
+        self._readout.setStyleSheet(
+            "color: #94a3b8; font-family: monospace; font-size: 10px; padding: 0 8px;"
+        )
+        ctrl.addWidget(self._readout)
         self.layout.addLayout(ctrl)
+
+        # --- Channel Toggle Panel (hidden until session loaded) ---
+        self._channel_bar = QWidget()
+        self._channel_bar.setVisible(False)
+        ch_bar_layout = QHBoxLayout(self._channel_bar)
+        ch_bar_layout.setContentsMargins(4, 2, 4, 2)
+        ch_bar_layout.setSpacing(8)
+        ch_lbl = QLabel("Channels:")
+        ch_lbl.setStyleSheet("color: #64748b; font-size: 10px;")
+        ch_bar_layout.addWidget(ch_lbl)
+        self._channel_checks: dict[str, QCheckBox] = {}
+        ch_bar_layout.addStretch()
+        self.layout.addWidget(self._channel_bar)
 
         # --- Tab Widget for waveform vs metrics ---
         self.tabs = QTabWidget()
@@ -84,6 +118,26 @@ class ReplayStudio(QWidget):
         self.plot_wave.setLabel('bottom', 'Time', units='s')
         self.plot_wave.addLegend()
         self.tabs.addTab(self.plot_wave, "Waveforms")
+
+        # Crosshair cursor lines (hover readout)
+        self._crosshair_v = pg.InfiniteLine(
+            angle=90, movable=False,
+            pen=pg.mkPen('#475569', width=1, style=Qt.PenStyle.DotLine),
+        )
+        self._crosshair_h = pg.InfiniteLine(
+            angle=0, movable=False,
+            pen=pg.mkPen('#475569', width=1, style=Qt.PenStyle.DotLine),
+        )
+        self.plot_wave.addItem(self._crosshair_v, ignoreBounds=True)
+        self.plot_wave.addItem(self._crosshair_h, ignoreBounds=True)
+        self._crosshair_v.setVisible(False)
+        self._crosshair_h.setVisible(False)
+
+        # Connect mouse-move for crosshair
+        self._proxy = pg.SignalProxy(
+            self.plot_wave.scene().sigMouseMoved,
+            rateLimit=30, slot=self._on_mouse_moved,
+        )
 
         # Tab 2: Derived Metrics (RMS, THD, Freq over time)
         metrics_container = QWidget()
@@ -241,6 +295,7 @@ class ReplayStudio(QWidget):
         self._update_comparison_tab()
         # Defer event detection so the waveform plots appear immediately.
         QTimer.singleShot(0, self._update_event_lane)
+        self._sync_button_state()
         logger.info("Loaded session '%s' with %d frames (overlay=%s)", label, len(frames), not is_primary)
 
     def _render_all_sessions(self):
@@ -446,6 +501,16 @@ class ReplayStudio(QWidget):
         self.plot_metrics.autoRange()
         self.plot_spectrum.autoRange()
 
+        # Update channel toggle bar from primary session channels
+        primary = next((s for s in self.sessions if s.get('is_primary')), None)
+        if primary:
+            sample = primary['frames'][0] if primary['frames'] else {}
+            ch_names = [
+                k for k in sample
+                if k != 'ts' and isinstance(sample.get(k), (int, float))
+            ]
+            self._update_channel_bar(ch_names)
+
     def _clear_all(self):
         self.sessions = []
         self.active_session = None
@@ -460,6 +525,21 @@ class ReplayStudio(QWidget):
         self.lbl_time.setText("0.00s")
         self._comparison_tab.clear()
         self._event_lane.clear()
+        self._sync_button_state()
+
+    def _sync_button_state(self) -> None:
+        """Enable / disable toolbar buttons based on whether sessions are loaded."""
+        has = len(self.sessions) > 0
+        self.btn_overlay.setEnabled(has)
+        self.btn_overlay.setToolTip(
+            "Load a second session to overlay for comparison" if has
+            else "Load a primary session first"
+        )
+        self.btn_clear.setEnabled(has)
+        self.btn_play.setEnabled(has)
+        self.btn_export.setEnabled(has)
+        self.btn_export.setToolTip("" if has else "Load a session first")
+        self.btn_reset_zoom.setEnabled(has)
 
     def _update_comparison_tab(self) -> None:
         """Auto-populate the Compare tab when two sessions are available."""
@@ -484,6 +564,7 @@ class ReplayStudio(QWidget):
             events = detect_events(dataset)
             self._event_lane.load_events(events)
             self.events_detected.emit(len(events))
+            self.events_ready.emit(events)
             logger.info("Event detection: %d events found in '%s'",
                         len(events), primary.get('label', '?'))
         except Exception as exc:
@@ -655,3 +736,64 @@ class ReplayStudio(QWidget):
         f, m = points[0].data()
         self._spectrum_label.setText(f"Peak: {f:.1f} Hz — {m:.2f}")
         self._spectrum_label.setPos(f, m)
+
+    # ── Interactive analysis tools ─────────────────────────────────────────
+
+    def _on_mouse_moved(self, evt):
+        """Track crosshair and readout on the Waveforms plot."""
+        pos = evt[0]
+        if not self.sessions or not self.plot_wave.sceneBoundingRect().contains(pos):
+            self._crosshair_v.setVisible(False)
+            self._crosshair_h.setVisible(False)
+            self._readout.setText("")
+            return
+
+        mouse_pt = self.plot_wave.plotItem.vb.mapSceneToView(pos)
+        t_val = mouse_pt.x()
+        y_val = mouse_pt.y()
+
+        self._crosshair_v.setPos(t_val)
+        self._crosshair_h.setPos(y_val)
+        self._crosshair_v.setVisible(True)
+        self._crosshair_h.setVisible(True)
+
+        self._readout.setText(f"t = {t_val:.4f}s   y = {y_val:.3f}")
+
+    def _reset_zoom(self):
+        """Auto-range all plot widgets."""
+        self.plot_wave.autoRange()
+        self.plot_metrics.autoRange()
+        self.plot_spectrum.autoRange()
+
+    def _update_channel_bar(self, channels: list[str]) -> None:
+        """Build or rebuild the channel toggle checkboxes."""
+        # Clear old checkboxes
+        layout = self._channel_bar.layout()
+        for cb in list(self._channel_checks.values()):
+            layout.removeWidget(cb)
+            cb.deleteLater()
+        self._channel_checks.clear()
+
+        for ch in channels:
+            cb = QCheckBox(ch)
+            cb.setChecked(True)
+            cb.setStyleSheet("color: #cbd5e1; font-size: 10px;")
+            cb.toggled.connect(self._on_channel_toggled)
+            # Insert before the stretch
+            layout.insertWidget(layout.count() - 1, cb)
+            self._channel_checks[ch] = cb
+
+        self._channel_bar.setVisible(bool(channels))
+
+    def _on_channel_toggled(self):
+        """Show/hide waveform curves based on channel checkboxes."""
+        if not self.sessions:
+            return
+        visible_channels = {
+            ch for ch, cb in self._channel_checks.items() if cb.isChecked()
+        }
+        for curve in self._wave_curves:
+            name = curve.name() or ""
+            # Strip suffix like " (label)" to get raw channel name
+            raw = name.split(" (")[0] if " (" in name else name
+            curve.setVisible(raw in visible_channels)

@@ -59,8 +59,13 @@ _FREQ_EXCURSION_MIN_S  = 0.1    # must persist ≥ 100 ms
 _FLATLINE_STD_FRAC     = 0.001  # std < 0.1% of signal range
 _FLATLINE_MIN_DUR_S    = 0.05   # must persist ≥ 50 ms
 
-# Step change: |Δ| > 8% of signal range in one sample
-_STEP_RANGE_FRAC = 0.08
+# Step change: |Δ| > 20% of signal range in one sample (raised to suppress
+# noisy step spam on oscillating waveforms)
+_STEP_RANGE_FRAC = 0.20
+# Minimum gap (seconds) between reported step-change events on the same channel
+_STEP_MERGE_GAP_S = 0.05
+# Maximum step-change events per channel before the detector stops
+_STEP_MAX_PER_CH = 20
 
 # Clipping: consecutive samples at extreme value
 _CLIP_MIN_DUR_S   = 0.005   # 5 ms
@@ -325,7 +330,12 @@ def _detect_step_change(
     time: np.ndarray,
     sample_rate: float,
 ) -> list[DetectedEvent]:
-    """Detect abrupt step changes: |Δ| > 8% of total signal range per sample."""
+    """Detect abrupt step changes: |Δ| > threshold of total signal range.
+
+    Adjacent events within ``_STEP_MERGE_GAP_S`` are merged into a single
+    event to prevent thousands of per-sample detections on oscillating
+    waveforms.  Output is capped at ``_STEP_MAX_PER_CH`` per channel.
+    """
     n = len(signal)
     if n < 4:
         return []
@@ -338,9 +348,25 @@ def _detect_step_change(
     threshold = _STEP_RANGE_FRAC * signal_range
     flags     = np.abs(diff) > threshold
 
+    raw_runs = _find_runs(flags)
+    if not raw_runs:
+        return []
+
+    # ── Merge runs that are within _STEP_MERGE_GAP_S of each other ──
+    merge_gap_samples = max(int(_STEP_MERGE_GAP_S * sample_rate), 1)
+    merged: list[tuple[int, int]] = [raw_runs[0]]
+    for rs, re in raw_runs[1:]:
+        prev_rs, prev_re = merged[-1]
+        if rs - prev_re <= merge_gap_samples:
+            merged[-1] = (prev_rs, re)
+        else:
+            merged.append((rs, re))
+
     events: list[DetectedEvent] = []
-    for rs, re in _find_runs(flags):
-        step_sz = float(np.max(np.abs(diff[rs:re + 1])))
+    for rs, re in merged:
+        if len(events) >= _STEP_MAX_PER_CH:
+            break
+        step_sz = float(np.max(np.abs(diff[rs:min(re + 1, len(diff))])))
         pct     = step_sz / signal_range * 100.0
         sev     = "critical" if pct > 50.0 else "warning"
         events.append(DetectedEvent(
@@ -536,4 +562,50 @@ def detect_events(dataset: ImportedDataset) -> list[DetectedEvent]:
 
     events.extend(_detect_duplicate_channels(dataset))
     events.sort(key=lambda e: e.ts_start)
+
+    # ── Global noise reduction: merge same-kind events on the same channel
+    # that overlap or are within a tiny gap. ────────────────────────────────
+    events = _merge_nearby_events(events, gap_s=0.02)
+
     return events
+
+
+def _merge_nearby_events(
+    events: list[DetectedEvent], gap_s: float = 0.02,
+) -> list[DetectedEvent]:
+    """Merge events of the same kind+channel that overlap or are within *gap_s*."""
+    if not events:
+        return events
+
+    merged: list[DetectedEvent] = []
+    for e in events:
+        if (
+            merged
+            and merged[-1].kind == e.kind
+            and merged[-1].channel == e.channel
+            and (e.ts_start - merged[-1].ts_end) <= gap_s
+        ):
+            prev = merged[-1]
+            # Extend the previous event to cover this one, keep worst severity
+            worse = (
+                e.severity
+                if _sev_rank(e.severity) > _sev_rank(prev.severity)
+                else prev.severity
+            )
+            merged[-1] = DetectedEvent(
+                kind=prev.kind,
+                ts_start=prev.ts_start,
+                ts_end=max(prev.ts_end, e.ts_end),
+                channel=prev.channel,
+                severity=worse,
+                description=prev.description,
+                metrics=prev.metrics,
+                confidence=min(prev.confidence, e.confidence),
+            )
+        else:
+            merged.append(e)
+    return merged
+
+
+def _sev_rank(sev: str) -> int:
+    return {"info": 0, "warning": 1, "critical": 2}.get(sev, 0)

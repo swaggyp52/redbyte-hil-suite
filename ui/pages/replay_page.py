@@ -62,12 +62,14 @@ class ReplayPage(QWidget):
 
         self.studio = ReplayStudio(recorder, serial_mgr)
         split.addWidget(self.studio)
-        # Update the summary bar whenever event detection finishes
-        self.studio.events_detected.connect(self._summary.set_event_count)
 
         self.insights = InsightsPanel()
         split.addWidget(self.insights)
         split.setSizes([820, 200])
+
+        # Wire signals after both widgets exist
+        self.studio.events_detected.connect(self._summary.set_event_count)
+        self.studio.events_ready.connect(self.insights.load_event_summary)
 
         content_layout.addWidget(split)
         self._stack.addWidget(content)
