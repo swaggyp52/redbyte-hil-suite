@@ -11,10 +11,10 @@ if errorlevel 1 (
     exit /b 1
 )
 
-echo [1/3] Upgrading pip...
+echo [1/2] Upgrading pip...
 python -m pip install --upgrade pip --quiet
 
-echo [2/3] Installing Python dependencies...
+echo [2/2] Installing Python dependencies (including openpyxl for Excel import)...
 pip install -r requirements.txt --quiet
 if errorlevel 1 (
     echo [ERROR] pip install failed. Check the error above.
@@ -22,16 +22,13 @@ if errorlevel 1 (
     exit /b 1
 )
 
-echo [3/3] Installing Playwright browser...
-python -m playwright install chromium
-if errorlevel 1 (
-    echo [WARN] Playwright browser install failed. HTML report tests may be skipped.
-)
-
 echo.
 echo ============================================
 echo  Setup complete!
-echo  Run:  python run.py
-echo  Test: python -m pytest tests/ -v
+echo.
+echo  Launch:  python run.py
+echo    or     run.bat  (double-click)
+echo.
+echo  Test:    pytest tests/ --ignore=tests/test_ui_integration.py -q
 echo ============================================
 pause

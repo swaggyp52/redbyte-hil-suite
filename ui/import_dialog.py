@@ -249,6 +249,14 @@ class ImportDialog(QDialog):
     # File browsing and ingestion
     # ──────────────────────────────────────────────────────────────────────────
 
+    def load_file(self, path: str) -> None:
+        """Pre-load a file before or after the dialog is shown.
+
+        Called from AppShell when a file is opened via drag-and-drop so the
+        dialog opens with ingestion already in progress rather than blank.
+        """
+        self._load_file(path)
+
     def _browse(self) -> None:
         path, _ = QFileDialog.getOpenFileName(
             self,

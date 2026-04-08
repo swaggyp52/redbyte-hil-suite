@@ -7,7 +7,7 @@ All backend managers live here; pages receive references to them.
 import logging
 import os
 from PyQt6.QtWidgets import (QMainWindow, QWidget, QHBoxLayout, QVBoxLayout,
-                             QStackedWidget)
+                             QMessageBox, QStackedWidget)
 from PyQt6.QtCore import Qt, QTimer
 
 from src.serial_reader import SerialManager
@@ -63,6 +63,9 @@ class AppShell(QMainWindow):
         self._init_backends()
         self._build_ui()
         self._wire_signals()
+
+        # Accept file drops anywhere on the window
+        self.setAcceptDrops(True)
 
         if demo_mode:
             QTimer.singleShot(200, self._start_demo)
@@ -178,12 +181,59 @@ class AppShell(QMainWindow):
     # File import workflow
     # ──────────────────────────────────────────────────────────────
 
-    def _open_import_dialog(self):
-        """Open the Import Run File dialog and wire the result into ReplayStudio."""
+    _SUPPORTED_EXTS = frozenset({".csv", ".xls", ".xlsx", ".json"})
+
+    def _open_import_dialog(self, preload_path: str = "") -> None:
+        """Open the Import Run File dialog and wire the result into ReplayStudio.
+
+        If *preload_path* is provided (e.g. from drag-and-drop), ingestion
+        starts automatically so the dialog opens with the file already loading.
+        """
         from ui.import_dialog import ImportDialog
         dlg = ImportDialog(self)
         dlg.session_imported.connect(self._on_session_imported)
+        if preload_path:
+            dlg.load_file(preload_path)
         dlg.exec()
+
+    # ──────────────────────────────────────────────────────────────
+    # Drag-and-drop
+    # ──────────────────────────────────────────────────────────────
+
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasUrls():
+            for url in event.mimeData().urls():
+                ext = os.path.splitext(url.toLocalFile())[1].lower()
+                if ext in self._SUPPORTED_EXTS:
+                    event.acceptProposedAction()
+                    return
+        event.ignore()
+
+    def dropEvent(self, event):
+        for url in event.mimeData().urls():
+            path = url.toLocalFile()
+            if not path:
+                continue
+            ext = os.path.splitext(path)[1].lower()
+            if ext in self._SUPPORTED_EXTS:
+                self._open_import_dialog(preload_path=path)
+                return
+            # Unsupported file — explain clearly instead of failing silently
+            ext_display = ext if ext else "(no extension)"
+            QMessageBox.warning(
+                self,
+                "Unsupported File Type",
+                f"<b>{os.path.basename(path)}</b> ({ext_display}) cannot be analyzed.\n\n"
+                "Supported data files:\n"
+                "  • <b>CSV</b>  — oscilloscope captures (Rigol DS0/DS1), "
+                "simulation logs, or telemetry exports\n"
+                "  • <b>XLSX / XLS</b>  — simulation output (Excel)\n"
+                "  • <b>JSON</b>  — saved Data Capsule sessions\n\n"
+                "Firmware, docs, and scripts don't contain waveform data "
+                "and are not imported here.",
+            )
+            return
+        event.ignore()
 
     def _on_session_imported(self, capsule: dict):
         """Receive an imported session capsule and make it the active session."""

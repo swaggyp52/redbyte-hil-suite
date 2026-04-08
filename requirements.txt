@@ -3,9 +3,7 @@
 #
 # Python 3.12 required.
 #
-# Optional extras:
-#   Excel import (.xlsx/.xls):  pip install openpyxl
-#   Dev tooling:                pip install -r requirements-dev.txt
+# Dev tooling: pip install -r requirements-dev.txt
 
 PyQt6>=6.4.0
 pyqtgraph>=0.13.0
@@ -14,6 +12,4 @@ numpy>=1.24.0
 scipy>=1.10.0
 matplotlib>=3.8.0
 python-dotenv>=1.0.0
-
-# openpyxl — only needed to import .xlsx simulation files
-# openpyxl>=3.1.0
+openpyxl>=3.1.0

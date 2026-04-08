@@ -102,12 +102,15 @@ class OverviewPage(QWidget):
 
         # Hint shown when no session is active
         self._no_session_hint = QLabel(
-            "No dataset loaded  —  import a run file (CSV, Excel, or JSON) to begin analysis"
+            "No dataset loaded.\n"
+            "Import a run file to start — or drag and drop a file anywhere on this window.\n"
+            "Supported: CSV (oscilloscope/telemetry), XLSX (simulation), JSON (saved session)."
         )
         self._no_session_hint.setObjectName("NoSessionHint")
         self._no_session_hint.setStyleSheet(
-            "color:#475569; font-size:13px; padding:4px 0;"
+            "color:#475569; font-size:13px; padding:4px 0; line-height: 1.6;"
         )
+        self._no_session_hint.setWordWrap(True)
         root.addWidget(self._no_session_hint)
 
         # ── Action Cards ──────────────────────────────────────────────

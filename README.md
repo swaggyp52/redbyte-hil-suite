@@ -32,7 +32,8 @@ Launches in demo mode with mock telemetry — no hardware required.
 |---|---|
 | `python run.py` | Demo mode, windowed |
 | `python run.py --fullscreen` | Demo mode, fullscreen |
-| `python run.py --live` | Live hardware mode |
+| `python run.py --live` | Live hardware mode (auto-detect serial port) |
+| `python run.py --live --port COM5` | Live hardware on specific port (e.g. COM5) |
 | `python run.py --no-3d` | Disable 3D (if OpenGL unavailable) |
 
 ---
@@ -112,7 +113,7 @@ gfm_hil_suite/
 │   └── demo_sessions/  ← bundled demo sessions
 ├── exports/            ← HTML reports, CSV exports (auto-created)
 ├── docs/               ← reference docs
-└── tests/              ← pytest suite (352 passing)
+└── tests/              ← pytest suite (408 passing)
 ```
 
 ---
@@ -124,9 +125,9 @@ gfm_hil_suite/
 pytest tests/ --ignore=tests/test_ui_integration.py -q
 ```
 
-352 tests passing across signal processing, file ingestion, channel mapping,
+408 tests passing across signal processing, file ingestion, channel mapping,
 event detection, session comparison, compliance, and live telemetry subsystems.
-3 tests intentionally skipped (openpyxl not installed — Excel import tests bypass automatically).
+3 tests skipped (require pandas — run `pip install pandas` to enable them).
 
 ---
 
