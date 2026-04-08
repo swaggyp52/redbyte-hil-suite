@@ -17,6 +17,12 @@ cd gfm_hil_suite
 pip install -r requirements.txt
 ```
 
+Always launch from the repo root (`gfm_hil_suite/`).
+If your machine has multiple Python installs, use:
+```powershell
+.\.venv\Scripts\python.exe run.py
+```
+
 Requires Python 3.12. All dependencies (including Excel support via `openpyxl`) are
 included in `requirements.txt`. For dev/test tools: `pip install -r requirements-dev.txt`.
 

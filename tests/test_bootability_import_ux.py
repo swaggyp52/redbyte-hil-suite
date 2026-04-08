@@ -3,7 +3,10 @@ import os
 from PyQt6.QtWidgets import QMessageBox
 
 from run import resolve_startup_args
+from src.dataset_converter import dataset_to_session
+from src.file_ingestion import ingest_file
 from ui.app_shell import AppShell
+from ui.app_shell import _PAGE_INDICES
 
 
 class _FakeUrl:
@@ -113,4 +116,26 @@ def test_drop_unsupported_file_shows_clear_guidance(qapp, monkeypatch):
     assert captured.get("title") == "Unsupported File Type"
     assert "cannot be analyzed" in captured.get("message", "")
     assert "Supported data files" in captured.get("message", "")
+    shell.close()
+
+
+def test_supported_import_reaches_replay_with_events_compare_and_export(qapp):
+    shell = AppShell(demo_mode=False, mock_mode=False, enable_3d=False, windowed=True)
+
+    dataset = ingest_file("data/sessions/session_20260311_110824.json")
+    capsule = dataset_to_session(dataset)
+    capsule["_dataset"] = dataset
+
+    shell._on_session_imported(capsule)
+
+    assert shell.stack.currentIndex() == _PAGE_INDICES["replay"]
+
+    tabs = shell._replay.studio.tabs
+    tab_names = [tabs.tabText(i) for i in range(tabs.count())]
+    assert "Events" in tab_names
+    assert "Compare" in tab_names
+
+    for btn in shell._replay._top_bar._export_btns:
+        assert btn.isEnabled()
+
     shell.close()

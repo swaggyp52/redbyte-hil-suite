@@ -22,6 +22,12 @@ pip install -r requirements.txt
 python run.py
 ```
 
+Run commands from the repository root (`gfm_hil_suite/`).
+If multiple Python installations exist, prefer the repo-local interpreter:
+```powershell
+.\.venv\Scripts\python.exe run.py
+```
+
 Launches to the Overview page (real-data-first) so you can import a run immediately.
 Demo telemetry remains available and clearly labeled from Overview.
 
