@@ -1,6 +1,6 @@
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QPushButton, QHBoxLayout,
                              QLabel, QFileDialog, QComboBox, QTabWidget, QInputDialog)
-from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 import pyqtgraph as pg
 import pyqtgraph.exporters
 import json
@@ -25,6 +25,9 @@ class ReplayStudio(QWidget):
     - Derived metrics timeline (RMS, THD, frequency)
     - PNG export
     """
+    # Emitted after event detection completes so parent can update summaries.
+    events_detected = pyqtSignal(int)
+
     def __init__(self, recorder, serial_mgr):
         super().__init__()
         self.recorder = recorder
@@ -415,6 +418,7 @@ class ReplayStudio(QWidget):
         try:
             events = detect_events(dataset)
             self._event_lane.load_events(events)
+            self.events_detected.emit(len(events))
             logger.info("Event detection: %d events found in '%s'",
                         len(events), primary.get('label', '?'))
         except Exception as exc:

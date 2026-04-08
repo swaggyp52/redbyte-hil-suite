@@ -88,6 +88,19 @@ class SessionBar(QWidget):
     def set_source(self, source: str):
         self.lbl_source.setText(source)
 
+    def set_analysis_mode(self, active: bool):
+        """Switch between live-session mode (Run/Pause/Stop enabled) and analysis mode."""
+        if active:
+            self.lbl_mode.setText("ANALYSIS")
+            self.btn_run.setEnabled(False)
+            self.btn_pause.setEnabled(False)
+            self.btn_stop.setEnabled(False)
+        else:
+            self.lbl_mode.setText("READY")
+            self.btn_run.setEnabled(True)
+            self.btn_pause.setEnabled(False)
+            self.btn_stop.setEnabled(False)
+
     def update_sim_state(self, state: str):
         """Update button enabled states and state label from SimulationController state."""
         labels = {

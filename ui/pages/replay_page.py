@@ -61,6 +61,8 @@ class ReplayPage(QWidget):
 
         self.studio = ReplayStudio(recorder, serial_mgr)
         split.addWidget(self.studio)
+        # Update the summary bar whenever event detection finishes
+        self.studio.events_detected.connect(self._summary.set_event_count)
 
         self.insights = InsightsPanel()
         split.addWidget(self.insights)
@@ -252,7 +254,7 @@ class _SessionSummaryBar(QFrame):
         self._name     = self._chip("—")
         self._frames   = self._chip("— frames")
         self._duration = self._chip("—s")
-        self._events   = self._chip("— events")
+        self._events   = self._chip("—")
         self._thd      = self._chip("Peak THD —")
 
         for w in [self._name, self._frames, self._duration,
@@ -265,6 +267,12 @@ class _SessionSummaryBar(QFrame):
         lbl = QLabel(text)
         lbl.setObjectName("SummaryChip")
         return lbl
+
+    def set_event_count(self, n: int) -> None:
+        """Update just the event count chip (called after async detection)."""
+        self._events.setText(f"{n} event{'s' if n != 1 else ''} detected")
+        color = "#ef4444" if n > 0 else "#64748b"
+        self._events.setStyleSheet(f"color: {color}; font-weight: {'700' if n > 0 else '400'};")
 
     def set_data(self, name: str, frames: int, duration: float,
                  events: int, peak_thd: float | None):
@@ -286,7 +294,9 @@ class _SessionSummaryBar(QFrame):
         )
         self._frames.setText(f"{session.row_count_display} rows")
         self._duration.setText(session.duration_display)
-        self._events.setText(f"{events} event{'s' if events != 1 else ''}")
+        # Event count will be filled in by events_detected signal after detection runs
+        self._events.setText("Scanning…")
+        self._events.setStyleSheet("color: #64748b;")
 
         # Show sample rate instead of peak THD for imported sessions
         # (THD is computed live during replay, not stored in import_meta)

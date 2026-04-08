@@ -108,6 +108,35 @@ class CompliancePage(QWidget):
         except Exception as exc:
             logger.error(f"Failed to load compliance session: {exc}")
 
+    def load_from_capsule(self, capsule: dict, session=None) -> None:
+        """
+        Load an in-memory Data Capsule dict for compliance checking.
+
+        Called by AppShell after a file import so the compliance page is
+        pre-loaded without requiring a separate file-open step.
+
+        Args:
+            capsule: Data Capsule dict (from dataset_to_session()).
+            session: Optional ActiveSession for richer metadata display.
+        """
+        self._session_data = capsule
+        self._session_path = None  # no file path — data is in memory
+
+        if session is not None:
+            name = f"{session.source_type_display}  ·  {session.source_filename}"
+            frames_str = session.row_count_display
+        else:
+            meta = capsule.get("meta", {})
+            name = meta.get("session_id", "imported")
+            frames_str = str(meta.get("frame_count", len(capsule.get("frames", []))))
+
+        self._top_bar.set_session(name, int(frames_str.replace(",", "")) if frames_str.isdigit() else 0)
+        self._ready.set_session_name(name)
+        self._scorecard.setVisible(False)
+        self._stack.setCurrentIndex(1)
+        self._state = "loaded"
+        logger.info("Compliance page pre-loaded from imported capsule: %s", name)
+
     # ─────────────────────────────────────────────────────────────
     # Internal
     # ─────────────────────────────────────────────────────────────

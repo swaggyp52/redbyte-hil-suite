@@ -187,6 +187,8 @@ class AppShell(QMainWindow):
         self._set_active_session(session)
         self._navigate("replay")
         self._replay.load_imported_session(capsule, session)
+        self._compliance.load_from_capsule(capsule, session)
+        self.session_bar.set_analysis_mode(True)
 
         source = session.source_type_display
         self.session_bar.set_source(f"Imported: {source}")
@@ -208,6 +210,7 @@ class AppShell(QMainWindow):
         self._current_session = None
         self._overview.clear_active_session()
         self.session_bar.set_source("—")
+        self.session_bar.set_analysis_mode(False)
         logger.info("Active session cleared.")
 
     # ──────────────────────────────────────────────────────────────

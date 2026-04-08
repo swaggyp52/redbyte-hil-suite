@@ -6,7 +6,7 @@ _NAV_ITEMS = [
     ("diagnostics", "⚡", "Diagnostics"),
     ("replay",      "⏵",  "Replay"),
     ("compliance",  "✓",  "Compliance"),
-    ("console",     "📐", "Console"),
+    ("console",     "📐", "Monitor"),
 ]
 
 _TOOL_ITEMS = [
