@@ -99,6 +99,61 @@ def dataset_from_capsule(capsule: dict, label: str = "") -> "ImportedDataset":
 
 
 # ---------------------------------------------------------------------------
+# Duplicate dataset detection
+# ---------------------------------------------------------------------------
+
+_DUPLICATE_CORR_THRESHOLD = 0.9999
+
+
+def detect_duplicate_datasets(
+    dataset_a: "ImportedDataset",
+    dataset_b: "ImportedDataset",
+    channel: str,
+) -> Optional[str]:
+    """
+    Return a warning string if the named channel appears identical in both datasets.
+
+    Uses Pearson correlation on a 500-point interpolated overlap.  A correlation
+    >= 0.9999 is treated as "same data", which catches cases like
+    VSGFrequency_Simulation.xlsx being a mislabelled duplicate of
+    InverterPower_Simulation.xlsx.
+
+    Returns None if:
+    - the channel is absent from either dataset
+    - datasets have no time overlap
+    - the channel is constant (std < 1e-12)
+    - correlation is below the threshold (datasets differ meaningfully)
+    """
+    if channel not in dataset_a.channels or channel not in dataset_b.channels:
+        return None
+
+    t_a = dataset_a.time
+    t_b = dataset_b.time
+    t_start = max(float(t_a[0]), float(t_b[0]))
+    t_end   = min(float(t_a[-1]), float(t_b[-1]))
+    if t_start >= t_end:
+        return None
+
+    n_grid = min(500, min(len(t_a), len(t_b)))
+    t_grid = np.linspace(t_start, t_end, n_grid)
+    a_i = np.interp(t_grid, t_a, dataset_a.channels[channel])
+    b_i = np.interp(t_grid, t_b, dataset_b.channels[channel])
+
+    a_std = float(a_i.std())
+    b_std = float(b_i.std())
+    if a_std < 1e-12 or b_std < 1e-12:
+        return None  # constant channels — correlation undefined; skip
+
+    corr = float(np.corrcoef(a_i, b_i)[0, 1])
+    if corr >= _DUPLICATE_CORR_THRESHOLD:
+        return (
+            f"Both sessions appear to contain identical '{channel}' data "
+            f"(r={corr:.4f}). The delta trace will be near-zero."
+        )
+    return None
+
+
+# ---------------------------------------------------------------------------
 # Result dataclasses
 # ---------------------------------------------------------------------------
 

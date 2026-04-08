@@ -40,6 +40,11 @@ logger = logging.getLogger(__name__)
 _VOLTAGE_PREFIXES = ("v_", "vdc", "v_ab", "v_bc", "v_ca", "v_rms", "voltage")
 _FREQ_NAMES = frozenset({"freq", "frequency", "f_grid", "f_hz", "f"})
 
+# Explicit non-voltage unit suffixes to prevent false positives on CH1(A), time(s), etc.
+_NON_VOLTAGE_UNIT_SUFFIXES = frozenset({
+    "(a)", "(amp)", "(ampere)", "(hz)", "(w)", "(var)", "(s)", "(sec)", "(ms)"
+})
+
 # Sag / swell (fraction of nominal RMS)
 _SAG_WARN_THRESH   = 0.90   # < 90% nominal  → warning
 _SAG_CRIT_THRESH   = 0.50   # < 50% nominal  → critical
@@ -123,7 +128,13 @@ def _find_runs(flags: np.ndarray) -> list[tuple[int, int]]:
 
 def _is_voltage_channel(name: str) -> bool:
     nl = name.lower()
-    return nl.startswith(_VOLTAGE_PREFIXES) or "voltage" in nl
+    if nl.startswith(_VOLTAGE_PREFIXES) or "voltage" in nl:
+        return True
+    # Reject explicit non-voltage unit suffixes like CH1(A), time(s), CH1(Hz)
+    if any(nl.endswith(suf) for suf in _NON_VOLTAGE_UNIT_SUFFIXES):
+        return False
+    # Match parenthetical voltage unit suffix: "CH1(V)", "CH2(Volt)", etc.
+    return "(v)" in nl or "(volt" in nl
 
 
 def _is_freq_channel(name: str) -> bool:

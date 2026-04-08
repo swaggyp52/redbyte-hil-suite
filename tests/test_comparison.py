@@ -435,3 +435,41 @@ def test_dataset_from_capsule_empty_raises():
     caps = {"meta": {}, "frames": []}
     with pytest.raises(ValueError, match="no frames"):
         dataset_from_capsule(caps)
+
+
+# ---------------------------------------------------------------------------
+# Duplicate dataset detection
+# ---------------------------------------------------------------------------
+
+def test_detect_duplicate_identical_signals_returns_warning():
+    """Two datasets with identical channel content must return a warning string."""
+    from src.comparison import detect_duplicate_datasets
+    sig = np.sin(np.linspace(0, 2 * np.pi, 500))
+    a = _ds(500, {"p_mech": sig})
+    b = _ds(500, {"p_mech": sig.copy()})
+    warning = detect_duplicate_datasets(a, b, channel="p_mech")
+    assert warning is not None, "Identical datasets must produce a warning"
+    assert ("identical" in warning.lower() or "duplicate" in warning.lower()), (
+        f"Warning text unclear: {warning}"
+    )
+
+
+def test_detect_duplicate_different_signals_returns_none():
+    """Meaningfully different signal shapes must NOT produce a duplicate warning."""
+    from src.comparison import detect_duplicate_datasets
+    rng = np.random.default_rng(42)
+    sig_a = np.sin(np.linspace(0, 2 * np.pi, 500))
+    # Different waveform: add large noise to break correlation below threshold
+    sig_b = sig_a + rng.normal(0, 0.5, 500)
+    a = _ds(500, {"p_mech": sig_a})
+    b = _ds(500, {"p_mech": sig_b})
+    assert detect_duplicate_datasets(a, b, channel="p_mech") is None
+
+
+def test_detect_duplicate_missing_channel_returns_none():
+    """When the named channel is absent from dataset B, return None (no crash)."""
+    from src.comparison import detect_duplicate_datasets
+    sig = np.sin(np.linspace(0, 2 * np.pi, 200))
+    a = _ds(200, {"p_mech": sig})
+    b = _ds(200, {"v_an": sig.copy()})
+    assert detect_duplicate_datasets(a, b, channel="p_mech") is None

@@ -210,6 +210,7 @@ class AppShell(QMainWindow):
         self._current_session = session
         self._overview.set_active_session(session)
         self.session_bar.set_source(session.source_type_display)
+        self._diagnostics.phasor.reset()
 
     def _clear_active_session(self) -> None:
         """Clear the active session and reset related UI state."""

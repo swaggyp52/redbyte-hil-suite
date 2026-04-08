@@ -423,3 +423,52 @@ def test_all_events_ts_start_lte_ts_end():
     events = detect_events(ds)
     for e in events:
         assert e.ts_start <= e.ts_end, f"{e.kind}: ts_start={e.ts_start} > ts_end={e.ts_end}"
+
+
+# ---------------------------------------------------------------------------
+# Rigol oscilloscope channel names (CH1(V), CH2(V), etc.)
+# ---------------------------------------------------------------------------
+
+def test_is_voltage_channel_unit_suffix_variants():
+    """Oscilloscope-style unit suffix names must be recognised as voltage channels."""
+    from src.event_detector import _is_voltage_channel
+    # Voltage suffixes — must be True
+    assert _is_voltage_channel("CH1(V)"),  "CH1(V) must be treated as voltage"
+    assert _is_voltage_channel("ch2(v)"),  "lowercase ch2(v) must be treated as voltage"
+    assert _is_voltage_channel("v_an"),    "canonical v_an must still work"
+    assert _is_voltage_channel("v_dc"),    "v_dc must still work"
+    # Non-voltage suffixes — must be False
+    assert not _is_voltage_channel("CH1(A)"),  "ampere unit must NOT be voltage"
+    assert not _is_voltage_channel("time(s)"), "time column must NOT be voltage"
+    assert not _is_voltage_channel("freq"),    "frequency channel must NOT be voltage"
+    assert not _is_voltage_channel("CH1(Hz)"), "Hz unit must NOT be voltage"
+
+
+def test_rigol_ch1v_triggers_voltage_sag_event():
+    """CH1(V) channel with injected voltage sag should yield a voltage_sag event."""
+    sr = 5000.0
+    n = int(sr * 2)
+    sig = _clean_sine(n, sr=sr)
+    sig[5000:6000] *= 0.5   # ~200 ms sag to 50% nominal
+    ds = _ds(n, {"CH1(V)": sig}, sample_rate=sr)
+    events = detect_events(ds)
+    sag_events = [e for e in events if e.kind == "voltage_sag"]
+    assert len(sag_events) >= 1, (
+        f"Expected voltage_sag event for CH1(V) but got event kinds: "
+        f"{[e.kind for e in events]}"
+    )
+    assert sag_events[0].channel == "CH1(V)"
+
+
+def test_rigol_ch1a_does_not_trigger_voltage_sag_event():
+    """Ampere-unit channel CH1(A) must NOT be treated as voltage."""
+    sr = 5000.0
+    n = int(sr * 2)
+    sig = _clean_sine(n, sr=sr)
+    sig[5000:6000] *= 0.5
+    ds = _ds(n, {"CH1(A)": sig}, sample_rate=sr)
+    events = detect_events(ds)
+    sag_events = [e for e in events if e.kind == "voltage_sag"]
+    assert sag_events == [], (
+        f"CH1(A) should not trigger voltage_sag but got: {sag_events}"
+    )

@@ -288,6 +288,7 @@ def _ingest_rigol_csv(path: str) -> ImportedDataset:
     duration = float(time_arr[-1] - time_arr[0]) if len(time_arr) > 1 else 0.0
 
     _check_for_duplicate_channels(channel_arrays, warnings)
+    _check_for_dead_channels(channel_arrays, warnings)
 
     meta["time_column"] = time_col
     meta["sample_rate"] = sample_rate
@@ -410,6 +411,7 @@ def _ingest_simulation_excel(path: str) -> ImportedDataset:
     duration = float(time_arr[-1] - time_arr[0]) if len(time_arr) > 1 else 0.0
 
     _check_for_duplicate_channels(channel_arrays, warnings)
+    _check_for_dead_channels(channel_arrays, warnings)
 
     meta["time_column"] = time_col
     meta["sample_rate"] = sample_rate
@@ -589,3 +591,28 @@ def _check_for_duplicate_channels(
                     )
             except Exception:
                 pass
+
+
+def _check_for_dead_channels(
+    channels: dict[str, np.ndarray],
+    warnings: list[str],
+) -> None:
+    """
+    Warn when a channel has negligibly small amplitude variation.
+
+    A channel is considered dead or constant when its value range is less than
+    0.1% of its own peak absolute value.  This catches near-zero channels such
+    as an oscilloscope channel that was physically disconnected (e.g. CH4 in
+    RigolDS1.csv), and constant-output channels that carry no useful information.
+    """
+    for ch_name, arr in channels.items():
+        valid = arr[~np.isnan(arr)]
+        if len(valid) == 0:
+            continue
+        span = float(valid.max()) - float(valid.min())
+        ref = max(abs(float(valid.min())), abs(float(valid.max())), 1e-12)
+        if span < 0.001 * ref:
+            warnings.append(
+                f"Channel '{ch_name}' appears dead or constant "
+                f"(range={span:.2e}, mean\u2248{float(valid.mean()):.4g})"
+            )

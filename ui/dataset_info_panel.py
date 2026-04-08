@@ -87,6 +87,20 @@ class DatasetInfoPanel(QFrame):
         ch_parts = [f"<b>{n_mapped}</b> mapped"]
         if n_unmapped:
             ch_parts.append(f"<b>{n_unmapped}</b> unmapped")
+
+        # Dead channel highlight from session warnings
+        dead_warnings = [w for w in session.warnings if "dead or constant" in w]
+        if dead_warnings:
+            dead_names = []
+            for w in dead_warnings:
+                parts = w.split("'")
+                if len(parts) >= 2:
+                    dead_names.append(parts[1])
+            ch_parts.append(
+                f"<span style='color:#f59e0b;'>&#x26A0; {len(dead_names)} dead: "
+                + ", ".join(dead_names) + "</span>"
+            )
+
         self._ch_label.setText("  /  ".join(ch_parts))
 
         if n_unmapped:

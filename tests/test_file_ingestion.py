@@ -539,3 +539,31 @@ def test_rigol_1mhz_no_canonical_channels():
         )
     finally:
         os.unlink(path)
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Dead / near-constant channel warning
+# ──────────────────────────────────────────────────────────────────────────────
+
+def test_dead_channel_produces_warning_in_rigol_csv(tmp_path):
+    """A channel with zero variance must produce a 'dead or constant' warning."""
+    rows = ["Time(s),CH1(V),CH4(V)"]
+    dt = 1e-6
+    t = 0.0
+    for i in range(500):
+        ch1 = 1.8 * np.sin(2 * np.pi * 60 * t)
+        ch4 = 0.0   # truly constant — zero amplitude
+        rows.append(f"{t:.8f},{ch1:.6f},{ch4:.6f}")
+        t += dt
+    p = tmp_path / "dead_zero.csv"
+    p.write_text("\n".join(rows))
+    ds = ingest_file(str(p))
+
+    dead_warnings = [w for w in ds.warnings if "dead or constant" in w]
+    assert any("CH4(V)" in w for w in dead_warnings), (
+        f"Expected dead-channel warning for CH4(V). Got warnings: {ds.warnings}"
+    )
+    # Active channel must NOT be flagged
+    assert not any("CH1(V)" in w for w in dead_warnings), (
+        "CH1(V) is an active sine wave — must not be flagged as dead"
+    )

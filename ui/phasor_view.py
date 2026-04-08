@@ -64,6 +64,21 @@ class PhasorView(QWidget):
 
         self.layout.addWidget(self.plot_widget)
 
+        # Persistent N/A overlay — shown when source has no 3-phase channels
+        self._na_label = QLabel(
+            "Phasor view requires three-phase channels\n"
+            "(v_an  ·  v_bn  ·  v_cn)\n"
+            "Not available for this session.",
+            self,
+        )
+        self._na_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._na_label.setStyleSheet(
+            "color: #64748b; background: rgba(11,15,20,200); "
+            "border-radius: 8px; padding: 16px; font-size: 13px;"
+        )
+        self._na_label.hide()
+        self._has_3phase: bool | None = None
+
         # Phasor arrow plots
         self.arrows = {
             'v_a': self.plot_widget.plot(pen=pg.mkPen('y', width=3), name="V_a"),
@@ -140,6 +155,15 @@ class PhasorView(QWidget):
 
     @pyqtSlot(dict)
     def _on_frame(self, frame):
+        # Detect on first frame whether this source provides 3-phase channels
+        if self._has_3phase is None:
+            self._has_3phase = "v_an" in frame
+            if not self._has_3phase:
+                self.render_timer.stop()
+                self._na_label.show()
+                return
+        if not self._has_3phase:
+            return
         self._buf['v_a'].append(frame.get('v_an', 0))
         self._buf['v_b'].append(frame.get('v_bn', 0))
         self._buf['v_c'].append(frame.get('v_cn', 0))
@@ -251,3 +275,18 @@ class PhasorView(QWidget):
                 self.deviation_bands[i].setVisible(True)
             else:
                 self.deviation_bands[i].setVisible(False)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._na_label.setGeometry(self.rect().adjusted(40, 40, -40, -40))
+
+    def reset(self) -> None:
+        """Reset 3-phase detection state — call when a new session is loaded."""
+        self._has_3phase = None
+        self._na_label.hide()
+        for key in self._buf:
+            self._buf[key].clear()
+        for key in self._trail_history:
+            self._trail_history[key].clear()
+        if not self.render_timer.isActive():
+            self.render_timer.start(80)

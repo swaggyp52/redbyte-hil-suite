@@ -86,6 +86,13 @@ class ComparisonPanel(QWidget):
         self._session_a = session_a
         self._session_b = session_b
 
+        self._btn_align.setEnabled(True)
+        self._btn_align.setToolTip(
+            "Use cross-correlation to estimate timing offset between A and B"
+        )
+        self._btn_compare.setEnabled(True)
+        self._btn_compare.setToolTip("")
+
         label_a = session_a.get("label", "Dataset A")
         label_b = session_b.get("label", "Dataset B")
         self._lbl_a.setText(f"A: {label_a}")
@@ -102,6 +109,8 @@ class ComparisonPanel(QWidget):
         self._lbl_a.setText("A: —")
         self._lbl_b.setText("B: —")
         self._channel_combo.clear()
+        self._btn_align.setEnabled(False)
+        self._btn_compare.setEnabled(False)
         self._clear_plots()
         self._clear_metrics()
 
@@ -155,6 +164,12 @@ class ComparisonPanel(QWidget):
             ctrl.addWidget(w)
         ctrl.addStretch()
         root.addLayout(ctrl)
+
+        # Disable action buttons until both sessions are loaded
+        self._btn_align.setEnabled(False)
+        self._btn_align.setToolTip("Load two sessions first")
+        self._btn_compare.setEnabled(False)
+        self._btn_compare.setToolTip("Load two sessions first")
 
         # ── Confidence label (shown after auto-align) ─────────────
         self._align_info = QLabel("")
@@ -258,6 +273,15 @@ class ComparisonPanel(QWidget):
             return
 
         timing_offset_s = self._offset_spin.value() / 1000.0
+
+        # Check for duplicate datasets before comparing
+        from src.comparison import detect_duplicate_datasets
+        candidates = find_overlapping_channels(ds_a, ds_b)
+        if candidates:
+            dup_warn = detect_duplicate_datasets(ds_a, ds_b, channel=candidates[0])
+            if dup_warn:
+                self._align_info.setStyleSheet("color: #f59e0b; font-size: 10px;")
+                self._align_info.setText(f"\u26a0 {dup_warn}")
 
         result = compare_datasets(
             ds_a, ds_b,

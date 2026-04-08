@@ -277,9 +277,10 @@ class _SessionSummaryBar(QFrame):
         self._duration = self._chip("—s")
         self._events   = self._chip("—")
         self._thd      = self._chip("Peak THD —")
+        self._channels = self._chip("—")
 
         for w in [self._name, self._frames, self._duration,
-                  self._events, self._thd]:
+                  self._events, self._thd, self._channels]:
             layout.addWidget(w)
         layout.addStretch()
 
@@ -307,6 +308,7 @@ class _SessionSummaryBar(QFrame):
             self._thd.setStyleSheet(f"color: {color}; font-weight: 700;")
         else:
             self._thd.setText("Peak THD —")
+        self._channels.setText("—")
 
     def update_from_session(self, session: ActiveSession, events: int = 0) -> None:
         """Populate the summary bar from a richer ActiveSession descriptor."""
@@ -330,6 +332,17 @@ class _SessionSummaryBar(QFrame):
             tip = "\n".join(session.warnings)
             self._name.setToolTip(f"{n} warning(s):\n{tip}")
             self._name.setStyleSheet("color: #f59e0b; font-weight: 600;")
+
+        # Channel names chip
+        all_ch = list(session.mapped_channels) + list(session.unmapped_channels)
+        if all_ch:
+            ch_str = "  ".join(all_ch[:5])
+            if len(all_ch) > 5:
+                ch_str += f" +{len(all_ch)-5}"
+            self._channels.setText(ch_str)
+            self._channels.setToolTip("Channels: " + ", ".join(all_ch))
+        else:
+            self._channels.setText("—")
 
 
 class _ReplayTopBar(QWidget):
@@ -366,5 +379,16 @@ class _ReplayTopBar(QWidget):
         for btn in [btn_load, btn_csv, btn_events, btn_png]:
             layout.addWidget(btn)
 
+        self._export_btns = [btn_csv, btn_events, btn_png]
+        self.set_unloaded()
+
+    def set_unloaded(self) -> None:
+        for b in self._export_btns:
+            b.setEnabled(False)
+            b.setToolTip("Load a session first")
+
     def set_loaded(self, name: str):
         self._lbl.setText(f"Replay  ·  {name}")
+        for b in self._export_btns:
+            b.setEnabled(True)
+            b.setToolTip("")

@@ -86,12 +86,24 @@ class ReplayStudio(QWidget):
         self.tabs.addTab(self.plot_wave, "Waveforms")
 
         # Tab 2: Derived Metrics (RMS, THD, Freq over time)
+        metrics_container = QWidget()
+        metrics_layout = QVBoxLayout(metrics_container)
+        metrics_layout.setContentsMargins(0, 0, 0, 0)
+        metrics_layout.setSpacing(4)
         self.plot_metrics = pg.PlotWidget(title="Derived Metrics")
         self.plot_metrics.setBackground('#0b0f14')
         self.plot_metrics.showGrid(x=True, y=True, alpha=0.3)
         self.plot_metrics.setLabel('bottom', 'Time', units='s')
         self.plot_metrics.addLegend()
-        self.tabs.addTab(self.plot_metrics, "Metrics")
+        metrics_layout.addWidget(self.plot_metrics, stretch=1)
+        self._metrics_summary = QLabel("")
+        self._metrics_summary.setStyleSheet(
+            "color: #64748b; font-family: monospace; font-size: 10px; "
+            "padding: 4px 8px; background: transparent;"
+        )
+        self._metrics_summary.setWordWrap(False)
+        metrics_layout.addWidget(self._metrics_summary)
+        self.tabs.addTab(metrics_container, "Metrics")
 
         # Tab 3: Spectrum
         self.plot_spectrum = pg.PlotWidget(title="Spectrum")
@@ -302,7 +314,11 @@ class ReplayStudio(QWidget):
                     self.plot_wave.setTitle("Current Waveforms")
                     self.plot_wave.setLabel('left', 'Current', units='A')
                 else:
-                    self.plot_wave.setTitle("Waveforms")
+                    # Build title from the actual channel names loaded
+                    ch_title = " · ".join(wave_channels[:4])
+                    if len(wave_channels) > 4:
+                        ch_title += f" (+{len(wave_channels)-4} more)"
+                    self.plot_wave.setTitle(ch_title)
                     self.plot_wave.setLabel('left', 'Value')
 
             # ── Build arrays and plot waveforms ──────────────────────────────
@@ -375,6 +391,17 @@ class ReplayStudio(QWidget):
                         )
                     )
 
+            # ── Per-channel summary stats label (primary only) ────────────────
+            if session['is_primary'] and wave_channels:
+                lines = []
+                for ch in wave_channels:
+                    arr = np.array([f.get(ch, np.nan) for f in frames])
+                    arr_c = np.where(np.isnan(arr), 0.0, arr)
+                    rms = compute_rms(arr_c)
+                    thd = compute_thd(arr_c, time_data=ts)
+                    lines.append(f"{ch:<16s}  RMS={rms:>8.3f}  THD={thd:>5.1f}%")
+                self._metrics_summary.setText("  |  ".join(lines))
+
             # ── Event markers (primary session only) ─────────────────────────
             if session['is_primary']:
                 self._ts_arr = ts
@@ -425,6 +452,7 @@ class ReplayStudio(QWidget):
         self.plot_wave.clear()
         self.plot_wave.addItem(self.scrubber)
         self.plot_metrics.clear()
+        self._metrics_summary.setText("")
         self._clear_markers()
         self._wave_curves = []
         self._metric_curves = []
