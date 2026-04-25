@@ -24,12 +24,14 @@ Usage::
 from __future__ import annotations
 
 import logging
+import math
 from dataclasses import dataclass, field
+from typing import Dict, List, Optional
 
 import numpy as np
 
 from src.file_ingestion import ImportedDataset
-from src.signal_processing import compute_thd
+from src.signal_processing import compute_rms, compute_thd
 
 logger = logging.getLogger(__name__)
 
@@ -77,6 +79,14 @@ _DUP_CORR_THRESH = 0.999
 # THD
 _THD_THRESHOLD_PCT = 10.0
 _THD_MIN_SAMPLES   = 100
+
+DEFAULT_THRESHOLDS: Dict[str, float] = {
+    "nominal_v_rms": 120.0,
+    "nominal_freq": 60.0,
+    "sag_v_ratio": 0.90,
+    "rms_window_s": 0.1,
+    "min_window_s": 0.05,
+}
 
 
 # ---------------------------------------------------------------------------
@@ -518,7 +528,7 @@ def _detect_duplicate_channels(dataset: ImportedDataset) -> list[DetectedEvent]:
 # Public API
 # ---------------------------------------------------------------------------
 
-def detect_events(dataset: ImportedDataset) -> list[DetectedEvent]:
+def _detect_dataset_events(dataset: ImportedDataset) -> list[DetectedEvent]:
     """
     Run all batch event detectors on *dataset*.
 
@@ -568,6 +578,116 @@ def detect_events(dataset: ImportedDataset) -> list[DetectedEvent]:
     events = _merge_nearby_events(events, gap_s=0.02)
 
     return events
+
+
+def _session_frames_to_arrays(frames: List[Dict]) -> Dict[str, np.ndarray]:
+    if not frames:
+        return {k: np.array([]) for k in ("ts", "t_rel", "v_an", "v_bn", "v_cn", "freq")}
+    ts = np.array([f.get("ts", 0.0) for f in frames], dtype=float)
+    return {
+        "ts": ts,
+        "t_rel": ts - ts[0] if ts.size else ts,
+        "v_an": np.array([f.get("v_an", 0.0) for f in frames], dtype=float),
+        "v_bn": np.array([f.get("v_bn", 0.0) for f in frames], dtype=float),
+        "v_cn": np.array([f.get("v_cn", 0.0) for f in frames], dtype=float),
+        "freq": np.array([f.get("freq", 60.0) for f in frames], dtype=float),
+    }
+
+
+def _rolling_rms_session(x: np.ndarray, window_n: int) -> np.ndarray:
+    if x.size == 0 or window_n < 1:
+        return x.copy()
+    window_n = min(window_n, x.size)
+    kernel = np.ones(window_n) / window_n
+    return np.sqrt(np.maximum(np.convolve(x * x, kernel, mode="same"), 0.0))
+
+
+def _bool_segments(mask: np.ndarray, t_rel: np.ndarray, min_len_s: float) -> List[Dict]:
+    segments: List[Dict] = []
+    if mask.size == 0 or t_rel.size == 0:
+        return segments
+    start = None
+    for i, flag in enumerate(mask):
+        if flag and start is None:
+            start = i
+        if (not flag or i == mask.size - 1) and start is not None:
+            end = i if flag and i == mask.size - 1 else i - 1
+            dur = float(t_rel[end] - t_rel[start]) if end > start else 0.0
+            if dur >= min_len_s:
+                segments.append({"start_i": start, "end_i": end, "start_s": float(t_rel[start]), "end_s": float(t_rel[end])})
+            start = None
+    return segments
+
+
+def _detect_session_events(session_data: Dict, thresholds: Optional[Dict] = None) -> List[Dict]:
+    frames = session_data.get("frames", [])
+    arr = _session_frames_to_arrays(frames)
+    if arr["ts"].size < 4:
+        return []
+
+    cfg = dict(DEFAULT_THRESHOLDS)
+    if thresholds:
+        cfg.update(thresholds)
+
+    dt = float(np.median(np.diff(arr["t_rel"]))) if arr["t_rel"].size >= 2 else 0.01
+    if dt <= 0:
+        dt = 0.01
+    window_n = max(2, int(round(cfg["rms_window_s"] / dt)))
+    v_rms = {
+        "v_an": _rolling_rms_session(arr["v_an"], window_n),
+        "v_bn": _rolling_rms_session(arr["v_bn"], window_n),
+        "v_cn": _rolling_rms_session(arr["v_cn"], window_n),
+    }
+    avg_rms = (v_rms["v_an"] + v_rms["v_bn"] + v_rms["v_cn"]) / 3.0
+    sag_mask = avg_rms < cfg["sag_v_ratio"] * cfg["nominal_v_rms"]
+
+    events: List[Dict] = []
+    for seg in _bool_segments(sag_mask, arr["t_rel"], cfg["min_window_s"]):
+        window = avg_rms[seg["start_i"]:seg["end_i"] + 1]
+        min_v = float(np.min(window)) if window.size else 0.0
+        events.append({
+            "ts": seg["start_s"],
+            "t_rel": seg["start_s"],
+            "type": "voltage_sag_start",
+            "details": f"Three-phase RMS dropped to {min_v:.2f} V.",
+            "meta": {"min_v_rms": min_v, "threshold_v": cfg["sag_v_ratio"] * cfg["nominal_v_rms"]},
+        })
+        events.append({
+            "ts": seg["end_s"],
+            "t_rel": seg["end_s"],
+            "type": "voltage_sag_end",
+            "details": "Three-phase RMS recovered above sag threshold.",
+            "meta": {"duration_s": seg["end_s"] - seg["start_s"]},
+        })
+    return events
+
+
+def run_summary(session_data: Dict) -> Dict:
+    frames = session_data.get("frames", [])
+    arr = _session_frames_to_arrays(frames)
+    if arr["ts"].size == 0:
+        return {"frames": 0, "duration_s": 0.0, "thd_van_pct": 0.0, "v_rms_per_phase": {"a": 0.0, "b": 0.0, "c": 0.0}}
+    duration = float(arr["t_rel"][-1] - arr["t_rel"][0]) if arr["t_rel"].size >= 2 else 0.0
+    return {
+        "frames": int(arr["ts"].size),
+        "duration_s": duration,
+        "freq_min": float(np.min(arr["freq"])),
+        "freq_max": float(np.max(arr["freq"])),
+        "thd_van_pct": float(compute_thd(arr["v_an"].tolist(), time_data=arr["ts"].tolist())),
+        "v_rms_per_phase": {
+            "a": float(compute_rms(arr["v_an"].tolist())),
+            "b": float(compute_rms(arr["v_bn"].tolist())),
+            "c": float(compute_rms(arr["v_cn"].tolist())),
+        },
+    }
+
+
+def detect_events(data, thresholds: Optional[Dict] = None):
+    if isinstance(data, ImportedDataset):
+        return _detect_dataset_events(data)
+    if isinstance(data, dict):
+        return _detect_session_events(data, thresholds=thresholds)
+    return []
 
 
 def _merge_nearby_events(

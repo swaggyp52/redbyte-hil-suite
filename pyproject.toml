@@ -15,6 +15,7 @@ dependencies = [
     "PyQt6>=6.4.0",
     "pyqtgraph>=0.13.0",
     "pyserial>=3.5",
+    "pandas>=2.0.0",
     "numpy>=1.24.0",
     "scipy>=1.10.0",
     "matplotlib>=3.8.0",
@@ -25,10 +26,14 @@ dependencies = [
 excel = [
     "openpyxl>=3.1.0",
 ]
+opengl = [
+    "PyOpenGL>=3.1.0",
+]
 test = [
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",
     "openpyxl>=3.1.0",
+    "playwright>=1.40.0",
 ]
 dev = [
     "pytest>=7.0.0",
@@ -37,7 +42,12 @@ dev = [
     "isort",
     "mypy",
     "openpyxl>=3.1.0",
+    "PyOpenGL>=3.1.0",
+    "playwright>=1.40.0",
 ]
+
+[project.scripts]
+redbyte-hil-suite = "src.main:main"
 
 [tool.pytest.ini_options]
 minversion = "6.0"

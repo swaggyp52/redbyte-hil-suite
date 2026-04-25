@@ -8,15 +8,22 @@ from src.signal_processing import compute_rms, compute_thd
 
 class StatusBarWidget(QWidget):
     metrics_updated = pyqtSignal(float, float)
-    """Compact status bar widget showing mode, RMS, and THD."""
+    """Compact status bar widget showing mode, RMS, and THD.
+
+    The mode label reflects the current data source:
+      ANALYSIS — no active stream (workbench idle / between runs)
+      REPLAY   — playing back an imported or recorded session
+      DEMO     — running the bundled synthetic demo adapter
+      LIVE     — optional input-adapter path (future integration)
+    """
     def __init__(self, serial_mgr, parent=None):
         super().__init__(parent)
         self.serial_mgr = serial_mgr
-        self.mode = "LIVE"
+        self.mode = "ANALYSIS"
         self.layout = QHBoxLayout(self)
         self.layout.setContentsMargins(6, 2, 6, 2)
 
-        self.lbl_mode = QLabel("Mode: LIVE")
+        self.lbl_mode = QLabel(f"Mode: {self.mode}")
         self.lbl_rms = QLabel("RMS: --")
         self.lbl_thd = QLabel("THD: --")
 
@@ -25,6 +32,9 @@ class StatusBarWidget(QWidget):
         self.lbl_rms.setStyleSheet(badge_style + " color:#e2e8f0;")
         self.lbl_thd.setStyleSheet(badge_style + " color:#fca5a5;")
 
+        self.lbl_mode.setToolTip(
+            "Current data source: ANALYSIS (idle), REPLAY (playing a session),\n"
+            "DEMO (synthetic adapter), or LIVE (optional input-adapter path).")
         self.lbl_rms.setToolTip("RMS: Root-mean-square voltage. Typical target ~120V RMS.")
         self.lbl_thd.setToolTip("THD: Total harmonic distortion. Ideal <5%.")
 

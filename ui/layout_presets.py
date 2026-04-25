@@ -51,7 +51,7 @@ def apply_diagnostics_matrix(window, respect_user_positions=True, saved_geometri
     # Right middle - Validation dashboard (compliance and metrics)
     apply_if_not_moved(window.dashboard, w_base * 2, h_base, w_base * 2, h_base)
     
-    # Bottom left - Live scope (waveform monitoring)
+    # Bottom left - Waveform scope (replay / demo-adapter stream)
     apply_if_not_moved(window.scope, 0, h_base * 2, w_base * 2, h_base * 1.5)
     
     # Bottom right top - Fault injector (control interface)

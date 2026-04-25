@@ -43,7 +43,7 @@ logger = logging.getLogger(__name__)
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("HIL Verifier Suite - RedByte PROD")
+        self.setWindowTitle("VSM Evidence Workbench — Local Analysis & Replay")
         self.resize(1400, 900)
         self.demo_enabled = False
         self.layout_locked = False
@@ -108,7 +108,7 @@ class MainWindow(QMainWindow):
         self.insights = InsightsPanel()
         
         self.windows = []
-        self._add_subwindow(self.scope, "Inverter Scope (Live)")
+        self._add_subwindow(self.scope, "Inverter Scope (Demo / Input Adapter)")
         self._add_subwindow(self.injector, "Fault Injector")
         self._add_subwindow(self.dashboard, "Validation Dashboard")
         self._add_subwindow(self.phasor_view, "Phasor Diagram")
@@ -911,7 +911,7 @@ class MainWindow(QMainWindow):
         # Specific spatial layout for demo "Wow" Factor
         w = 450
         h = 400
-        # Main monitoring column (Left)
+        # Main waveform column (Left)
         self.scope.parent().setGeometry(0, 0, w*2, h*2)
         
         # Secondary visuals column (Right Top)
@@ -1046,8 +1046,8 @@ class MainWindow(QMainWindow):
         if not self.demo_enabled:
             return
         self.demo_enabled = False
-        self.statusBar().showMessage("Demo Mode Disabled: Connecting to Serial")
-        self.status_widget.set_mode("LIVE")
+        self.statusBar().showMessage("Demo Mode Disabled — Workbench idle (use Replay Studio → Import External File to load data)")
+        self.status_widget.set_mode("ANALYSIS")
         self.serial_mgr.stop_mock_mode()
         self.setWindowFlag(Qt.WindowType.FramelessWindowHint, False)
         self.showNormal()

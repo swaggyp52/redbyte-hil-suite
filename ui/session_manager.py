@@ -5,7 +5,9 @@ import os
 
 class SessionApp(QWidget):
     """
-    Controls for Recording and Replaying sessions.
+    Session Manager — record frames from the active data source (demo adapter or
+    replay) and load/save session JSON files. For importing external CSV/Excel
+    data, use Replay Studio → Import External File (Import Wizard).
     """
     record_toggled = pyqtSignal(bool) # True = Start, False = Stop
     replay_requested = pyqtSignal(str) # Filepath
@@ -15,7 +17,7 @@ class SessionApp(QWidget):
         self.setWindowTitle("Session Manager")
         self.layout = QVBoxLayout(self)
 
-        header = QLabel("Session Manager — Record & Replay")
+        header = QLabel("Session Manager — Record & Load")
         header.setStyleSheet("font-size: 12pt; font-weight: 700; color: #facc15;")
         self.layout.addWidget(header)
 

@@ -1,5 +1,5 @@
 """
-RedByte Tooltip Manager - Comprehensive hover tooltips for all widgets
+Tooltip Manager — Comprehensive hover tooltips for all VSM Evidence Workbench widgets.
 """
 
 # Tooltip definitions for all UI elements
@@ -26,7 +26,7 @@ TOOLTIPS = {
     "full_view": "Show all panels in tiled arrangement",
     
     # Inverter Scope
-    "scope_pause": "Pause live data acquisition (buffers remain active)",
+    "scope_pause": "Pause the active data stream (replay or demo adapter); buffers remain intact",
     "scope_clear": "Clear all buffered waveform data",
     "scope_mode_voltage": "Display 3-phase voltage waveforms (V_an, V_bn, V_cn)",
     "scope_mode_current": "Display 3-phase current waveforms (I_a, I_b, I_c)",
@@ -77,9 +77,9 @@ TOOLTIPS = {
     "analysis_export": "Export analysis results to CSV file",
     
     # Session Manager
-    "session_new": "Create new recording session",
+    "session_new": "Start a new session capture (records frames from the active data source)",
     "session_save": "Save current session with tags and metadata",
-    "session_load": "Load existing session from file",
+    "session_load": "Load an existing session file (JSON Data Capsule)",
     
     # Status Bar Metrics
     "status_rms": "Root Mean Square voltage - indicates signal magnitude",

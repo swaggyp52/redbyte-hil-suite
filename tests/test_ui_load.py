@@ -10,7 +10,7 @@ def test_mainwindow_load(qapp):
     """Verifies that the main window initializes without error."""
     window = MainWindow()
     assert window is not None
-    assert "Verifier Suite" in window.windowTitle()
+    assert "VSM Evidence Workbench" in window.windowTitle()
     
     # Check sub-windows exist
     assert isinstance(window.scope, InverterScope)

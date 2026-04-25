@@ -1,124 +1,125 @@
-# Quick Start Guide
+# VSM Evidence Workbench — Quick Start Guide
 
-Boot and try the RedByte GFM HIL Suite in under 5 minutes.
+**What this is:** A local desktop engineering analysis tool for VSM / Grid-Forming
+inverter test data. Import a CSV/Excel lab export → replay → compare →
+standards-evidence evaluation → export HTML + JSON + CSV artifacts.
 
 ---
 
-## 1. Install
+## Prerequisites
 
-**Windows — one click:**
-```
-install.cmd
-```
+| Requirement | Minimum | Notes |
+|-------------|---------|-------|
+| Python | 3.10+ | [python.org](https://python.org) |
+| OS | Windows 10/11 | Linux/Mac work but batch files are Windows |
+| RAM | 4 GB | 8 GB recommended for large captures |
+| Display | 1280×720 | 1920×1080 recommended |
 
-**Terminal (any OS):**
-```bash
-cd gfm_hil_suite
+---
+
+## Install
+
+```bat
+REM Clone or unzip the repository, then:
+cd redbyte-hil-suite
+
+REM Create a virtual environment (recommended)
+python -m venv venv
+venv\Scripts\activate
+
+REM Install core dependencies
 pip install -r requirements.txt
 ```
 
-Always launch from the repo root (`gfm_hil_suite/`).
-If your machine has multiple Python installs, use:
-Windows:
-```powershell
-.\.venv\Scripts\python.exe run.py
-```
-macOS/Linux:
-```bash
-.venv/bin/python run.py
-```
+### Optional dependencies
 
-Requires Python 3.12. All dependencies (including Excel support via `openpyxl`) are
-included in `requirements.txt`. For dev/test tools: `pip install -r requirements-dev.txt`.
+```bat
+REM Excel import (.xlsx / .xls files in the Import Wizard)
+pip install openpyxl
 
----
+REM 3D System View panel
+pip install PyOpenGL
 
-## 2. Launch
-
-```bash
-python run.py
+REM Or install everything at once:
+pip install -r requirements.txt openpyxl PyOpenGL
 ```
 
-Or on Windows, double-click **`run.bat`**.
-
-The app opens on **Overview** (import-first) — no hardware required.
-
 ---
 
-## 3. What you'll see
+## Launch
 
-The **Overview** page is the landing screen. Four action cards:
+### Primary launch (full MDI workbench)
 
-| Card | What it does |
-|------|-------------|
-| **Import Run File** | Load a real data file and start analysis |
-| Open Replay | Browse timeline, events, metrics of a loaded session |
-| Run Compliance | Run IEEE 2800 ride-through / frequency / recovery checks |
-| Start Demo Session | Launch live diagnostics with synthetic mock telemetry |
+```bat
+REM From the repo root with venv active:
+python -m src.main
 
----
-
-## 4. Import a real file (recommended path)
-
-1. Click **Import Run File** on the Overview page
-   — or drag any supported file directly onto the window.
-
-2. Select your file:
-   - `RigolDS0.csv` / `RigolDS1.csv` — oscilloscope captures
-   - `*.xlsx` — simulation Excel output (VSG frequency, inverter power, etc.)
-   - `*.json` — previously saved Data Capsule sessions
-
-3. The import dialog shows channel metadata and a **Range (min → max)** column.
-   Dead or constant channels are highlighted amber.
-   Assign canonical signal names if needed, then click **Import**.
-
-4. You land on **Replay → Waveforms**. From here:
-   - **Waveforms tab** — scrub the full capture timeline
-   - **Events tab** — automated detectors fire; click any row to jump to that moment
-   - **Compare tab** — load a second session for side-by-side delta overlay
-   - **Spectrum tab** — FFT view of any channel
-
----
-
-## 5. Unsupported files
-
-If you drop or open a file that isn't analyzable data (PDF, Markdown, firmware, etc.),
-the app explains what's wrong and what file types are expected — it will not crash or hang.
-
----
-
-## 6. Live hardware mode
-
-Connect the Arduino breadboard prototype on COM5, then:
-```bash
-python run.py --live --port COM5
+REM Or use the batch file:
+bin\start.bat
 ```
 
-Click **Run** in the session bar to start recording. The overview health indicator
-goes green when the serial connection is established.
+### Demo mode (synthetic data, no import needed)
 
----
-
-## 7. Test the suite
-
-```bash
-pytest tests/ --ignore=tests/test_ui_integration.py -q
+```bat
+bin\demo.bat
+REM or:
+python -m src.main --demo
 ```
 
-408 tests pass. 3 are skipped (require pandas — `pip install pandas` to enable).
+### Launcher menu (choose a focused sub-app)
+
+```bat
+bin\launch_redbyte.bat
+```
 
 ---
 
-## Other launch flags
+## Verify the install
 
-| Flag | Effect |
-|------|--------|
-| `--fullscreen` | Full-screen window |
-| `--demo` | Demo telemetry mode (synthetic data) |
-| `--live` | Hardware mode (auto-detect port) |
-| `--live --port COM5` | Hardware mode on explicit port |
-| `--no-3d` | Disable OpenGL (use if display errors occur) |
+```bat
+bin\test_system.bat
+REM Checks imports, optional deps, and runs fast unit tests.
+```
+
+Full test suite:
+
+```bat
+bin\test.bat
+REM or:
+python -m pytest tests/ -v
+```
+
+Expected: **94+ passed, 1 skipped** (Excel test skips if openpyxl is absent).
 
 ---
 
-See `docs/DEMO_WALKTHROUGH.md` for the full 10-minute capstone demo script.
+## The core workflow (in ~3 minutes)
+
+1. Launch → `python -m src.main`
+2. **Replay Studio → Import External File…** — drop a lab CSV. Wizard auto-maps columns.
+3. Replay tab: waveform, event markers, spectrum, run summary.
+4. Load Overlay for a second run → view comparison metrics.
+5. Switch profile → `ieee_2800_inspired` → run standards evaluation.
+6. **Export Evidence Report** → opens `exports/<run>/evidence_report.html`.
+
+---
+
+## Output locations
+
+| Artifact | Default location |
+|----------|-----------------|
+| Evidence package | `exports/<session_id>/` |
+| Session capsule | `data/sessions/<name>.json` |
+| Scene snapshots | `snapshots/` |
+
+---
+
+## Troubleshooting
+
+| Symptom | Fix |
+|---------|-----|
+| `ModuleNotFoundError: PyQt6` | `pip install PyQt6` |
+| 3D view shows placeholder | `pip install PyOpenGL` |
+| Excel import greyed out | `pip install openpyxl` |
+| `venv not found` error | Run `python -m venv venv` first |
+| Window doesn't appear | Check display scaling; try `QT_SCALE_FACTOR=1` |

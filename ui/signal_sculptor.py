@@ -11,9 +11,10 @@ logger = logging.getLogger(__name__)
 
 class SignalSculptor(QWidget):
     """
-    Parametric Waveform Builder & Injector.
-    Generates test signals and can inject them into the live data stream
-    or send parameters to hardware for physical signal generation.
+    Parametric Waveform Builder.
+    Generates parametric test signals (sine, harmonics, sag/swell, noise) for
+    feeding the demo-adapter stream so UI panels can be exercised without an
+    imported dataset. Useful for layout/demo walkthroughs, not for evidence runs.
     """
     def __init__(self, serial_mgr):
         super().__init__()

@@ -1,2 +1,0 @@
-# Scripts folder
-# Add simulation scripts or playback tools here.

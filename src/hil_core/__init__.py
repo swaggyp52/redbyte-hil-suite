@@ -1,6 +1,6 @@
 """
-RedByte HIL Core Engine
-Shared backend infrastructure for all RedByte applications
+VSM Evidence Workbench — HIL Core Engine
+Shared backend infrastructure for the launcher-mode sub-applications.
 """
 
 from .session import SessionContext

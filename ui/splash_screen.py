@@ -1,5 +1,5 @@
 """
-RedByte Loading Splash Screen with Animated Rotor Spin
+VSM Evidence Workbench — Loading Splash Screen with Animated Rotor Spin
 """
 from PyQt6.QtWidgets import QSplashScreen, QLabel, QVBoxLayout, QWidget
 from PyQt6.QtCore import Qt, QTimer, QPropertyAnimation, QEasingCurve
@@ -51,15 +51,16 @@ class RotorSplashScreen(QSplashScreen):
         painter.drawRect(2, 2, self.width() - 4, self.height() - 4)
         
         # === RedByte Branding ===
-        font_title = QFont("JetBrains Mono", 36, QFont.Weight.Bold)
+        font_title = QFont("JetBrains Mono", 34, QFont.Weight.Bold)
         painter.setFont(font_title)
         painter.setPen(QColor(16, 185, 129))
-        painter.drawText(self.rect().adjusted(0, 50, 0, 0), Qt.AlignmentFlag.AlignHCenter, "RedByte")
-        
-        font_subtitle = QFont("JetBrains Mono", 14, QFont.Weight.Normal)
+        painter.drawText(self.rect().adjusted(0, 50, 0, 0), Qt.AlignmentFlag.AlignHCenter, "VSM Evidence Workbench")
+
+        font_subtitle = QFont("JetBrains Mono", 12, QFont.Weight.Normal)
         painter.setFont(font_subtitle)
         painter.setPen(QColor(148, 163, 184))
-        painter.drawText(self.rect().adjusted(0, 100, 0, 0), Qt.AlignmentFlag.AlignHCenter, "HIL Verifier Suite")
+        painter.drawText(self.rect().adjusted(0, 100, 0, 0), Qt.AlignmentFlag.AlignHCenter,
+                         "Local Analysis · Replay · Standards-Evidence")
         
         # === Animated Rotor ===
         center_x = self.width() // 2
@@ -104,7 +105,7 @@ class RotorSplashScreen(QSplashScreen):
         # === Loading Text with Animated Dots ===
         dot_count = (self.loading_dots // 15) + 1  # Cycle through 1-4 dots
         dots = "." * dot_count
-        loading_text = f"Booting RedByte Systems{dots}"
+        loading_text = f"Loading Evidence Workbench{dots}"
         
         font_loading = QFont("JetBrains Mono", 11, QFont.Weight.Normal)
         painter.setFont(font_loading)
