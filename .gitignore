@@ -57,6 +57,7 @@ cover/
 .venv/
 env/
 venv/
+venv312/
 ENV/
 env.bak/
 venv.bak/
