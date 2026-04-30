@@ -43,7 +43,13 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from src.channel_mapping import CANONICAL_SIGNALS, UNMAPPED, ChannelMapper
+from src.channel_mapping import (
+    CANONICAL_SIGNALS,
+    UNMAPPED,
+    ChannelMapper,
+    ordered_mapping_targets,
+    DIRECT_LINE_TO_LINE_MAPPING_TARGETS,
+)
 from src.dataset_converter import dataset_to_session
 from src.derived_channels import LINE_TO_LINE_CHANNELS
 from src.file_ingestion import ImportedDataset, IngestionError, ingest_file
@@ -237,11 +243,26 @@ class ImportDialog(QDialog):
         note = QLabel(
             "Assign source columns to canonical engineering channels when possible. "
             "Unmapped numeric columns still import in Generic Data Analysis Mode "
-            "and remain available for plotting and basic statistics."
+            "and remain available for plotting and basic statistics.\n"
+            "For Rigol 3-phase captures: map CH1(V)->v_an, CH2(V)->v_bn, CH3(V)->v_cn. "
+            "Line-to-line channels (v_ab/v_bc/v_ca) are normally derived automatically after import."
         )
         note.setWordWrap(True)
         note.setStyleSheet("color: #64748b; font-size: 8pt;")
         layout.addWidget(note)
+
+        # Rigol helper: appears when CH1/CH2/CH3 are detected in the source file
+        self._rigol_hint = QLabel("")
+        self._rigol_hint.setStyleSheet("color: #60a5fa; font-size: 9pt; font-weight:600;")
+        self._rigol_hint.setWordWrap(True)
+        self._rigol_hint.setVisible(False)
+        layout.addWidget(self._rigol_hint)
+
+        self._btn_rigol_map = QPushButton("Apply Rigol 3-Phase Mapping")
+        self._btn_rigol_map.setVisible(False)
+        self._btn_rigol_map.setFixedWidth(230)
+        self._btn_rigol_map.clicked.connect(self._apply_rigol_mapping)
+        layout.addWidget(self._btn_rigol_map)
 
         self._map_table = QTableWidget(0, 4)
         self._map_table.setHorizontalHeaderLabels(
@@ -381,8 +402,8 @@ class ImportDialog(QDialog):
         self._combo_map.clear()
         self._map_table.setRowCount(0)
 
-        # Canonical choices for the dropdown
-        canonical_options = [UNMAPPED] + sorted(CANONICAL_SIGNALS.keys())
+        # Canonical choices for the dropdown — present primary targets first
+        canonical_options = [UNMAPPED] + ordered_mapping_targets(include_direct_line_to_line=True)
 
         for col in ds.raw_headers:
             if col == ds.meta.get("time_column"):
@@ -434,6 +455,15 @@ class ImportDialog(QDialog):
             # Column 3: canonical mapping dropdown
             combo = QComboBox()
             combo.addItems(canonical_options)
+            # Insert a non-selectable separator before direct line-to-line choices
+            try:
+                first_direct = DIRECT_LINE_TO_LINE_MAPPING_TARGETS[0]
+                if first_direct in canonical_options:
+                    sep_idx = canonical_options.index(first_direct)
+                    combo.insertSeparator(sep_idx)
+            except Exception:
+                # Non-fatal: if the QComboBox API differs, skip the separator.
+                pass
             target = suggested.get(col, UNMAPPED)
             if target and target in canonical_options:
                 combo.setCurrentText(target)
@@ -444,6 +474,19 @@ class ImportDialog(QDialog):
             )
             self._map_table.setCellWidget(row, 3, combo)
             self._combo_map[col] = combo
+
+        # If Rigol 3-phase headers are present, surface the helper and button
+        rigol_cols = ["CH1(V)", "CH2(V)", "CH3(V)"]
+        if all(c in ds.raw_headers for c in rigol_cols):
+            self._rigol_hint.setText(
+                "Detected 3 voltage channels. Recommended mapping: CH1(V)→v_an, "
+                "CH2(V)→v_bn, CH3(V)→v_cn. V_ab/V_bc/V_ca will be derived after import."
+            )
+            self._rigol_hint.setVisible(True)
+            self._btn_rigol_map.setVisible(True)
+        else:
+            self._rigol_hint.setVisible(False)
+            self._btn_rigol_map.setVisible(False)
 
         self._refresh_analysis_preview()
 
@@ -569,3 +612,34 @@ class ImportDialog(QDialog):
             )
 
         self._summary_box.setPlainText("\n".join(lines))
+
+    def _apply_rigol_mapping(self) -> None:
+        """Apply a conservative Rigol 3-phase mapping to the current mapping UI.
+
+        Only applies when the exact headers CH1(V)/CH2(V)/CH3(V) are present.
+        This sets the dropdowns but does not silently import; the user must
+        still click Import to confirm.
+        """
+        if self._dataset is None:
+            return
+        rigol_cols = ["CH1(V)", "CH2(V)", "CH3(V)"]
+        if not all(c in self._dataset.raw_headers for c in rigol_cols):
+            return
+
+        mapping = {
+            "CH1(V)": "v_an",
+            "CH2(V)": "v_bn",
+            "CH3(V)": "v_cn",
+        }
+        # Update combo boxes and internal mapping
+        for col, target in mapping.items():
+            combo = self._combo_map.get(col)
+            if combo is not None:
+                idx = combo.findText(target)
+                if idx >= 0:
+                    combo.setCurrentIndex(idx)
+                else:
+                    combo.setCurrentText(target)
+            self._mapping[col] = target
+
+        self._refresh_analysis_preview()

@@ -63,6 +63,69 @@ CANONICAL_SIGNALS: dict[str, dict] = {
 }
 
 
+# Preferred ordering for primary mapping targets shown to users.
+# These are the common, directly measured signals users should map to first.
+PRIMARY_MAPPING_TARGETS: list[str] = [
+    "v_an",
+    "v_bn",
+    "v_cn",
+    "i_a",
+    "i_b",
+    "i_c",
+    "freq",
+    "p_mech",
+    "q",
+    "v_dc",
+    "i_dc",
+    "angle",
+]
+
+
+# Line-to-line channels that are normally DERIVED from phase voltages but
+# may also be present as direct measurements in some source formats.
+DIRECT_LINE_TO_LINE_MAPPING_TARGETS: list[str] = [
+    "v_ab",
+    "v_bc",
+    "v_ca",
+]
+
+
+def ordered_mapping_targets(include_direct_line_to_line: bool = True) -> list[str]:
+    """
+    Return an ordered list of canonical mapping target names for UI dropdowns.
+
+    Behavior:
+      - Primary, directly-measured targets (phase voltages, currents, freq,...)
+        appear first in a predictable order.
+      - Remaining canonical signals follow (in stable alphabetical order).
+      - Optionally append direct line-to-line targets (v_ab, v_bc, v_ca) last
+        so they do not distract users when mapping phase-to-neutral signals.
+    """
+    ordered: list[str] = []
+
+    # Start with the curated primary list, but only include those present
+    # in the canonical registry to avoid exposing unknown keys.
+    for key in PRIMARY_MAPPING_TARGETS:
+        if key in CANONICAL_SIGNALS and key not in ordered:
+            ordered.append(key)
+
+    # Append any other canonical signals that were not included above,
+    # keeping this deterministic by sorting the remaining keys.
+    remaining = [k for k in CANONICAL_SIGNALS.keys() if k not in ordered]
+    for k in sorted(remaining):
+        # Defer direct line-to-line keys until optionally appended later
+        if k in DIRECT_LINE_TO_LINE_MAPPING_TARGETS:
+            continue
+        ordered.append(k)
+
+    if include_direct_line_to_line:
+        for k in DIRECT_LINE_TO_LINE_MAPPING_TARGETS:
+            if k in CANONICAL_SIGNALS and k not in ordered:
+                ordered.append(k)
+
+    return ordered
+
+
 def infer_unit_from_header(header: str) -> Optional[str]:
     """
     Attempt to infer the physical unit from a column header string.

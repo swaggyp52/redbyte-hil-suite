@@ -23,6 +23,7 @@ from src.channel_mapping import (
     auto_suggest_mapping,
     infer_unit_from_header,
 )
+from src.channel_mapping import ordered_mapping_targets, DIRECT_LINE_TO_LINE_MAPPING_TARGETS
 from src.file_ingestion import ImportedDataset
 
 
@@ -239,3 +240,34 @@ def test_vsm_full_header_set_mapping():
     assert result["fault"]  == UNMAPPED
     # t_ms is the time column — not a signal channel, also unmapped is fine
     assert result["t_ms"]   == UNMAPPED
+
+
+def test_ordered_mapping_targets_phases_before_line():
+    """Ensure primary phase voltages appear before direct line-to-line keys."""
+    ordered = ordered_mapping_targets(include_direct_line_to_line=True)
+    # Phase voltages present
+    for ph in ("v_an", "v_bn", "v_cn"):
+        assert ph in ordered
+    # Line-to-line present
+    for ll in DIRECT_LINE_TO_LINE_MAPPING_TARGETS:
+        assert ll in ordered
+    # Each phase appears before any line-to-line entry
+    for ph in ("v_an", "v_bn", "v_cn"):
+        for ll in DIRECT_LINE_TO_LINE_MAPPING_TARGETS:
+            assert ordered.index(ph) < ordered.index(ll)
+
+
+def test_compute_line_to_line_from_phases_exact():
+    """Verify derived formulas: v_ab = v_an - v_bn, etc."""
+    import numpy as np
+    from src.derived_channels import compute_line_to_line_channels
+
+    v_an = np.array([1.0, 2.0, 3.0])
+    v_bn = np.array([0.1, 0.2, 0.3])
+    v_cn = np.array([0.5, 0.6, 0.7])
+    channels = {"v_an": v_an, "v_bn": v_bn, "v_cn": v_cn}
+    derived = compute_line_to_line_channels(channels)
+    assert "v_ab" in derived and "v_bc" in derived and "v_ca" in derived
+    assert np.allclose(derived["v_ab"], v_an - v_bn)
+    assert np.allclose(derived["v_bc"], v_bn - v_cn)
+    assert np.allclose(derived["v_ca"], v_cn - v_an)
