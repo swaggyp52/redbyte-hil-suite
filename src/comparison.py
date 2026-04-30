@@ -29,11 +29,24 @@ from typing import Optional
 import numpy as np
 
 from src.file_ingestion import ImportedDataset
+from src.signal_processing import compute_rms, compute_thd
 
 logger = logging.getLogger(__name__)
 
 # Maximum points to interpolate onto when computing delta traces.
 _DEFAULT_MAX_POINTS = 2_000
+
+
+def _unit_for_channel(channel: str) -> str:
+    if channel.startswith("v_"):
+        return "V"
+    if channel.startswith("i_"):
+        return "A"
+    if channel == "freq":
+        return "Hz"
+    if channel in {"p_mech", "q"}:
+        return "W"
+    return ""
 
 
 # ---------------------------------------------------------------------------
@@ -70,12 +83,23 @@ def dataset_from_capsule(capsule: dict, label: str = "") -> "ImportedDataset":
     # Collect all channel keys (exclude 'ts')
     all_keys: set[str] = set()
     for f in frames:
-        all_keys.update(k for k in f if k != "ts")
+        for k, v in f.items():
+            if k == "ts":
+                continue
+            if isinstance(v, (int, float, np.integer, np.floating)) and not isinstance(v, bool):
+                all_keys.add(k)
 
     channels: dict[str, np.ndarray] = {}
     for key in sorted(all_keys):
         channels[key] = np.array(
-            [f.get(key, float("nan")) for f in frames], dtype=np.float64
+            [
+                float(v)
+                if isinstance((v := f.get(key, float("nan"))), (int, float, np.integer, np.floating))
+                and not isinstance(v, bool)
+                else float("nan")
+                for f in frames
+            ],
+            dtype=np.float64,
         )
 
     meta = capsule.get("meta", {})
@@ -163,10 +187,18 @@ class ChannelComparisonResult:
     rms_error:          float
     peak_abs_error:     float
     correlation:        float          # Pearson r; NaN if constant signal
-    timing_offset_s:    float          # applied timing offset (A − B)
-    overlap_duration_s: float          # duration of the compared region
-    n_samples_compared: int
-    alignment_confidence: float        # 0..1; 1 = perfect cross-corr peak
+    mean_delta:         float = float("nan")
+    timing_offset_s:    float = 0.0    # applied timing offset (A − B)
+    overlap_duration_s: float = 0.0    # duration of the compared region
+    n_samples_compared: int = 0
+    alignment_confidence: float = 0.0  # 0..1; 1 = perfect cross-corr peak
+    ref_rms:            float = float("nan")
+    test_rms:           float = float("nan")
+    delta_rms:          float = float("nan")
+    ref_thd_pct:        float = float("nan")
+    test_thd_pct:       float = float("nan")
+    delta_thd_pct:      float = float("nan")
+    units:              str = ""
     warnings:           list[str] = field(default_factory=list)
 
 
@@ -357,10 +389,18 @@ def compare_channels(
             rms_error=float("nan"),
             peak_abs_error=float("nan"),
             correlation=float("nan"),
+            mean_delta=float("nan"),
             timing_offset_s=timing_offset_s,
             overlap_duration_s=0.0,
             n_samples_compared=0,
             alignment_confidence=alignment_confidence,
+            ref_rms=float("nan"),
+            test_rms=float("nan"),
+            delta_rms=float("nan"),
+            ref_thd_pct=float("nan"),
+            test_thd_pct=float("nan"),
+            delta_thd_pct=float("nan"),
+            units=_unit_for_channel(channel),
             warnings=warnings,
         )
 
@@ -374,6 +414,7 @@ def compare_channels(
     diff  = a_interp - b_interp
     rms   = float(np.sqrt(np.mean(diff ** 2)))
     peak  = float(np.max(np.abs(diff)))
+    mean_delta = float(np.mean(diff))
 
     # Pearson r
     a_std = float(a_interp.std())
@@ -383,15 +424,33 @@ def compare_channels(
         warnings.append(f"Channel '{channel}': constant signal — correlation undefined")
     else:
         corr = float(np.corrcoef(a_interp, b_interp)[0, 1])
+    ref_rms = float(compute_rms(a_interp))
+    test_rms = float(compute_rms(b_interp))
+    delta_rms = float(test_rms - ref_rms)
+
+    if channel.startswith(("v_", "i_")) and channel != "v_dc":
+        ref_thd = float(compute_thd(a_interp, fs=dataset_a.sample_rate or 0.0, time_data=t_grid))
+        test_thd = float(compute_thd(b_interp, fs=dataset_a.sample_rate or 0.0, time_data=t_grid))
+    else:
+        ref_thd = float("nan")
+        test_thd = float("nan")
 
     return ChannelComparisonResult(
         rms_error=rms,
         peak_abs_error=peak,
         correlation=corr,
+        mean_delta=mean_delta,
         timing_offset_s=timing_offset_s,
         overlap_duration_s=float(t_end - t_start),
         n_samples_compared=n_grid,
         alignment_confidence=alignment_confidence,
+        ref_rms=ref_rms,
+        test_rms=test_rms,
+        delta_rms=delta_rms,
+        ref_thd_pct=ref_thd,
+        test_thd_pct=test_thd,
+        delta_thd_pct=float(test_thd - ref_thd) if ref_thd == ref_thd and test_thd == test_thd else float("nan"),
+        units=_unit_for_channel(channel),
         warnings=warnings,
     )
 

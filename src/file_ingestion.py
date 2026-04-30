@@ -23,6 +23,7 @@ Performance notes:
 from __future__ import annotations
 
 import json
+import hashlib
 import logging
 import os
 from dataclasses import dataclass, field
@@ -38,6 +39,14 @@ _CHUNK_ROWS = 100_000
 
 # Hard cap on in-memory rows per channel
 _MAX_SAMPLES = 2_000_000
+
+
+def _sha256_file(path: str) -> str:
+    digest = hashlib.sha256()
+    with open(path, "rb") as fh:
+        for chunk in iter(lambda: fh.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 # ---------------------------------------------------------------------------
@@ -137,7 +146,11 @@ def _ingest_rigol_csv(path: str) -> ImportedDataset:
     import csv as _csv
 
     warnings: list[str] = []
-    meta: dict = {"file_size_bytes": os.path.getsize(path)}
+    meta: dict = {
+        "file_size_bytes": os.path.getsize(path),
+        "source_hash_sha256": _sha256_file(path),
+        "scale_factors": {},
+    }
 
     # ── Locate the true header row ───────────────────────────────────────────
     header_row_idx = 0
@@ -334,7 +347,11 @@ def _ingest_simulation_excel(path: str) -> ImportedDataset:
     import pandas as pd
 
     warnings: list[str] = []
-    meta: dict = {"file_size_bytes": os.path.getsize(path)}
+    meta: dict = {
+        "file_size_bytes": os.path.getsize(path),
+        "source_hash_sha256": _sha256_file(path),
+        "scale_factors": {},
+    }
 
     try:
         with pd.ExcelFile(path, engine="openpyxl") as xl:
@@ -447,7 +464,10 @@ def _ingest_data_capsule_json(path: str) -> ImportedDataset:
     Canonical key names (v_an, v_bn, …) are preserved as-is.
     """
     warnings: list[str] = []
-    meta: dict = {}
+    meta: dict = {
+        "source_hash_sha256": _sha256_file(path),
+        "scale_factors": {},
+    }
 
     try:
         with open(path, "r") as fh:

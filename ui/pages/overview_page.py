@@ -75,12 +75,12 @@ class OverviewPage(QWidget):
         root.setSpacing(20)
 
         # ── Title ──────────────────────────────────────────────────────
-        title = QLabel("RedByte GFM HIL Suite")
+        title = QLabel("VSM Evidence Workbench")
         title.setObjectName("OverviewTitle")
         root.addWidget(title)
 
         subtitle = QLabel(
-            "Real-data-first analysis for Grid-Forming Inverter waveforms, events, and compliance"
+            "Offline recorded-session analysis for inverter, simulation, and generic numeric datasets"
         )
         subtitle.setObjectName("OverviewSubtitle")
         root.addWidget(subtitle)
@@ -104,8 +104,8 @@ class OverviewPage(QWidget):
         self._no_session_hint = QLabel(
             "No dataset loaded.\n"
             "Import a run file to start — or drag and drop a file anywhere on this window.\n"
-            "Supported: CSV (oscilloscope/telemetry), XLSX (simulation), JSON (saved session).\n"
-            "Truthful analysis: raw source data is preserved, missing channels are never fabricated, "
+            "Supported: CSV (oscilloscope captures), XLSX (simulation output), JSON (saved session).\n"
+            "Offline Analysis Mode: raw source data is preserved, missing channels are never fabricated, "
             "and unsupported files are rejected with clear guidance."
         )
         self._no_session_hint.setObjectName("NoSessionHint")
@@ -124,16 +124,16 @@ class OverviewPage(QWidget):
         # Import is always primary — it's the entry point to real work
         cards_data = [
             ("📂", "Import Run File",
-             "Load a CSV, Excel, or JSON file and start analysis",
+             "Load a CSV, Excel, or JSON file and open the dataset overview",
              None, True),
             ("⏵", "Open Replay",
-             "Browse timeline, metrics, and spectrum of loaded sessions",
+             "Open waveform, metrics, comparison, and export views",
              "replay", False),
             ("✓", "Run Compliance",
-             "Validate a session against IEEE 2800 checks",
+             "Run standards-inspired engineering checks",
              "compliance", False),
             ("⚡", "Start Demo Session",
-             "[Demo] Launch diagnostics with simulated telemetry",
+             "[Demo] Launch diagnostics with simulated recorded-style input",
              "diagnostics", False),
         ]
 
@@ -239,7 +239,7 @@ class _HealthRow(QFrame):
         self._dot.setObjectName("HealthDot")
         layout.addWidget(self._dot)
 
-        self._lbl = QLabel("Telemetry: Not connected  ·  Mode: —")
+        self._lbl = QLabel("Input source: Not connected  ·  Mode: —")
         self._lbl.setObjectName("HealthLabel")
         layout.addWidget(self._lbl)
         layout.addStretch()
@@ -247,7 +247,7 @@ class _HealthRow(QFrame):
     def update(self, connected: bool, mode: str):
         if connected:
             self._dot.setStyleSheet("color: #10b981;")
-            self._lbl.setText(f"Live: {mode}  (connected)")
+            self._lbl.setText(f"Input: {mode}  (connected)")
             self.show()
         else:
             self.hide()

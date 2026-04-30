@@ -1,180 +1,139 @@
-# VSM Evidence Workbench — Handoff & Run Guide
+# VSM Evidence Workbench - Final Handoff
 
-This is the single source of truth for running this project on another machine.
-Read this if you are a reviewer, teammate, or evaluator who has just received
-the repository.
+## Final Product Summary
 
----
+This repository now presents a real offline evidence workbench for recorded inverter, simulation, and generic numeric datasets.
 
-## What this is
+Primary product behavior:
 
-A **local Python/PyQt6 desktop application** for post-run analysis of
-Virtual Synchronous Machine (VSM) / Grid-Forming inverter test data.
+- import recorded data from `CSV`, `XLSX`, or `JSON`
+- map source columns to canonical engineering channels
+- derive `v_ab`, `v_bc`, `v_ca` when phase voltages exist
+- inspect phase, line-to-line, current, and auxiliary plots
+- compute metrics and event summaries
+- run standards-inspired engineering checks
+- compare baseline vs disturbed sessions
+- export a real evidence package
 
-**There is no web server, no cloud service, no native installer.**
-You run it by installing Python dependencies and running `python -m src.main`.
+## Product Truth
 
----
+The app is:
 
-## Prerequisites
+- local-first
+- offline
+- deterministic
+- post-run analysis
+- evidence generation
+- standards-inspired validation
 
-| Item | Requirement |
-|------|-------------|
-| Python | 3.10 or newer (3.12 recommended) |
-| pip | bundled with Python 3.10+ |
-| OS | Windows 10/11 (primary), Linux/macOS (supported, no batch files) |
-| RAM | 4 GB minimum, 8 GB recommended |
-| Display | 1280×720 minimum |
-| Git | Optional — only needed if cloning |
+The app is not:
 
----
+- live monitoring
+- Blynk
+- cloud dashboard
+- hardware control
+- formal certification
 
-## Step-by-step: Run on a clean machine
+Demo and adapter-preview pages still exist as secondary surfaces, but the final deliverable path is recorded-data analysis.
 
-### Windows (primary)
+## Launch
 
-```bat
-REM 1. Get the repo (clone or unzip)
-cd redbyte-hil-suite
-
-REM 2. Create a virtual environment
-python -m venv venv
-
-REM 3. Activate it
-venv\Scripts\activate
-
-REM 4. Install dependencies
-pip install -r requirements.txt
-
-REM 5. (Optional) Install Excel + 3D-view support
-pip install openpyxl PyOpenGL
-
-REM 6. Launch the app
-python -m src.main
+```powershell
+.\.venv\Scripts\python.exe -m src.main
 ```
 
-### Linux / macOS
+## Import Experience
 
-```bash
-cd redbyte-hil-suite
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-pip install openpyxl PyOpenGL       # optional
-python -m src.main
-```
+The import dialog now shows:
 
----
+- detected file type
+- row count
+- numeric column count
+- detected time column
+- source-to-canonical mapping suggestions
+- derived channels that will be computed
+- generic or auxiliary numeric channels that will remain available
+- analysis mode after import
 
-## Verify it works
+After import, the app stays on **Overview** and shows a dataset summary before you move into Replay or Compliance.
 
-```bat
-REM Quick check (imports + fast tests):
-bin\test_system.bat
+## Supported Data Types
 
-REM Full test suite:
-bin\test.bat
-```
+- `CSV`
+- `XLSX` / `XLS`
+- `JSON` session capsules
 
-Expected outcome: **94+ tests passed, 1 skipped** (Excel import test skips
-unless `openpyxl` is installed).
+Validated examples:
 
----
+- `RigolDS0.csv`
+- `RigolDS1.csv`
+- `InverterPower_Simulation.xlsx`
+- `VSGFrequency_Simulation.xlsx`
+- generic numeric CSV with `time,signal_a,signal_b`
 
-## How to run the demo
+## VSM Workflow
 
-```bat
-bin\demo.bat
-REM or:
-python -m src.main --demo
-```
+1. Launch the app.
+2. Import `RigolDS0.csv`.
+3. Map:
+   `CH1(V)->v_an`, `CH2(V)->v_bn`, `CH3(V)->v_cn`
+4. Confirm Overview shows:
+   mapped channels, derived channels, analysis mode, and missing channels.
+5. Open **Replay & Analysis**.
+6. Show:
+   phase voltages, line-to-line overlay, metrics, events, and spectrum.
+7. Open **Compliance** and run `ieee_2800_inspired`.
+8. Export the evidence package.
 
-This starts the app in demo mode with synthetic 3-phase VSM signals. No
-external data file is needed. The demo adapter generates a ride-through
-event sequence (frequency drift + voltage sag) and auto-loads it into the
-Replay Studio.
+## Generic Data Workflow
 
----
+If a dataset does not provide full inverter channels, the app still imports it when it has numeric columns.
 
-## How to use the primary workflow
+Behavior:
 
-1. **Launch:** `python -m src.main`
-2. **Import External File:** Replay Studio toolbar → *Import External File…*
-   - Supports: `.csv`, `.xlsx`, `.json`
-   - Wizard auto-detects column names, time units, sample rates
-   - Manual override available for each channel
-3. **Replay:** Waveform, Spectrum, Run Summary tabs with auto-event markers
-4. **Compare:** *Load Overlay* → second run → delta metrics panel
-5. **Evaluate:** profile dropdown → `ieee_2800_inspired` → run compliance
-6. **Export:** *Export Evidence Report* → HTML + PNG + CSV + JSON bundle
+- time-like columns are used for the x-axis when detected
+- numeric channels remain available for plotting
+- basic stats are shown for generic or auxiliary channels
+- compliance rows become `N/A` with explicit reasons when required channels are missing
 
----
+## Evidence Export
 
-## Output locations
+The evidence bundle includes:
 
-| What | Where |
-|------|-------|
-| Evidence package | `exports/<session_id>/evidence_report.html` + siblings |
-| Imported session | `data/sessions/<name>.json` |
-| Scene snapshots | `snapshots/` |
-| Demo data | `data/demo_replay.json` (auto-generated on first demo run) |
+- `evidence_report.html`
+- `waveform_overview.png`
+- `line_to_line_overlay.png`
+- `normalized_frames.csv`
+- `metrics.json`
+- `compliance.json`
+- `events.json`
+- `metadata.json`
+- `session_capsule.json`
 
----
+Large captures now export a preview/downsampled `normalized_frames.csv` by default so the bundle finishes quickly. The metadata file records that downsampling note explicitly.
 
-## Dependency quick reference
+## Final Demo Path
 
-| Package | Required | Purpose |
-|---------|----------|---------|
-| PyQt6 | YES | UI framework |
-| pyqtgraph | YES | Waveform plots |
-| numpy, scipy | YES | Signal processing |
-| pandas | YES | Data import |
-| matplotlib | YES | Evidence-package plot export |
-| python-dotenv | YES | Config |
-| pyserial | YES (installed) | Demo adapter / future serial |
-| openpyxl | NO | Excel (.xlsx) import |
-| PyOpenGL | NO | 3D System View |
-| pytest | NO | Test suite |
+1. Launch `python -m src.main`
+2. Import `RigolDS0.csv`
+3. Show Overview
+4. Open Replay and show phase plus line-to-line plots
+5. Open Metrics
+6. Open Compliance
+7. Load `RigolDS1.csv` as comparison
+8. Show line-to-line comparison overlays
+9. Import `InverterPower_Simulation.xlsx`
+10. Show the power-channel stats
+11. Export the evidence bundle
 
----
+## Known Limitations
 
-## Known limitations / caveats
+- Current and explicit fault checks remain `N/A` unless the imported file actually contains those channels.
+- The current Excel simulation samples only expose `Pinv`, so compliance remains `N/A` there by design.
+- Full-resolution CSV export is not the default path for million-row captures; preview CSV export is used to keep the evidence bundle responsive.
 
-1. **openpyxl not pre-installed:** Excel import is disabled until `pip install openpyxl`.
-   The wizard will still open but the .xlsx file path will fail to load.
-2. **PyOpenGL not pre-installed:** The 3D System View shows a "3D view unavailable"
-   placeholder. All other panels work normally.
-3. **venv is not committed:** The `venv/` directory lives on the development machine.
-   A fresh machine must run `pip install -r requirements.txt`.
-4. **snapshots/ is large:** The `snapshots/` directory contains ~1 300 PNG files
-   (~75 MB) from development runs. It is safe to delete before handing off.
-5. **Git ownership warning:** On Windows, if the repo was cloned by a different
-   user, git may show a "dubious ownership" warning. This does not affect running
-   the app — only git commands.
-6. **Displays:** The app expects a desktop GUI. Headless/SSH environments will
-   not work without a virtual display (Xvfb on Linux).
+## Future Work
 
----
-
-## Canonical commands summary
-
-| Task | Command |
-|------|---------|
-| Install deps | `pip install -r requirements.txt` |
-| Install optionals | `pip install openpyxl PyOpenGL` |
-| Launch app | `python -m src.main` |
-| Launch (demo) | `python -m src.main --demo` |
-| Run tests | `python -m pytest tests/ -v` |
-| Quick verify | `bin\test_system.bat` |
-| Package for handoff | `bin\demo_launcher.bat` (runs demo + zips output) |
-
----
-
-## What is NOT supported
-
-- No web deployment
-- No native `.exe` installer (PyInstaller not configured)
-- No Docker container
-- No CI/CD pipeline (GitHub Actions not configured)
-- No live-hardware serial telemetry (demo adapter only; real-hardware adapter is
-  a future integration hook documented in `docs/HARDWARE_INTEGRATION.md`)
+- explicit UI toggle for full-resolution normalized CSV export
+- richer scale-factor workflow for probes and sensors
+- broader auto-mapping heuristics for additional simulation formats

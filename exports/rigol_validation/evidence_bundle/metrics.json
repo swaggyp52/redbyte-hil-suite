@@ -1,0 +1,116 @@
+{
+  "balance": {
+    "available": true,
+    "max_rms_deviation_v": 0.013354,
+    "mean_phase_rms_v": 1.204541,
+    "percent_voltage_imbalance": 1.108638,
+    "unit": "%"
+  },
+  "current": {
+    "i_a": {
+      "available": false,
+      "reason": "i_a not present",
+      "unit": "A"
+    },
+    "i_b": {
+      "available": false,
+      "reason": "i_b not present",
+      "unit": "A"
+    },
+    "i_c": {
+      "available": false,
+      "reason": "i_c not present",
+      "unit": "A"
+    }
+  },
+  "current_thresholds": {
+    "available": false,
+    "overcurrent_count": 0,
+    "reason": "No phase current channels available",
+    "unit": "A"
+  },
+  "events": {
+    "counts": {
+      "frequency_excursion": 0,
+      "overcurrent": 0,
+      "voltage_sag": 0
+    },
+    "total": 0
+  },
+  "frequency": {
+    "available": true,
+    "excursion_count": 0,
+    "max_deviation_hz": 0.20234,
+    "max_hz": 60.20234,
+    "mean_hz": 60.05858,
+    "min_hz": 59.933175,
+    "source": "estimated_from_v_an",
+    "unit": "Hz"
+  },
+  "line_voltage": {
+    "v_ab": {
+      "available": true,
+      "rms": 2.076254,
+      "sample_count": 4000,
+      "unit": "V"
+    },
+    "v_bc": {
+      "available": true,
+      "rms": 2.085741,
+      "sample_count": 4000,
+      "unit": "V"
+    },
+    "v_ca": {
+      "available": true,
+      "rms": 2.066027,
+      "sample_count": 4000,
+      "unit": "V"
+    }
+  },
+  "phase_voltage": {
+    "v_an": {
+      "available": true,
+      "rms": 1.197479,
+      "sample_count": 4000,
+      "thd_pct": 1.813292,
+      "unit": "V"
+    },
+    "v_bn": {
+      "available": true,
+      "rms": 1.217895,
+      "sample_count": 4000,
+      "thd_pct": 1.16761,
+      "unit": "V"
+    },
+    "v_cn": {
+      "available": true,
+      "rms": 1.198249,
+      "sample_count": 4000,
+      "thd_pct": 1.233052,
+      "unit": "V"
+    }
+  },
+  "session": {
+    "app_version": "1.0.0",
+    "derived_channels": [
+      "v_ab",
+      "v_bc",
+      "v_ca"
+    ],
+    "mapped_channels": [
+      "v_an",
+      "v_bn",
+      "v_cn"
+    ],
+    "sample_count": 4000,
+    "sample_rate_hz": 40000.0,
+    "scale_factors": {},
+    "session_id": "RigolDS0",
+    "source_hash_sha256": null,
+    "source_name": "RigolDS0.csv",
+    "source_path": "C:\\Users\\Administrator\\OneDrive - Gannon University\\Spring 2026\\Senior Design\\RigolDS0.csv",
+    "time_end_s": 0.1,
+    "time_start_s": 0.0,
+    "time_window_s": 0.1
+  }
+}

@@ -19,7 +19,7 @@ _METRICS_UPDATE_MS = 500
 
 class DiagnosticsPage(QWidget):
     """
-    Hero surface — live monitoring.
+    Hero surface — demo/input preview.
 
     Layout:
       [SystemHealthCard — status badge, current issue, key metrics]
@@ -39,7 +39,7 @@ class DiagnosticsPage(QWidget):
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
 
-        # Live source status — shows adapter, fps, active channels, warnings
+        # Input source status — shows adapter, fps, active channels, warnings
         self.live_status = LiveStatusPanel()
         root.addWidget(self.live_status)
         serial_mgr.connection_status.connect(self.live_status.set_connected)
@@ -192,8 +192,8 @@ class _SystemHealthCard(QFrame):
         layout.addWidget(d2)
         layout.addSpacing(12)
 
-        # Live indicator
-        self._live = QLabel("● LIVE")
+        # Input indicator
+        self._live = QLabel("● INPUT")
         self._live.setObjectName("StatusLive")
         layout.addWidget(self._live)
 

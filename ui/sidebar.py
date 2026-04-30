@@ -3,10 +3,10 @@ from PyQt6.QtCore import pyqtSignal, Qt
 
 _NAV_ITEMS = [
     ("overview",    "⊞",  "Overview"),
-    ("diagnostics", "⚡", "Live Scope"),
+    ("diagnostics", "⚡", "Adapter Preview"),
     ("replay",      "⏵",  "Replay"),
     ("compliance",  "✓",  "Compliance"),
-    ("console",     "📐", "Live Monitor"),
+    ("console",     "📐", "Demo Monitor"),
 ]
 
 _TOOL_ITEMS = [

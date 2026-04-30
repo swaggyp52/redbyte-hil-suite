@@ -1,6 +1,7 @@
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QPushButton, QHBoxLayout,
                              QLabel, QFileDialog, QComboBox, QTabWidget, QInputDialog,
-                             QCheckBox, QFrame, QGridLayout)
+                             QCheckBox, QFrame, QGridLayout, QTableWidget,
+                             QTableWidgetItem, QHeaderView)
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 import pyqtgraph as pg
 import pyqtgraph.exporters
@@ -12,6 +13,8 @@ import numpy as np
 from src.signal_processing import compute_rms, compute_thd, compute_fft
 from src.event_detector import detect_events
 from src.comparison import dataset_from_capsule
+from src.derived_channels import ensure_capsule_derived_channels
+from src.session_analysis import build_metric_rows, compute_session_metrics
 from ui.comparison_panel import ComparisonPanel
 from ui.event_lane import EventLane
 
@@ -111,14 +114,57 @@ class ReplayStudio(QWidget):
         self.tabs = QTabWidget()
         self.layout.addWidget(self.tabs)
 
-        # Tab 1: Waveform Timeline (title updated dynamically on load)
-        self.plot_wave = pg.PlotWidget(title="Waveforms")
+        # Tab 1: Analysis replay dashboard
+        wave_container = QWidget()
+        wave_layout = QVBoxLayout(wave_container)
+        wave_layout.setContentsMargins(0, 0, 0, 0)
+        wave_layout.setSpacing(6)
+
+        self._wave_summary = QLabel("")
+        self._wave_summary.setStyleSheet(
+            "color: #cbd5e1; font-size: 10pt; font-weight: 600; "
+            "padding: 6px 10px; background: rgba(15,23,42,140); "
+            "border: 1px solid rgba(51,65,85,140); border-radius: 6px;"
+        )
+        self._wave_summary.setWordWrap(True)
+        wave_layout.addWidget(self._wave_summary)
+
+        self.plot_wave = pg.PlotWidget(title="Phase Voltages")
         self.plot_wave.setBackground('#0b0f14')
         self.plot_wave.showGrid(x=True, y=True, alpha=0.3)
         self.plot_wave.setLabel('left', 'Voltage', units='V')
         self.plot_wave.setLabel('bottom', 'Time', units='s')
         self.plot_wave.addLegend()
-        self.tabs.addTab(self.plot_wave, "Waveforms")
+        wave_layout.addWidget(self.plot_wave, stretch=3)
+
+        self.plot_line = pg.PlotWidget(title="Line-to-Line Voltages")
+        self.plot_line.setBackground('#0b0f14')
+        self.plot_line.showGrid(x=True, y=True, alpha=0.3)
+        self.plot_line.setLabel('left', 'Voltage', units='V')
+        self.plot_line.setLabel('bottom', 'Time', units='s')
+        self.plot_line.addLegend()
+        self.plot_line.setXLink(self.plot_wave)
+        wave_layout.addWidget(self.plot_line, stretch=2)
+
+        self.plot_current = pg.PlotWidget(title="Phase Currents")
+        self.plot_current.setBackground('#0b0f14')
+        self.plot_current.showGrid(x=True, y=True, alpha=0.3)
+        self.plot_current.setLabel('left', 'Current', units='A')
+        self.plot_current.setLabel('bottom', 'Time', units='s')
+        self.plot_current.addLegend()
+        self.plot_current.setXLink(self.plot_wave)
+        wave_layout.addWidget(self.plot_current, stretch=2)
+
+        self.plot_aux = pg.PlotWidget(title="Auxiliary Signals")
+        self.plot_aux.setBackground('#0b0f14')
+        self.plot_aux.showGrid(x=True, y=True, alpha=0.3)
+        self.plot_aux.setLabel('left', 'Value')
+        self.plot_aux.setLabel('bottom', 'Time', units='s')
+        self.plot_aux.addLegend()
+        self.plot_aux.setXLink(self.plot_wave)
+        wave_layout.addWidget(self.plot_aux, stretch=1)
+
+        self.tabs.addTab(wave_container, "Replay")
 
         # Crosshair cursor lines (hover readout)
         self._crosshair_v = pg.InfiniteLine(
@@ -158,6 +204,28 @@ class ReplayStudio(QWidget):
         )
         self._metrics_summary.setWordWrap(False)
         metrics_layout.addWidget(self._metrics_summary)
+        self._metrics_table = QTableWidget(0, 5)
+        self._metrics_table.setHorizontalHeaderLabels(
+            ["Section", "Metric", "Value", "Units", "Notes"]
+        )
+        self._metrics_table.horizontalHeader().setSectionResizeMode(
+            0, QHeaderView.ResizeMode.ResizeToContents
+        )
+        self._metrics_table.horizontalHeader().setSectionResizeMode(
+            1, QHeaderView.ResizeMode.ResizeToContents
+        )
+        self._metrics_table.horizontalHeader().setSectionResizeMode(
+            2, QHeaderView.ResizeMode.ResizeToContents
+        )
+        self._metrics_table.horizontalHeader().setSectionResizeMode(
+            3, QHeaderView.ResizeMode.ResizeToContents
+        )
+        self._metrics_table.horizontalHeader().setSectionResizeMode(
+            4, QHeaderView.ResizeMode.Stretch
+        )
+        self._metrics_table.setAlternatingRowColors(True)
+        self._metrics_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        metrics_layout.addWidget(self._metrics_table, stretch=1)
         self.tabs.addTab(metrics_container, "Metrics")
 
         # Tab 3: Spectrum
@@ -265,6 +333,7 @@ class ReplayStudio(QWidget):
 
     def _load_session_from_data(self, data: dict, label: str, is_primary: bool, path=None):
         """Internal: accept an already-parsed Data Capsule dict."""
+        ensure_capsule_derived_channels(data)
         frames = data.get('frames', [])
         if not frames:
             logger.warning("Session '%s' has no frames — nothing to display.", label)
@@ -300,225 +369,305 @@ class ReplayStudio(QWidget):
         logger.info("Loaded session '%s' with %d frames (overlay=%s)", label, len(frames), not is_primary)
 
     def _render_all_sessions(self):
-        """Re-render all loaded sessions on both plots."""
-        # Clear existing curves
+        """Re-render all loaded sessions across the analysis plots."""
         self.plot_wave.clear()
         self.plot_wave.addItem(self.scrubber)
-        self._clear_markers()
+        self.plot_wave.addItem(self._crosshair_v, ignoreBounds=True)
+        self.plot_wave.addItem(self._crosshair_h, ignoreBounds=True)
+        self.plot_line.clear()
+        self.plot_current.clear()
+        self.plot_aux.clear()
         self.plot_metrics.clear()
+        self._clear_markers()
         self._wave_curves = []
         self._metric_curves = []
 
-        for idx, session in enumerate(self.sessions):
-            frames = session['frames']
-            colors = session['colors']
-            label = session['label']
+        primary_session = next((s for s in self.sessions if s.get('is_primary')), None)
+        primary_phase_channels: list[str] = []
+        primary_line_channels: list[str] = []
+        primary_current_channels: list[str] = []
+        primary_aux_channels: list[str] = []
+        primary_generic_channels: list[str] = []
 
+        for session in self.sessions:
+            frames = session['frames']
             if not frames:
                 continue
 
-            t0 = frames[0]['ts']
-            ts = np.array([f['ts'] - t0 for f in frames])
-
+            colors = session['colors']
+            label = session['label']
             suffix = f" ({label})" if len(self.sessions) > 1 else ""
             style = Qt.PenStyle.SolidLine if session['is_primary'] else Qt.PenStyle.DashLine
-
-            # ── Detect plottable waveform channels ───────────────────────────
-            # Prefer canonical 3-phase voltage names, then DC bus, then current;
-            # fall back to any numeric channel present (up to 6 channels).
-            # Boolean/flag channels (only 0/1 values) are excluded from all paths.
+            t0 = frames[0]['ts']
+            ts = np.array([f['ts'] - t0 for f in frames], dtype=float)
             sample_frame = frames[0]
-            canonical_v = [
-                k for k in ('v_an', 'v_bn', 'v_cn', 'v_dc') if k in sample_frame
-            ]
-            canonical_i = [
-                k for k in ('i_a', 'i_b', 'i_c') if k in sample_frame
-            ]
 
             def _is_boolean_channel(key: str) -> bool:
-                """Return True when the channel only contains 0/1 values (flag column)."""
-                vals = {f.get(key) for f in frames[:40]
-                        if isinstance(f.get(key), (int, float))}
+                vals = {f.get(key) for f in frames[:40] if isinstance(f.get(key), (int, float))}
                 return bool(vals) and vals.issubset({0, 1, 0.0, 1.0})
 
-            non_ts_keys = [
-                k for k in sample_frame
-                if k != 'ts' and isinstance(sample_frame[k], (int, float))
-                and not _is_boolean_channel(k)
+            numeric_channels = [
+                key for key in sample_frame
+                if key != 'ts' and isinstance(sample_frame.get(key), (int, float))
+                and not _is_boolean_channel(key)
+            ]
+            phase_channels = [ch for ch in ('v_an', 'v_bn', 'v_cn') if ch in numeric_channels]
+            line_channels = [ch for ch in ('v_ab', 'v_bc', 'v_ca') if ch in numeric_channels]
+            current_channels = [ch for ch in ('i_a', 'i_b', 'i_c') if ch in numeric_channels]
+            aux_channels = [ch for ch in ('freq', 'p_mech', 'v_dc') if ch in numeric_channels]
+            generic_channels = [
+                ch for ch in numeric_channels
+                if ch not in set(phase_channels + line_channels + current_channels + aux_channels)
             ]
 
-            if canonical_v:
-                wave_channels = canonical_v
-            elif canonical_i:
-                wave_channels = canonical_i
-            else:
-                # Generic or simulation channels — use up to 6
-                wave_channels = non_ts_keys[:6]
-
-            if not wave_channels:
-                continue
-
-            # Update waveform tab title and Y-axis to reflect the primary channel type
             if session['is_primary']:
-                if 'v_dc' in wave_channels and not any(k in wave_channels for k in ('v_an', 'v_bn', 'v_cn')):
-                    self.plot_wave.setTitle("DC Bus Voltage")
-                    self.plot_wave.setLabel('left', 'Voltage', units='V')
-                elif canonical_v:
-                    self.plot_wave.setTitle("Voltage Waveforms")
-                    self.plot_wave.setLabel('left', 'Voltage', units='V')
-                elif canonical_i:
-                    self.plot_wave.setTitle("Current Waveforms")
-                    self.plot_wave.setLabel('left', 'Current', units='A')
-                else:
-                    # Build title from the actual channel names loaded
-                    ch_title = " · ".join(wave_channels[:4])
-                    if len(wave_channels) > 4:
-                        ch_title += f" (+{len(wave_channels)-4} more)"
-                    self.plot_wave.setTitle(ch_title)
-                    self.plot_wave.setLabel('left', 'Value')
+                primary_phase_channels = phase_channels
+                primary_line_channels = line_channels
+                primary_current_channels = current_channels
+                primary_aux_channels = aux_channels or generic_channels[:2]
+                primary_generic_channels = generic_channels
 
-            # ── Build arrays and plot waveforms ──────────────────────────────
-            # Rotate through the session color tuple; wrap if more than 3 channels
-            pen_colors = [colors[i % len(colors)] for i in range(len(wave_channels))]
+            if phase_channels:
+                self._plot_channel_group(self.plot_wave, frames, ts, phase_channels, colors, style, suffix)
+            elif not session['is_primary'] and generic_channels:
+                self._plot_channel_group(self.plot_wave, frames, ts, generic_channels[:3], colors, style, suffix)
+            elif session['is_primary'] and generic_channels:
+                self._plot_channel_group(self.plot_wave, frames, ts, generic_channels[:3], colors, style, suffix)
 
-            for ci, ch in enumerate(wave_channels):
-                arr = np.array([f.get(ch, np.nan) for f in frames])
-                pen = pg.mkPen(pen_colors[ci], width=1, style=style)
-                curve = self.plot_wave.plot(ts, arr, pen=pen, name=f"{ch}{suffix}")
-                self._wave_curves.append(curve)
+            if line_channels:
+                self._plot_channel_group(self.plot_line, frames, ts, line_channels, colors, style, suffix)
 
-            # ── Derived metrics ───────────────────────────────────────────────
-            # Only compute RMS/THD/freq when a meaningful voltage channel is present
-            primary_ch = wave_channels[0]
-            primary_arr = np.array([f.get(primary_ch, np.nan) for f in frames])
+            if current_channels:
+                self._plot_channel_group(self.plot_current, frames, ts, current_channels, colors, style, suffix)
 
-            # Replace NaN with 0 only for metric windowing (not for raw plot)
-            primary_arr_clean = np.where(np.isnan(primary_arr), 0.0, primary_arr)
+            if aux_channels:
+                self._plot_channel_group(self.plot_aux, frames, ts, aux_channels, colors, style, suffix)
+            elif generic_channels and session['is_primary']:
+                self._plot_channel_group(self.plot_aux, frames, ts, generic_channels[:2], colors, style, suffix)
 
-            # Adaptive windowing: cap at 500 windows to avoid large FFT loops
-            # on the main thread for big datasets.
-            window = max(20, len(frames) // 500)
-            n_windows = len(frames) // window
-            if n_windows > 0:
-                metric_ts = []
-                rms_vals = []
-                thd_vals = []
-                freq_vals = []
-
-                for w in range(n_windows):
-                    start = w * window
-                    end = start + window
-                    chunk_v = primary_arr_clean[start:end]
-                    chunk_ts = ts[start:end]
-
-                    metric_ts.append(float(np.mean(chunk_ts)))
-                    rms_vals.append(compute_rms(chunk_v))
-                    thd_vals.append(compute_thd(chunk_v, time_data=chunk_ts))
-
-                    # Use 'freq' field if available; otherwise mark 0
-                    freq_slice = [
-                        f.get('freq', None) for f in frames[start:end]
-                    ]
-                    valid_freqs = [x for x in freq_slice if x is not None]
-                    freq_vals.append(float(np.mean(valid_freqs)) if valid_freqs else 0.0)
-
-                metric_ts_arr = np.array(metric_ts)
-                self._metric_curves.append(
-                    self.plot_metrics.plot(
-                        metric_ts_arr, rms_vals,
-                        pen=pg.mkPen('y', width=2, style=style),
-                        name=f"RMS({primary_ch}){suffix}",
-                    )
+            if session['is_primary']:
+                spectrum_channel = (
+                    'v_an'
+                    if 'v_an' in numeric_channels
+                    else (phase_channels[0] if phase_channels else (generic_channels[0] if generic_channels else None))
                 )
-                if any(v > 0 for v in thd_vals):
-                    self._metric_curves.append(
-                        self.plot_metrics.plot(
-                            metric_ts_arr, thd_vals,
-                            pen=pg.mkPen('r', width=2, style=style),
-                            name=f"THD(%){suffix}",
-                        )
-                    )
-                if any(v > 0 for v in freq_vals):
-                    self._metric_curves.append(
-                        self.plot_metrics.plot(
-                            metric_ts_arr, freq_vals,
-                            pen=pg.mkPen('c', width=2, style=style),
-                            name=f"Freq(Hz){suffix}",
-                        )
-                    )
-
-            # ── Per-channel summary stats label (primary only) ────────────────
-            if session['is_primary'] and wave_channels:
-                lines = []
-                for ch in wave_channels:
-                    arr = np.array([f.get(ch, np.nan) for f in frames])
-                    arr_c = np.where(np.isnan(arr), 0.0, arr)
-                    rms = compute_rms(arr_c)
-                    thd = compute_thd(arr_c, time_data=ts)
-                    lines.append(f"{ch:<16s}  RMS={rms:>8.3f}  THD={thd:>5.1f}%")
-                self._metrics_summary.setText("  |  ".join(lines))
-
-            # ── Event markers (primary session only) ─────────────────────────
-            if session['is_primary']:
                 self._ts_arr = ts
-                self.plot_spectrum.setTitle(f"Spectrum  ·  {primary_ch}")
-                self._render_spectrum(ts, primary_arr_clean)
                 self._load_tags(session)
-                events = session['data'].get('events', [])
-                for evt in events:
-                    t_evt = evt['ts'] - t0
-                    evt_label = evt.get('type', 'Event')
-                    color = 'r' if 'fault' in evt_label.lower() else 'b'
-                    line = pg.InfiniteLine(pos=t_evt, angle=90, pen=pg.mkPen(color, style=Qt.PenStyle.DashLine))
-                    txt = pg.TextItem(evt_label, color=color, anchor=(0, 1))
-                    txt.setPos(t_evt, float(np.nanmax(primary_arr)) if len(primary_arr) else 0)
-                    self.plot_wave.addItem(line)
-                    self.plot_wave.addItem(txt)
-                    self.markers.append(line)
-                    self.markers.append(txt)
+                if spectrum_channel is not None:
+                    primary_arr = np.array([f.get(spectrum_channel, np.nan) for f in frames], dtype=float)
+                    primary_arr_clean = np.where(np.isnan(primary_arr), 0.0, primary_arr)
+                    self.plot_spectrum.setTitle(f"Spectrum  ·  {spectrum_channel}")
+                    self._render_spectrum(ts, primary_arr_clean)
+                    self._render_primary_markers(session, ts, primary_arr)
 
-                # ── Import-source notice ──────────────────────────────────────
-                import_meta = session['data'].get('import_meta', {})
-                if import_meta:
-                    src = import_meta.get('source_type', '')
-                    unmapped = [
-                        k for k, v in import_meta.get('applied_mapping', {}).items()
-                        if v in (None, '__unmapped__', '')
-                    ]
-                    if unmapped:
-                        notice_text = (
-                            f"Source: {src}  ·  "
-                            f"Unmapped channels: {', '.join(unmapped[:4])}"
-                            + (" …" if len(unmapped) > 4 else "")
-                        )
-                        notice = pg.TextItem(notice_text, color='#f59e0b', anchor=(0, 0))
-                        notice.setPos(0, float(np.nanmax(primary_arr)) if len(primary_arr) else 0)
-                        self.plot_wave.addItem(notice)
-                        self.markers.append(notice)
+        if primary_phase_channels:
+            self.plot_wave.setTitle("Phase-to-Neutral Voltages")
+        elif primary_generic_channels:
+            self.plot_wave.setTitle("Generic Numeric Signals")
+        else:
+            self._set_empty_plot_state(
+                self.plot_wave,
+                "Waveform View",
+                "No numeric channels are available for waveform plotting.",
+                y_label="Value",
+            )
+
+        if not primary_line_channels:
+            self._set_empty_plot_state(
+                self.plot_line,
+                "Line-to-Line Voltage Overlay",
+                "V_ab, V_bc, and V_ca require mapped phase voltages.",
+                y_label="Voltage",
+                units="V",
+            )
+        if not primary_current_channels:
+            self._set_empty_plot_state(
+                self.plot_current,
+                "Phase Currents",
+                "Current channels not mapped for this dataset.",
+                y_label="Current",
+                units="A",
+            )
+        if not primary_aux_channels:
+            self._set_empty_plot_state(
+                self.plot_aux,
+                "Frequency / Auxiliary Channels",
+                "No frequency, power, or generic auxiliary channels are available.",
+                y_label="Value",
+            )
+
+        if primary_session:
+            self._update_analysis_view(primary_session)
+            sample = primary_session['frames'][0] if primary_session['frames'] else {}
+            ch_names = [
+                key for key in sample
+                if key != 'ts' and isinstance(sample.get(key), (int, float))
+            ]
+            self._update_channel_bar(ch_names)
 
         self.play_idx = 0
         self._update_ui(0)
-        self.plot_wave.autoRange()
-        self.plot_metrics.autoRange()
-        self.plot_spectrum.autoRange()
+        for plot in (self.plot_wave, self.plot_line, self.plot_current, self.plot_aux, self.plot_metrics, self.plot_spectrum):
+            plot.autoRange()
 
-        # Update channel toggle bar from primary session channels
-        primary = next((s for s in self.sessions if s.get('is_primary')), None)
-        if primary:
-            sample = primary['frames'][0] if primary['frames'] else {}
-            ch_names = [
-                k for k in sample
-                if k != 'ts' and isinstance(sample.get(k), (int, float))
+    def _plot_channel_group(self, plot, frames, ts, channels, colors, style, suffix):
+        pen_colors = [colors[i % len(colors)] for i in range(len(channels))]
+        for idx, channel in enumerate(channels):
+            arr = np.array([f.get(channel, np.nan) for f in frames], dtype=float)
+            pen = pg.mkPen(pen_colors[idx], width=1.4, style=style)
+            curve = plot.plot(ts, arr, pen=pen, name=f"{channel}{suffix}")
+            self._wave_curves.append(curve)
+
+    def _render_primary_markers(self, session, ts, primary_arr):
+        frames = session['frames']
+        if not frames:
+            return
+
+        t0 = frames[0]['ts']
+        events = session['data'].get('events', [])
+        for evt in events:
+            t_evt = evt['ts'] - t0
+            evt_label = evt.get('type', 'Event')
+            color = 'r' if 'fault' in evt_label.lower() else 'b'
+            line = pg.InfiniteLine(pos=t_evt, angle=90, pen=pg.mkPen(color, style=Qt.PenStyle.DashLine))
+            txt = pg.TextItem(evt_label, color=color, anchor=(0, 1))
+            txt.setPos(t_evt, float(np.nanmax(primary_arr)) if len(primary_arr) else 0)
+            self.plot_wave.addItem(line)
+            self.plot_wave.addItem(txt)
+            self.markers.append(line)
+            self.markers.append(txt)
+
+        import_meta = session['data'].get('import_meta', {})
+        if import_meta:
+            src = import_meta.get('source_type', '')
+            unmapped = [
+                key for key, value in import_meta.get('applied_mapping', {}).items()
+                if value in (None, '__unmapped__', '')
             ]
-            self._update_channel_bar(ch_names)
+            if unmapped:
+                notice_text = (
+                    f"Source: {src}  ·  Unmapped channels: {', '.join(unmapped[:4])}"
+                    + (" …" if len(unmapped) > 4 else "")
+                )
+                notice = pg.TextItem(notice_text, color='#f59e0b', anchor=(0, 0))
+                notice.setPos(0, float(np.nanmax(primary_arr)) if len(primary_arr) else 0)
+                self.plot_wave.addItem(notice)
+                self.markers.append(notice)
+
+    def _set_optional_plot_visibility(self, plot, visible: bool) -> None:
+        plot.setVisible(True)
+
+    def _set_empty_plot_state(self, plot, title: str, message: str, y_label: str, units=None) -> None:
+        plot.clear()
+        plot.setTitle(title)
+        plot.setLabel('left', y_label, units=units)
+        plot.setLabel('bottom', 'Time', units='s')
+        plot.showGrid(x=True, y=True, alpha=0.3)
+        plot.setXRange(0.0, 1.0, padding=0.0)
+        plot.setYRange(0.0, 1.0, padding=0.0)
+        note = pg.TextItem(message, color='#94a3b8', anchor=(0.5, 0.5))
+        note.setPos(0.5, 0.5)
+        plot.addItem(note)
+
+    def _update_analysis_view(self, session) -> None:
+        summary = compute_session_metrics(session['data'])
+        rows = build_metric_rows(summary)
+        self._populate_metrics_table(rows)
+
+        session_info = summary["session"]
+        derived = ", ".join(session_info["derived_channels"]) or "none"
+        self._wave_summary.setText(
+            f"{session_info['analysis_mode_label']}  ·  {session_info['source_name']}  ·  "
+            f"{session_info['sample_count']:,} samples  ·  "
+            f"{session_info['sample_rate_hz']:.2f} Hz  ·  "
+            f"{session_info['time_window_s']:.4f} s  ·  "
+            f"Canonical: {', '.join(session_info['available_canonical_channels']) or 'none'}  ·  "
+            f"Derived: {derived}"
+        )
+
+        event_counts = summary["events"]["counts"]
+        self._metrics_summary.setText(
+            "  |  ".join(
+                [
+                    f"Voltage sag events: {event_counts['voltage_sag']}",
+                    f"Frequency excursions: {event_counts['frequency_excursion']}",
+                    (
+                        f"Overcurrent events: {event_counts['overcurrent']}"
+                        if summary["current_thresholds"].get("available")
+                        else f"Overcurrent: N/A ({summary['current_thresholds'].get('reason', 'missing current')})"
+                    ),
+                    (
+                        f"Generic channels: {', '.join(session_info['generic_numeric_channels'][:3])}"
+                        if session_info['generic_numeric_channels']
+                        else "Generic channels: none"
+                    ),
+                ]
+            )
+        )
+
+        self.plot_metrics.clear()
+        dataset = session.get('_dataset')
+        if dataset is None:
+            try:
+                dataset = dataset_from_capsule(session.get('data', {}))
+            except Exception:
+                dataset = None
+        if dataset is None or dataset.time.size < 4:
+            return
+
+        t_rel = np.asarray(dataset.time - dataset.time[0], dtype=float)
+        phase_colors = {'v_an': '#f97316', 'v_bn': '#3b82f6', 'v_cn': '#22c55e'}
+        window_n = max(8, min(int(max(dataset.sample_rate, 120.0) / 30.0), max(8, dataset.time.size // 24)))
+        kernel = np.ones(window_n) / window_n
+        for channel in ('v_an', 'v_bn', 'v_cn'):
+            if channel not in dataset.channels:
+                continue
+            arr = np.asarray(dataset.channels[channel], dtype=float)
+            rolling = np.sqrt(np.maximum(np.convolve(arr * arr, kernel, mode='same'), 0.0))
+            self._metric_curves.append(
+                self.plot_metrics.plot(
+                    t_rel,
+                    rolling,
+                    pen=pg.mkPen(phase_colors[channel], width=1.5),
+                    name=f"{channel} RMS",
+                )
+            )
+
+        if 'freq' in dataset.channels:
+            self._metric_curves.append(
+                self.plot_metrics.plot(
+                    t_rel,
+                    np.asarray(dataset.channels['freq'], dtype=float),
+                    pen=pg.mkPen('#a78bfa', width=1.3),
+                    name="Frequency",
+                )
+            )
+
+    def _populate_metrics_table(self, rows: list[dict]) -> None:
+        self._metrics_table.setRowCount(0)
+        for row_data in rows:
+            row = self._metrics_table.rowCount()
+            self._metrics_table.insertRow(row)
+            for col_idx, key in enumerate(("section", "metric", "value", "unit", "note")):
+                item = QTableWidgetItem(str(row_data.get(key, "")))
+                if key == "value" and str(row_data.get(key, "")).upper() == "N/A":
+                    item.setForeground(Qt.GlobalColor.darkYellow)
+                self._metrics_table.setItem(row, col_idx, item)
 
     def _clear_all(self):
         self.sessions = []
         self.active_session = None
         self.plot_wave.clear()
         self.plot_wave.addItem(self.scrubber)
+        self.plot_wave.addItem(self._crosshair_v, ignoreBounds=True)
+        self.plot_wave.addItem(self._crosshair_h, ignoreBounds=True)
+        self.plot_line.clear()
+        self.plot_current.clear()
+        self.plot_aux.clear()
         self.plot_metrics.clear()
         self._metrics_summary.setText("")
+        self._metrics_table.setRowCount(0)
+        self._wave_summary.setText("")
         self._clear_markers()
         self._wave_curves = []
         self._metric_curves = []
@@ -696,13 +845,18 @@ class ReplayStudio(QWidget):
             return
         try:
             current_tab = self.tabs.currentWidget()
+            fname, _ = QFileDialog.getSaveFileName(
+                self, "Export Plot", os.getcwd(), "PNG Image (*.png)"
+            )
+            if not fname:
+                return
             if hasattr(current_tab, 'plotItem'):
                 exporter = pyqtgraph.exporters.ImageExporter(current_tab.plotItem)
                 exporter.parameters()['width'] = 1920
-                fname, _ = QFileDialog.getSaveFileName(self, "Export Plot", os.getcwd(), "PNG Image (*.png)")
-                if fname:
-                    exporter.export(fname)
-                    logger.info(f"Exported plot: {fname}")
+                exporter.export(fname)
+            else:
+                current_tab.grab().save(fname)
+            logger.info(f"Exported plot: {fname}")
         except Exception as e:
             logger.error(f"Export failed: {e}")
 
@@ -763,6 +917,9 @@ class ReplayStudio(QWidget):
     def _reset_zoom(self):
         """Auto-range all plot widgets."""
         self.plot_wave.autoRange()
+        self.plot_line.autoRange()
+        self.plot_current.autoRange()
+        self.plot_aux.autoRange()
         self.plot_metrics.autoRange()
         self.plot_spectrum.autoRange()
 

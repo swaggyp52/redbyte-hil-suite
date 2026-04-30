@@ -45,6 +45,7 @@ from PyQt6.QtWidgets import (
 
 from src.channel_mapping import CANONICAL_SIGNALS, UNMAPPED, ChannelMapper
 from src.dataset_converter import dataset_to_session
+from src.derived_channels import LINE_TO_LINE_CHANNELS
 from src.file_ingestion import ImportedDataset, IngestionError, ingest_file
 
 logger = logging.getLogger(__name__)
@@ -96,7 +97,7 @@ class ImportDialog(QDialog):
         root.addWidget(hdr)
 
         sub = QLabel(
-            "Supported: CSV files (oscilloscope captures, simulation logs, telemetry data), "
+            "Supported: CSV files (oscilloscope captures, recorded analysis logs, exported measurements), "
             "simulation Excel files (.xlsx / .xls), "
             "existing Data Capsule sessions (.json)"
         )
@@ -182,6 +183,8 @@ class ImportDialog(QDialog):
         self._lbl_sr = QLabel("—")
         self._lbl_dur = QLabel("—")
         self._lbl_channels = QLabel("—")
+        self._lbl_numeric = QLabel("—")
+        self._lbl_time = QLabel("—")
 
         for label, widget in [
             ("Source type:", self._lbl_type),
@@ -189,6 +192,8 @@ class ImportDialog(QDialog):
             ("Sample rate:", self._lbl_sr),
             ("Duration:", self._lbl_dur),
             ("Channels:", self._lbl_channels),
+            ("Numeric columns:", self._lbl_numeric),
+            ("Detected time column:", self._lbl_time),
         ]:
             lbl = QLabel(label)
             lbl.setStyleSheet("color: #94a3b8; font-size: 8pt;")
@@ -206,6 +211,16 @@ class ImportDialog(QDialog):
         warn_layout.addWidget(self._warn_list)
         layout.addWidget(grp_warn)
 
+        grp_preview = QGroupBox("Import Preview")
+        preview_layout = QVBoxLayout(grp_preview)
+        preview_layout.setContentsMargins(6, 6, 6, 6)
+        self._summary_box = QTextEdit()
+        self._summary_box.setReadOnly(True)
+        self._summary_box.setMinimumHeight(180)
+        self._summary_box.setStyleSheet("font-size: 8pt; color: #cbd5e1;")
+        preview_layout.addWidget(self._summary_box)
+        layout.addWidget(grp_preview)
+
         layout.addStretch()
         return w
 
@@ -220,9 +235,9 @@ class ImportDialog(QDialog):
         layout.addWidget(hdr)
 
         note = QLabel(
-            "Assign each source column to a canonical signal name, or leave "
-            "it as-is.  Generic channels like CH1/CH2 will be displayed under "
-            "their original names wherever no mapping is applied."
+            "Assign source columns to canonical engineering channels when possible. "
+            "Unmapped numeric columns still import in Generic Data Analysis Mode "
+            "and remain available for plotting and basic statistics."
         )
         note.setWordWrap(True)
         note.setStyleSheet("color: #64748b; font-size: 8pt;")
@@ -342,6 +357,8 @@ class ImportDialog(QDialog):
             self._lbl_sr.setText("unknown")
         self._lbl_dur.setText(f"{ds.duration:.3f} s" if ds.duration > 0 else "—")
         self._lbl_channels.setText(str(len(ds.channels)))
+        self._lbl_numeric.setText(str(len(ds.channels)))
+        self._lbl_time.setText(ds.meta.get("time_column") or "none")
 
     def _populate_warnings(self, ds: ImportedDataset) -> None:
         self._warn_list.clear()
@@ -428,12 +445,15 @@ class ImportDialog(QDialog):
             self._map_table.setCellWidget(row, 3, combo)
             self._combo_map[col] = combo
 
+        self._refresh_analysis_preview()
+
     # ──────────────────────────────────────────────────────────────────────────
     # Mapping events
     # ──────────────────────────────────────────────────────────────────────────
 
     def _on_mapping_changed(self, col: str, value: str) -> None:
         self._mapping[col] = value
+        self._refresh_analysis_preview()
 
     # ──────────────────────────────────────────────────────────────────────────
     # Profile management
@@ -507,3 +527,45 @@ class ImportDialog(QDialog):
 
         self.session_imported.emit(capsule)
         self.accept()
+
+    def _refresh_analysis_preview(self) -> None:
+        if self._dataset is None:
+            self._summary_box.setPlainText("")
+            return
+
+        time_column = self._dataset.meta.get("time_column") or "none"
+        raw_columns = [col for col in self._dataset.raw_headers if col != self._dataset.meta.get("time_column")]
+        mapped_channels = sorted(
+            target for target in self._mapping.values()
+            if target and target != UNMAPPED
+        )
+        unmapped_numeric = [
+            col for col in raw_columns
+            if self._mapping.get(col, UNMAPPED) in (UNMAPPED, "", None)
+        ]
+        derived_channels = sorted(
+            target
+            for target, (pos_key, neg_key, _label) in LINE_TO_LINE_CHANNELS.items()
+            if pos_key in mapped_channels and neg_key in mapped_channels
+        )
+        analysis_mode = (
+            "VSM/GFM analysis mode"
+            if any(channel in mapped_channels for channel in ("v_an", "v_bn", "v_cn", "freq", "i_a", "i_b", "i_c", "p_mech"))
+            else "Generic data analysis mode"
+        )
+
+        lines = [
+            f"Source file: {os.path.basename(self._dataset.source_path)}",
+            f"Detected time column: {time_column}",
+            f"Raw source columns: {', '.join(raw_columns) if raw_columns else 'none'}",
+            f"Canonical mapped channels: {', '.join(mapped_channels) if mapped_channels else 'none'}",
+            f"Derived computed channels: {', '.join(derived_channels) if derived_channels else 'none'}",
+            f"Generic or auxiliary numeric channels kept as-is: {', '.join(unmapped_numeric) if unmapped_numeric else 'none'}",
+            f"Analysis mode after import: {analysis_mode}",
+        ]
+        if analysis_mode == "Generic data analysis mode":
+            lines.append(
+                "Compliance behavior: VSM-specific checks will report N/A unless voltage/frequency channels are mapped."
+            )
+
+        self._summary_box.setPlainText("\n".join(lines))

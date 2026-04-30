@@ -20,15 +20,15 @@ def main():
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument("--demo", action="store_true", help="Start in Demo Mode")
-    parser.add_argument("--mock", action="store_true", help="Use mock telemetry (alias for demo)")
+    parser.add_argument("--mock", action="store_true", help="Use mock demo input (alias for --demo)")
     parser.add_argument("--autoplay", action="store_true", help="Auto-start demo on launch")
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
     parser.add_argument("--no-3d", action="store_true", help="Disable 3D view")
     parser.add_argument("--windowed", action="store_true", help="Stay windowed in demo mode")
     parser.add_argument(
         "--port", default="",
-        help="Serial port for live hardware mode (e.g. COM5, /dev/ttyUSB0). "
-             "Reads system_config.json default if not specified.",
+        help="Optional serial adapter preview port (future/demo path only; "
+             "e.g. COM5, /dev/ttyUSB0). Reads system_config.json if not specified.",
     )
     args = parser.parse_args()
 
@@ -38,7 +38,7 @@ def main():
     if args.debug:
         logging.getLogger().setLevel(logging.DEBUG)
 
-    logger.info("Starting RedByte GFM HIL Suite...")
+    logger.info("Starting VSM Evidence Workbench...")
 
     opengl_ok = False
     if not args.no_3d:
@@ -49,7 +49,7 @@ def main():
             logger.info("OpenGL check passed.")
 
     app = QApplication(sys.argv)
-    app.setApplicationName("RedByte GFM HIL Suite")
+    app.setApplicationName("VSM Evidence Workbench")
 
     splash = RotorSplashScreen()
     splash.show()
@@ -65,7 +65,7 @@ def main():
     mock = args.demo or args.mock or args.autoplay or env_demo
     windowed = args.windowed or env_windowed
 
-    # Resolve live port: CLI arg > system_config.json > empty (falls back to demo)
+    # Resolve optional adapter-preview port: CLI arg > system_config.json > empty.
     live_port = args.port
     if not live_port and not demo:
         try:

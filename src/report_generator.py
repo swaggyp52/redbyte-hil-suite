@@ -1,687 +1,877 @@
 """
-report_generator.py — HIL Session Report Generator
+Generate evidence reports and export bundles from recorded analysis sessions.
 
-Produces a self-contained HTML report from a JSON Data Capsule session file.
-The report includes:
-  - Session metadata (ID, duration, frame count, acquisition rate)
-  - Per-channel RMS summary (v_an, v_bn, v_cn, i_a, i_b, i_c)
-  - V_an waveform plot
-  - THD value
-  - IEEE 2800-2022 subset compliance table
-  - InsightEngine event timeline
-
-Usage
------
-    from src.report_generator import generate_report
-    html_path = generate_report(
-        session_path="data/sessions/session_001.json",
-        output_dir="reports",
-        insights_path="data/insights_log.json"
-    )
+This module is intentionally offline-first:
+all metrics, compliance results, events, and plots are derived from recorded
+session data or imported files. It does not fabricate missing channels.
 """
 
+from __future__ import annotations
+
 import json
+import math
 import os
-from pathlib import Path
+import subprocess
 from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
 
 import matplotlib
+import numpy as np
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-import matplotlib.gridspec as gridspec
 
-from src.compliance_checker import evaluate_ieee_2800, evaluate_session, available_profiles
-from src.signal_processing import compute_rms, compute_thd
-from src.event_detector import detect_events, run_summary
+from src.analysis import AnalysisEngine
+from src.compliance_checker import available_profiles, evaluate_session
+from src.derived_channels import ensure_capsule_derived_channels
+from src.event_detector import DetectedEvent
+from src.session_analysis import APP_VERSION, compute_session_metrics, dataset_for_analysis, events_for_capsule
 
 
-def _fmt_ts(ts_epoch):
-    """Convert epoch float to readable UTC string."""
+_PHASE_CHANNELS = ("v_an", "v_bn", "v_cn")
+_LINE_CHANNELS = ("v_ab", "v_bc", "v_ca")
+_CURRENT_CHANNELS = ("i_a", "i_b", "i_c")
+_DEFAULT_PREVIEW_CSV_ROWS = 50_000
+_COLORS = {
+    "v_an": "#f97316",
+    "v_bn": "#3b82f6",
+    "v_cn": "#22c55e",
+    "v_ab": "#f97316",
+    "v_bc": "#3b82f6",
+    "v_ca": "#22c55e",
+    "i_a": "#f97316",
+    "i_b": "#3b82f6",
+    "i_c": "#22c55e",
+    "freq": "#a78bfa",
+    "p_mech": "#38bdf8",
+    "v_dc": "#fbbf24",
+}
+
+
+def _profile_label(profile: str) -> str:
+    for item in available_profiles():
+        if item.get("id") == profile:
+            return str(item.get("label", profile))
+    return profile
+
+
+def _fmt_value(value: Any, digits: int = 3) -> str:
+    if value is None:
+        return "N/A"
+    if isinstance(value, str):
+        return value
+    if isinstance(value, bool):
+        return "PASS" if value else "FAIL"
     try:
-        return datetime.fromtimestamp(ts_epoch, timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
-    except Exception:
-        return str(ts_epoch)
+        numeric = float(value)
+    except (TypeError, ValueError):
+        return str(value)
+    if math.isnan(numeric) or math.isinf(numeric):
+        return "N/A"
+    return f"{numeric:.{digits}f}"
 
 
-def _pass_badge(passed):
-    color = "#22c55e" if passed else "#ef4444"
-    label = "PASS" if passed else "FAIL"
+def _json_default(value: Any) -> Any:
+    if hasattr(value, "item"):
+        try:
+            return value.item()
+        except Exception:
+            pass
+    if isinstance(value, Path):
+        return str(value)
+    if isinstance(value, set):
+        return sorted(value)
+    return str(value)
+
+
+def _write_json(path: Path, payload: Any) -> str:
+    path.write_text(
+        json.dumps(payload, indent=2, sort_keys=True, default=_json_default),
+        encoding="utf-8",
+    )
+    return str(path.resolve())
+
+
+def _safe_capsule_copy(capsule: dict) -> dict:
+    return {
+        "meta": dict(capsule.get("meta", {})),
+        "import_meta": dict(capsule.get("import_meta", {})),
+        "events": list(capsule.get("events", [])),
+        "frames": [dict(frame) for frame in capsule.get("frames", [])],
+    }
+
+
+def _write_dataset_csv(
+    dataset,
+    capsule: dict,
+    path: Path,
+    *,
+    include_full_resolution: bool = False,
+    max_preview_rows: int = _DEFAULT_PREVIEW_CSV_ROWS,
+) -> dict:
+    del capsule
+
+    total_rows = int(dataset.row_count)
+    indices = np.arange(total_rows, dtype=np.int64)
+    mode = "full_resolution"
+    note = "Full-resolution normalized CSV export."
+    if total_rows > max_preview_rows and not include_full_resolution:
+        indices = np.unique(
+            np.round(np.linspace(0, total_rows - 1, max_preview_rows)).astype(np.int64)
+        )
+        mode = "preview_downsampled"
+        note = (
+            f"Preview CSV downsampled to {len(indices):,} rows for package size; "
+            "metrics computed on full-resolution data."
+        )
+
+    with open(path, "w", newline="", encoding="utf-8") as handle:
+        handle.write("# VSM Evidence Workbench - Normalized Data Export\n")
+        handle.write(f"# Generated: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}\n")
+        handle.write(f"# Source file: {dataset.source_path}\n")
+        handle.write(f"# Samples: {dataset.row_count}\n")
+        handle.write(f"# CSV mode: {mode}\n")
+        handle.write(f"# Note: {note}\n")
+        if dataset.sample_rate:
+            handle.write(f"# Sample rate: {dataset.sample_rate} Hz\n")
+        handle.write("#\n")
+
+        columns = ["ts"] + sorted(dataset.channels.keys())
+        try:
+            import pandas as pd
+
+            data = {"ts": np.asarray(dataset.time, dtype=np.float64)[indices]}
+            for channel in columns[1:]:
+                data[channel] = np.asarray(dataset.channels[channel], dtype=np.float64)[indices]
+            pd.DataFrame(data, columns=columns).to_csv(handle, index=False)
+        except Exception:
+            handle.write(",".join(columns) + "\n")
+            matrix = np.column_stack(
+                [np.asarray(dataset.time, dtype=np.float64)[indices]]
+                + [np.asarray(dataset.channels[channel], dtype=np.float64)[indices] for channel in columns[1:]]
+            )
+            np.savetxt(handle, matrix, delimiter=",", fmt="%.12g")
+    return {
+        "path": str(path.resolve()),
+        "mode": mode,
+        "rows_written": int(indices.size),
+        "source_rows": total_rows,
+        "note": note,
+    }
+
+
+def _event_to_payload(event: Any) -> dict:
+    if isinstance(event, DetectedEvent):
+        return {
+            "kind": event.kind,
+            "ts_start": round(float(event.ts_start), 6),
+            "ts_end": round(float(event.ts_end), 6),
+            "duration_s": round(float(event.ts_end - event.ts_start), 6),
+            "channel": event.channel,
+            "severity": event.severity,
+            "description": event.description,
+            "confidence": round(float(event.confidence), 6),
+            "metrics": event.metrics,
+            "status": None,
+        }
+
+    payload = dict(event)
+    ts_start = payload.get("ts_start", payload.get("ts", payload.get("t_rel", 0.0)))
+    ts_end = payload.get("ts_end", payload.get("ts", payload.get("t_rel", ts_start)))
+    details = payload.get("details") or payload.get("description", "")
+    metrics = payload.get("meta") or payload.get("metrics", {})
+    return {
+        "kind": payload.get("kind") or payload.get("type", "event"),
+        "ts_start": round(float(ts_start), 6),
+        "ts_end": round(float(ts_end), 6),
+        "duration_s": round(float(ts_end) - float(ts_start), 6),
+        "channel": payload.get("channel", ""),
+        "severity": payload.get("severity", "info"),
+        "description": details,
+        "confidence": round(float(payload.get("confidence", 1.0)), 6),
+        "metrics": metrics,
+        "status": payload.get("status"),
+    }
+
+
+def _event_payloads(events: list[Any] | None) -> list[dict]:
+    return [_event_to_payload(event) for event in (events or [])]
+
+
+def _event_marker_groups(event_payloads: list[dict]) -> dict[str, list[float]]:
+    markers = {"voltage": [], "frequency": [], "current": []}
+    for event in event_payloads:
+        start = float(event["ts_start"])
+        kind = str(event["kind"])
+        if "sag" in kind or "swell" in kind:
+            markers["voltage"].append(start)
+        elif "freq" in kind:
+            markers["frequency"].append(start)
+        elif "current" in kind:
+            markers["current"].append(start)
+    return markers
+
+
+def _apply_axes_style(ax, title: str, y_label: str, *, show_xlabel: bool = False) -> None:
+    ax.set_facecolor("#161b24")
+    ax.set_title(title, color="#e6e9ef", fontsize=10, pad=6)
+    ax.set_ylabel(y_label, color="#e6e9ef", fontsize=9)
+    if show_xlabel:
+        ax.set_xlabel("Time (s)", color="#e6e9ef", fontsize=9)
+    ax.tick_params(colors="#94a3b8", labelsize=8)
+    ax.grid(True, alpha=0.22, color="#334155")
+    for spine in ax.spines.values():
+        spine.set_edgecolor("#334155")
+
+
+def _plot_ready_series(time_s, values, max_points: int = 10_000):
+    arr_t = np.asarray(time_s, dtype=np.float64)
+    arr_y = np.asarray(values, dtype=np.float64)
+    if arr_t.size <= max_points:
+        return arr_t, arr_y
+    step = max(1, int(np.ceil(arr_t.size / max_points)))
+    return arr_t[::step], arr_y[::step]
+
+
+def _plot_group(ax, time_s, dataset, channels: tuple[str, ...], title: str, y_label: str) -> bool:
+    plotted = False
+    for channel in channels:
+        values = dataset.channels.get(channel)
+        if values is None:
+            continue
+        plot_t, plot_y = _plot_ready_series(time_s, values)
+        ax.plot(
+            plot_t,
+            plot_y,
+            color=_COLORS.get(channel, "#38bdf8"),
+            linewidth=1.0,
+            label=channel.replace("v_", "V_").replace("i_", "I_"),
+        )
+        plotted = True
+
+    _apply_axes_style(ax, title, y_label)
+    if plotted:
+        ax.legend(loc="upper right", fontsize=8, facecolor="#161b24", labelcolor="#e6e9ef")
+    else:
+        ax.text(
+            0.5,
+            0.5,
+            "N/A — required channels not present",
+            color="#94a3b8",
+            ha="center",
+            va="center",
+            transform=ax.transAxes,
+            fontsize=9,
+        )
+    return plotted
+
+
+def _save_waveform_overview_png(dataset, event_payloads: list[dict], path: Path) -> str:
+    time_s = dataset.time
+    fig, axes = plt.subplots(4, 1, figsize=(12, 10), sharex=True, facecolor="#0f1115")
+    markers = _event_marker_groups(event_payloads)
+
+    _plot_group(axes[0], time_s, dataset, _PHASE_CHANNELS, "Phase-to-Neutral Voltage", "Voltage (V)")
+    _plot_group(axes[1], time_s, dataset, _LINE_CHANNELS, "Line-to-Line Voltage Overlay", "Voltage (V)")
+    _plot_group(axes[2], time_s, dataset, _CURRENT_CHANNELS, "Current Channels", "Current (A)")
+
+    aux_plotted = False
+    freq_values = dataset.channels.get("freq")
+    if freq_values is not None:
+        plot_t, plot_y = _plot_ready_series(time_s, freq_values)
+        axes[3].plot(plot_t, plot_y, color=_COLORS["freq"], linewidth=1.15, label="Frequency")
+        axes[3].axhline(59.5, color="#ef4444", linewidth=0.8, linestyle="--", alpha=0.7)
+        axes[3].axhline(60.5, color="#ef4444", linewidth=0.8, linestyle="--", alpha=0.7)
+        aux_plotted = True
+    for channel in ("p_mech", "v_dc"):
+        values = dataset.channels.get(channel)
+        if values is None:
+            continue
+        plot_t, plot_y = _plot_ready_series(time_s, values)
+        axes[3].plot(plot_t, plot_y, color=_COLORS[channel], linewidth=1.0, label=channel)
+        aux_plotted = True
+    _apply_axes_style(axes[3], "Frequency / Auxiliary Channels", "Hz / mixed", show_xlabel=True)
+    if aux_plotted:
+        axes[3].legend(loc="upper right", fontsize=8, facecolor="#161b24", labelcolor="#e6e9ef")
+    else:
+        axes[3].text(
+            0.5,
+            0.5,
+            "N/A — no frequency or auxiliary channels present",
+            color="#94a3b8",
+            ha="center",
+            va="center",
+            transform=axes[3].transAxes,
+            fontsize=9,
+        )
+
+    marker_specs = (
+        (axes[0], markers["voltage"], "#ef4444"),
+        (axes[1], markers["voltage"], "#ef4444"),
+        (axes[2], markers["current"], "#f59e0b"),
+        (axes[3], markers["frequency"], "#a855f7"),
+    )
+    for ax, starts, color in marker_specs:
+        for start in starts:
+            ax.axvline(start, color=color, linewidth=0.8, linestyle="--", alpha=0.5)
+
+    fig.tight_layout()
+    fig.savefig(path, dpi=140, bbox_inches="tight", facecolor="#0f1115")
+    plt.close(fig)
+    return str(path.resolve())
+
+
+def _save_line_to_line_png(dataset, path: Path) -> str | None:
+    available = [channel for channel in _LINE_CHANNELS if dataset.channels.get(channel) is not None]
+    if not available:
+        return None
+
+    fig, ax = plt.subplots(figsize=(12, 4.5), facecolor="#0f1115")
+    _plot_group(ax, dataset.time, dataset, tuple(available), "Line-to-Line Voltage Overlay", "Voltage (V)")
+    _apply_axes_style(ax, "Line-to-Line Voltage Overlay", "Voltage (V)", show_xlabel=True)
+    fig.tight_layout()
+    fig.savefig(path, dpi=140, bbox_inches="tight", facecolor="#0f1115")
+    plt.close(fig)
+    return str(path.resolve())
+
+
+def _compliance_summary(checks: list[dict]) -> tuple[int, int, int]:
+    passes = sum(1 for check in checks if check.get("status") == "PASS")
+    fails = sum(1 for check in checks if check.get("status") == "FAIL")
+    na_count = sum(1 for check in checks if check.get("status") == "N/A")
+    return passes, fails, na_count
+
+
+def _status_badge(status: str) -> str:
+    colors = {"PASS": "#10b981", "FAIL": "#ef4444", "N/A": "#f59e0b"}
+    color = colors.get(status, "#64748b")
     return (
         f"<span style='background:{color}; color:#fff; padding:2px 10px; "
-        f"border-radius:4px; font-weight:bold; font-size:0.85em;'>{label}</span>"
+        f"border-radius:999px; font-weight:700; font-size:12px;'>{status}</span>"
     )
+
+
+def _build_comparison_section(compare_path: str, session_path: str, output_dir: str) -> tuple[str, str | None]:
+    try:
+        ref = AnalysisEngine.load_session(compare_path)
+        test = AnalysisEngine.load_session(session_path)
+        scorecard = AnalysisEngine.comparison_scorecard(ref, test)
+    except Exception as exc:
+        return f"<p style='color:#ef4444'>Comparison unavailable: {exc}</p>", None
+
+    comparison_csv = os.path.join(output_dir, "comparison_scorecard.csv")
+    try:
+        AnalysisEngine.scorecard_to_csv(scorecard, comparison_csv)
+    except Exception:
+        comparison_csv = None
+
+    delta_rows = []
+    for metric, payload in scorecard.get("deltas", {}).items():
+        delta_rows.append(
+            "<tr>"
+            f"<td>{metric}</td>"
+            f"<td>{_fmt_value(payload.get('ref'), 4)}</td>"
+            f"<td>{_fmt_value(payload.get('test'), 4)}</td>"
+            f"<td>{_fmt_value(payload.get('delta'), 4)}</td>"
+            "</tr>"
+        )
+
+    signal_rows = []
+    for signal, payload in scorecard.get("per_signal", {}).items():
+        signal_rows.append(
+            "<tr>"
+            f"<td>{signal}</td>"
+            f"<td>{_fmt_value(payload.get('rmse'), 4)}</td>"
+            f"<td>{_fmt_value(payload.get('max_delta'), 4)}</td>"
+            f"<td>{_fmt_value(payload.get('mean_delta'), 4)}</td>"
+            "</tr>"
+        )
+
+    html = f"""
+    <h2>Run Comparison</h2>
+    <p class="muted">Baseline: <code>{os.path.basename(compare_path)}</code> &nbsp;•&nbsp; Comparison: <code>{os.path.basename(session_path)}</code></p>
+    <div class="callout">
+      <strong>{scorecard.get("verdict", "Comparison complete")}</strong><br/>
+      Improvements: {scorecard.get("improvements", 0)} &nbsp;•&nbsp;
+      Regressions: {scorecard.get("regressions", 0)}
+    </div>
+    <table>
+      <tr><th>Metric</th><th>Baseline</th><th>Comparison</th><th>Δ</th></tr>
+      {''.join(delta_rows) or '<tr><td colspan="4">No aggregate deltas available.</td></tr>'}
+    </table>
+    <table>
+      <tr><th>Channel</th><th>RMSE</th><th>max |Δ|</th><th>mean Δ</th></tr>
+      {''.join(signal_rows) or '<tr><td colspan="4">No signal-level comparison rows available.</td></tr>'}
+    </table>
+    """
+    return html, os.path.abspath(comparison_csv) if comparison_csv else None
+
+
+def _build_metadata_payload(
+    capsule: dict,
+    summary: dict,
+    profile: str,
+    *,
+    normalized_csv: dict | None = None,
+) -> dict:
+    session = summary["session"]
+    import_meta = capsule.get("import_meta", {})
+    meta = capsule.get("meta", {})
+    return {
+        "session_id": session["session_id"],
+        "source_file_name": session["source_name"],
+        "source_file_path": session["source_path"],
+        "source_hash_sha256": session.get("source_hash_sha256"),
+        "import_timestamp": import_meta.get("imported_at"),
+        "sample_count": session["sample_count"],
+        "sample_rate_hz": session["sample_rate_hz"],
+        "time_range_s": {
+            "start": session["time_start_s"],
+            "end": session["time_end_s"],
+            "window": session["time_window_s"],
+        },
+        "mapped_channels": session["mapped_channels"],
+        "derived_channels": session["derived_channels"],
+        "scale_factors": session["scale_factors"],
+        "compliance_profile": profile,
+        "normalized_csv": normalized_csv or {},
+        "app_version": session.get("app_version", APP_VERSION),
+        "git_commit": _git_commit(),
+        "meta_channels": list(meta.get("channels", [])),
+    }
+
+
+def _git_commit() -> str | None:
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except Exception:
+        return None
+    commit = result.stdout.strip()
+    return commit or None
+
+
+def _build_report_html(
+    summary: dict,
+    compliance: list[dict],
+    event_payloads: list[dict],
+    *,
+    metadata: dict,
+    profile: str,
+    waveform_plot_name: str,
+    line_plot_name: str | None,
+    report_title: str,
+    section_title: str,
+    compare_html: str = "",
+) -> str:
+    session = summary["session"]
+    passes, fails, na_count = _compliance_summary(compliance)
+    overall = "PASS" if fails == 0 and passes > 0 else "FAIL" if fails > 0 else "N/A"
+
+    metric_rows = []
+    for section_name, payload in (
+        ("Phase Voltage", summary["phase_voltage"]),
+        ("Line Voltage", summary["line_voltage"]),
+    ):
+        for channel, values in payload.items():
+            if values.get("available"):
+                metric_rows.append(
+                    "<tr>"
+                    f"<td>{section_name}</td><td>{channel} RMS</td><td>{_fmt_value(values.get('rms'), 3)}</td>"
+                    f"<td>{values.get('unit', '')}</td><td>{'THD ' + _fmt_value(values.get('thd_pct'), 3) + ' %' if 'thd_pct' in values else ''}</td>"
+                    "</tr>"
+                )
+            else:
+                metric_rows.append(
+                    "<tr>"
+                    f"<td>{section_name}</td><td>{channel}</td><td>N/A</td><td>{values.get('unit', '')}</td><td>{values.get('reason', '')}</td>"
+                    "</tr>"
+                )
+
+    frequency = summary["frequency"]
+    if frequency.get("available"):
+        metric_rows.extend(
+            [
+                f"<tr><td>Frequency</td><td>Mean</td><td>{_fmt_value(frequency.get('mean_hz'), 4)}</td><td>Hz</td><td>{frequency.get('source', '')}</td></tr>",
+                f"<tr><td>Frequency</td><td>Min / Max</td><td>{_fmt_value(frequency.get('min_hz'), 4)} / {_fmt_value(frequency.get('max_hz'), 4)}</td><td>Hz</td><td>Deviation vs 60 Hz: {_fmt_value(frequency.get('max_deviation_hz'), 4)} Hz</td></tr>",
+            ]
+        )
+    else:
+        metric_rows.append(
+            f"<tr><td>Frequency</td><td>Summary</td><td>N/A</td><td>Hz</td><td>{frequency.get('reason', '')}</td></tr>"
+        )
+
+    balance = summary["balance"]
+    if balance.get("available"):
+        metric_rows.append(
+            f"<tr><td>Balance</td><td>Voltage imbalance</td><td>{_fmt_value(balance.get('percent_voltage_imbalance'), 3)}</td><td>%</td><td>Max RMS deviation: {_fmt_value(balance.get('max_rms_deviation_v'), 3)} V</td></tr>"
+        )
+    else:
+        metric_rows.append(
+            f"<tr><td>Balance</td><td>Voltage imbalance</td><td>N/A</td><td>%</td><td>{balance.get('reason', '')}</td></tr>"
+        )
+
+    event_counts = summary["events"]["counts"]
+    metric_rows.extend(
+        [
+            f"<tr><td>Events</td><td>Voltage sag count</td><td>{event_counts['voltage_sag']}</td><td>events</td><td></td></tr>",
+            f"<tr><td>Events</td><td>Frequency excursion count</td><td>{event_counts['frequency_excursion']}</td><td>events</td><td></td></tr>",
+            f"<tr><td>Events</td><td>Overcurrent count</td><td>{event_counts['overcurrent'] if summary['current_thresholds'].get('available') else 'N/A'}</td><td>events</td><td>{'' if summary['current_thresholds'].get('available') else summary['current_thresholds'].get('reason', '')}</td></tr>",
+        ]
+    )
+
+    compliance_rows = []
+    for check in compliance:
+        compliance_rows.append(
+            "<tr>"
+            f"<td>{check.get('name')}</td>"
+            f"<td>{_fmt_value(check.get('measured'), 4) if check.get('measured') is not None else 'N/A'}</td>"
+            f"<td>{_fmt_value(check.get('threshold'), 4) if check.get('threshold') is not None else 'N/A'}</td>"
+            f"<td>{check.get('units', '')}</td>"
+            f"<td>{_status_badge(check.get('status', 'N/A'))}</td>"
+            f"<td>{check.get('source', _profile_label(profile))}</td>"
+            f"<td>{check.get('notes') or check.get('na_reason') or check.get('details', '')}</td>"
+            "</tr>"
+        )
+
+    event_rows = []
+    for event in event_payloads:
+        event_rows.append(
+            "<tr>"
+            f"<td>{event['kind']}</td>"
+            f"<td>{_fmt_value(event['ts_start'], 4)}</td>"
+            f"<td>{_fmt_value(event['duration_s'], 4)}</td>"
+            f"<td>{event['channel'] or '—'}</td>"
+            f"<td>{event['severity']}</td>"
+            f"<td>{event['description']}</td>"
+            "</tr>"
+        )
+
+    line_plot_html = (
+        f"<img class='plot' src='{line_plot_name}' alt='Line-to-line overlay'/>"
+        if line_plot_name
+        else "<p class='muted'>Line-to-line overlay unavailable because the required source phase channels were not present.</p>"
+    )
+
+    css = """
+    :root {
+      --bg:#0f1115; --surface:#161b24; --surface-2:#1b2230; --border:#243244;
+      --text:#e6e9ef; --muted:#94a3b8; --accent:#38bdf8;
+    }
+    * { box-sizing:border-box; }
+    body {
+      margin:0; padding:24px; background:var(--bg); color:var(--text);
+      font-family:'Segoe UI',Arial,sans-serif; line-height:1.55; font-size:14px;
+    }
+    h1 { margin:0 0 6px; font-size:26px; }
+    h2 { margin:24px 0 10px; font-size:18px; color:#dbeafe; }
+    p { margin:6px 0 0; }
+    .subtitle { color:var(--muted); margin-bottom:14px; }
+    .hero {
+      display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+      gap:12px; margin:18px 0 10px;
+    }
+    .card, .callout {
+      background:linear-gradient(180deg, rgba(29,39,54,.98), rgba(21,27,36,.98));
+      border:1px solid var(--border); border-radius:10px; padding:12px 14px;
+    }
+    .label { color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.06em; }
+    .value { font-size:20px; font-weight:700; margin-top:4px; }
+    table {
+      width:100%; border-collapse:collapse; background:var(--surface);
+      border:1px solid var(--border); border-radius:10px; overflow:hidden;
+    }
+    th {
+      text-align:left; background:var(--surface-2); color:var(--muted);
+      font-size:12px; text-transform:uppercase; letter-spacing:.05em; padding:10px;
+    }
+    td { padding:10px; border-top:1px solid var(--border); vertical-align:top; }
+    img.plot {
+      width:100%; border:1px solid var(--border); border-radius:10px; margin-top:8px;
+      background:#111827;
+    }
+    .muted { color:var(--muted); }
+    code {
+      background:#172132; border:1px solid var(--border); border-radius:6px;
+      padding:2px 6px; color:#cbd5e1;
+    }
+    .footer {
+      margin-top:28px; padding-top:14px; border-top:1px solid var(--border);
+      color:var(--muted); font-size:12px;
+    }
+    """
+
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>{report_title} — {session['session_id']}</title>
+  <style>{css}</style>
+</head>
+<body>
+  <h1>{report_title}</h1>
+  <p class="subtitle">Offline recorded-session analysis · Standards-inspired engineering checks · {_profile_label(profile)}</p>
+
+  <h2>{section_title}</h2>
+  <div class="hero">
+    <div class="card"><div class="label">Source File</div><div class="value">{session['source_name']}</div></div>
+    <div class="card"><div class="label">Samples</div><div class="value">{session['sample_count']:,}</div></div>
+    <div class="card"><div class="label">Sample Rate</div><div class="value">{_fmt_value(session['sample_rate_hz'], 2)} Hz</div></div>
+    <div class="card"><div class="label">Time Window</div><div class="value">{_fmt_value(session['time_window_s'], 4)} s</div></div>
+    <div class="card"><div class="label">Overall Check Status</div><div class="value">{overall}</div></div>
+    <div class="card"><div class="label">Compliance Totals</div><div class="value">{passes} PASS / {fails} FAIL / {na_count} N/A</div></div>
+  </div>
+
+  <h2>Waveform Overview</h2>
+  <img class="plot" src="{waveform_plot_name}" alt="Waveform overview"/>
+
+  <h2>Line-to-Line Overlay</h2>
+  {line_plot_html}
+
+  <h2>Metrics Summary</h2>
+  <table>
+    <tr><th>Section</th><th>Metric</th><th>Measured Value</th><th>Units</th><th>Notes</th></tr>
+    {''.join(metric_rows)}
+  </table>
+
+  <h2>Standards-Inspired Engineering Checks</h2>
+  <table>
+    <tr><th>Check</th><th>Measured</th><th>Threshold</th><th>Units</th><th>Result</th><th>Standard / Profile Reference</th><th>Notes</th></tr>
+    {''.join(compliance_rows) or '<tr><td colspan="7">No compliance results generated.</td></tr>'}
+  </table>
+
+  <h2>Detected Events</h2>
+  <table>
+    <tr><th>Event</th><th>Start (s)</th><th>Duration (s)</th><th>Channel</th><th>Severity</th><th>Description</th></tr>
+    {''.join(event_rows) or '<tr><td colspan="6">No events detected.</td></tr>'}
+  </table>
+
+  {compare_html}
+
+  <h2>Provenance</h2>
+  <table>
+    <tr><th>Field</th><th>Value</th></tr>
+    <tr><td>Source path</td><td><code>{session['source_path'] or 'N/A'}</code></td></tr>
+    <tr><td>Source SHA-256</td><td><code>{metadata.get('source_hash_sha256') or 'N/A'}</code></td></tr>
+    <tr><td>Mapped channels</td><td><code>{', '.join(session['mapped_channels']) or 'N/A'}</code></td></tr>
+    <tr><td>Derived channels</td><td><code>{', '.join(session['derived_channels']) or 'N/A'}</code></td></tr>
+    <tr><td>Scale factors</td><td><code>{json.dumps(session['scale_factors'], sort_keys=True)}</code></td></tr>
+    <tr><td>Compliance profile</td><td><code>{profile}</code></td></tr>
+    <tr><td>Normalized CSV mode</td><td><code>{metadata.get('normalized_csv', {}).get('mode', 'N/A')}</code></td></tr>
+    <tr><td>Normalized CSV note</td><td>{metadata.get('normalized_csv', {}).get('note', 'N/A')}</td></tr>
+    <tr><td>App version</td><td><code>{metadata.get('app_version') or APP_VERSION}</code></td></tr>
+    <tr><td>Git commit</td><td><code>{metadata.get('git_commit') or 'N/A'}</code></td></tr>
+  </table>
+
+  <div class="footer">
+    Generated by VSM Evidence Workbench. This report documents deterministic,
+    offline engineering analysis of recorded data. It is not a certification statement.
+  </div>
+</body>
+</html>"""
+
+
+def _resolve_inputs(
+    session_path: str,
+    *,
+    profile: str,
+    thresholds: dict | None,
+    compliance_results: list[dict] | None,
+    events: list[Any] | None,
+    metrics: dict | None,
+    session_data: dict | None = None,
+) -> tuple[dict, list[dict], list[dict], dict, Any]:
+    if session_data is None:
+        with open(session_path, "r", encoding="utf-8") as handle:
+            capsule = json.load(handle)
+    else:
+        capsule = session_data
+
+    ensure_capsule_derived_channels(capsule)
+    dataset = dataset_for_analysis(capsule)
+
+    raw_events = events
+    if raw_events is None:
+        raw_events = events_for_capsule(capsule)
+    event_payloads = _event_payloads(raw_events)
+
+    summary = metrics
+    if summary is None:
+        if raw_events and all(isinstance(event, DetectedEvent) for event in raw_events):
+            summary = compute_session_metrics(capsule, events=raw_events)
+        else:
+            summary = compute_session_metrics(capsule)
+
+    checks = compliance_results or evaluate_session(capsule, profile=profile, thresholds=thresholds)
+    return capsule, checks, event_payloads, summary, dataset
 
 
 def generate_report(
     session_path: str,
     output_dir: str = "reports",
     insights_path: str = "data/insights_log.json",
-):
+) -> str:
     """
-    Generate an HTML session report from a JSON Data Capsule.
+    Generate a timestamped HTML session report.
 
-    Parameters
-    ----------
-    session_path : str
-        Path to the JSON Data Capsule produced by Recorder.
-    output_dir : str
-        Directory where output files (HTML + PNG plot) are written.
-    insights_path : str
-        Path to the InsightEngine JSON log (optional).
-
-    Returns
-    -------
-    str
-        Absolute path to the generated HTML report file.
+    The *insights_path* parameter is kept for compatibility; the current report
+    is built directly from the session data and computed analysis outputs.
     """
+    del insights_path
+
     output = Path(output_dir)
     output.mkdir(parents=True, exist_ok=True)
 
-    with open(session_path, "r") as f:
-        data = json.load(f)
-
-    meta = data.get("meta", {})
-    frames = data.get("frames", [])
-    events = data.get("events", [])
-
-    if not frames:
-        raise RuntimeError("No frames in session data capsule.")
-
-    # ── Time axis ────────────────────────────────────────────────────────────
-    ts0 = frames[0].get("ts", 0)
-    ts_end = frames[-1].get("ts", ts0)
-    t = [f.get("ts", ts0) - ts0 for f in frames]
-    duration_s = ts_end - ts0
-    acq_rate = len(frames) / duration_s if duration_s > 0 else 0.0
-
-    # ── Channel extraction ───────────────────────────────────────────────────
-    v_an = [f.get("v_an", 0.0) for f in frames]
-    v_bn = [f.get("v_bn", 0.0) for f in frames]
-    v_cn = [f.get("v_cn", 0.0) for f in frames]
-    i_a  = [f.get("i_a", 0.0) for f in frames]
-    i_b  = [f.get("i_b", 0.0) for f in frames]
-    i_c  = [f.get("i_c", 0.0) for f in frames]
-    freq = [f.get("freq", 60.0) for f in frames]
-
-    # ── Signal metrics ───────────────────────────────────────────────────────
-    rms_van = compute_rms(v_an)
-    rms_vbn = compute_rms(v_bn)
-    rms_vcn = compute_rms(v_cn)
-    rms_ia  = compute_rms(i_a)
-    rms_ib  = compute_rms(i_b)
-    rms_ic  = compute_rms(i_c)
-    thd_van = compute_thd(v_an, time_data=[f.get("ts", 0) for f in frames])
-
-    # ── Compliance ───────────────────────────────────────────────────────────
-    compliance = evaluate_ieee_2800(data)
-    overall_pass = all(c["passed"] for c in compliance)
-
-    # ── Plot (3-panel: Voltage, Current, Frequency) ──────────────────────────
-    fig = plt.figure(figsize=(12, 7), facecolor="#0f1115")
-    gs = gridspec.GridSpec(3, 1, hspace=0.45, figure=fig)
-
-    ax_v = fig.add_subplot(gs[0])
-    ax_v.plot(t, v_an, color="#f97316", linewidth=1.0, label="V_an")
-    ax_v.plot(t, v_bn, color="#3b82f6", linewidth=1.0, label="V_bn")
-    ax_v.plot(t, v_cn, color="#22c55e", linewidth=1.0, label="V_cn")
-    ax_v.set_facecolor("#1a1d24")
-    ax_v.set_ylabel("Voltage (V)", color="#e6e9ef", fontsize=9)
-    ax_v.set_title("Three-Phase Voltage", color="#e6e9ef", fontsize=10, pad=4)
-    ax_v.tick_params(colors="#8b95a8", labelsize=8)
-    ax_v.legend(loc="upper right", fontsize=8, facecolor="#1a1d24", labelcolor="#e6e9ef")
-    ax_v.grid(True, alpha=0.2, color="#2d3748")
-    for spine in ax_v.spines.values():
-        spine.set_edgecolor("#2d3748")
-
-    ax_i = fig.add_subplot(gs[1])
-    ax_i.plot(t, i_a, color="#f97316", linewidth=1.0, label="I_a")
-    ax_i.plot(t, i_b, color="#3b82f6", linewidth=1.0, label="I_b")
-    ax_i.plot(t, i_c, color="#22c55e", linewidth=1.0, label="I_c")
-    ax_i.set_facecolor("#1a1d24")
-    ax_i.set_ylabel("Current (A)", color="#e6e9ef", fontsize=9)
-    ax_i.set_title("Three-Phase Current", color="#e6e9ef", fontsize=10, pad=4)
-    ax_i.tick_params(colors="#8b95a8", labelsize=8)
-    ax_i.legend(loc="upper right", fontsize=8, facecolor="#1a1d24", labelcolor="#e6e9ef")
-    ax_i.grid(True, alpha=0.2, color="#2d3748")
-    for spine in ax_i.spines.values():
-        spine.set_edgecolor("#2d3748")
-
-    ax_f = fig.add_subplot(gs[2])
-    ax_f.plot(t, freq, color="#a78bfa", linewidth=1.2, label="Frequency")
-    ax_f.axhline(59.5, color="#ef4444", linewidth=0.8, linestyle="--", alpha=0.7, label="±0.5 Hz band")
-    ax_f.axhline(60.5, color="#ef4444", linewidth=0.8, linestyle="--", alpha=0.7)
-    ax_f.set_facecolor("#1a1d24")
-    ax_f.set_xlabel("Time (s)", color="#e6e9ef", fontsize=9)
-    ax_f.set_ylabel("Frequency (Hz)", color="#e6e9ef", fontsize=9)
-    ax_f.set_title("Grid Frequency", color="#e6e9ef", fontsize=10, pad=4)
-    ax_f.tick_params(colors="#8b95a8", labelsize=8)
-    ax_f.legend(loc="upper right", fontsize=8, facecolor="#1a1d24", labelcolor="#e6e9ef")
-    ax_f.grid(True, alpha=0.2, color="#2d3748")
-    for spine in ax_f.spines.values():
-        spine.set_edgecolor("#2d3748")
-
-    fig.patch.set_facecolor("#0f1115")
-    plot_path = output / "waveform_plot.png"
-    plt.savefig(plot_path, dpi=120, bbox_inches="tight", facecolor="#0f1115")
-    plt.close()
-
-    # ── Insights ─────────────────────────────────────────────────────────────
-    insights = []
-    if os.path.exists(insights_path):
-        try:
-            with open(insights_path, "r") as f:
-                insights = json.load(f).get("insights", [])
-        except Exception:
-            insights = []
-
-    # Also include session events from Data Capsule
-    for ev in events:
-        insights.append({
-            "ts": ev.get("ts", 0),
-            "type": ev.get("type", "Event"),
-            "description": ev.get("data", {}).get("description", str(ev.get("data", ""))),
-        })
-
-    insights.sort(key=lambda x: x.get("ts", 0))
-
-    insight_rows = "".join([
-        f"<tr><td>{i.get('ts', 0):.3f}</td>"
-        f"<td><span style='color:#f97316;font-weight:bold'>{i.get('type','')}</span></td>"
-        f"<td>{i.get('description','')}</td></tr>"
-        for i in insights
-    ]) or "<tr><td colspan='3' style='color:#6b7280;text-align:center'>No insight events recorded</td></tr>"
-
-    compliance_rows = "".join([
-        f"<tr>"
-        f"<td>{c['name']}</td>"
-        f"<td style='text-align:center'>{_pass_badge(c['passed'])}</td>"
-        f"<td style='font-size:0.85em;color:#9ca3af'>{c['details']}</td>"
-        f"</tr>"
-        for c in compliance
-    ])
-
-    # ── Session metadata table ────────────────────────────────────────────────
-    session_id = meta.get("session_id", "—")
-    start_time = _fmt_ts(meta.get("start_time", ts0))
-    frame_count = meta.get("frame_count", len(frames))
-
-    overall_badge = _pass_badge(overall_pass)
-
-    # ── HTML ─────────────────────────────────────────────────────────────────
-    css = """
-      :root { --bg: #0f1115; --surface: #161b24; --border: #1f2b3e; --text: #e6e9ef;
-              --muted: #8b95a8; --accent: #3b82f6; }
-      * { box-sizing: border-box; margin: 0; padding: 0; }
-      body { font-family: 'Segoe UI', Arial, sans-serif; background: var(--bg);
-             color: var(--text); padding: 24px; font-size: 14px; line-height: 1.6; }
-      h1 { font-size: 1.6em; margin-bottom: 4px; color: #f8fafc; }
-      h2 { font-size: 1.1em; margin: 20px 0 8px; color: #cbd5e1; border-bottom: 1px solid var(--border); padding-bottom: 4px; }
-      .badge-overall { font-size: 1em; margin-left: 12px; vertical-align: middle; }
-      .subtitle { color: var(--muted); font-size: 0.9em; margin-bottom: 16px; }
-      .meta-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; margin-bottom: 18px; }
-      .meta-card { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 10px 14px; }
-      .meta-card .label { font-size: 0.75em; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
-      .meta-card .value { font-size: 1.05em; font-weight: 600; color: var(--text); margin-top: 2px; }
-      .rms-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; margin-bottom: 18px; }
-      .rms-card { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; text-align: center; }
-      .rms-card .ch { font-size: 0.75em; color: var(--muted); }
-      .rms-card .val { font-size: 1.1em; font-weight: bold; }
-      img.plot { width: 100%; max-width: 1100px; border: 1px solid var(--border); border-radius: 6px; margin-bottom: 18px; }
-      table { width: 100%; border-collapse: collapse; margin-bottom: 18px; }
-      th { background: #1a2236; color: var(--muted); font-size: 0.8em; text-transform: uppercase;
-           letter-spacing: 0.05em; padding: 8px 10px; text-align: left; border-bottom: 2px solid var(--border); }
-      td { padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
-      tr:last-child td { border-bottom: none; }
-      tr:hover td { background: #1c2333; }
-      .footer { color: var(--muted); font-size: 0.78em; margin-top: 24px; padding-top: 10px;
-                border-top: 1px solid var(--border); }
-    """
-
-    html = f"""<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>VSM Session Report — {session_id}</title>
-  <style>{css}</style>
-</head>
-<body>
-  <h1>VSM Evidence Workbench — Session Report
-    <span class="badge-overall">{overall_badge}</span>
-  </h1>
-  <p class="subtitle">VSM / Grid-Forming Inverter · IEEE 2800-inspired subset (engineering evidence, not certified compliance)</p>
-
-  <h2>HIL Session Report</h2>
-
-  <h2>Session Metadata</h2>
-  <div class="meta-grid">
-    <div class="meta-card"><div class="label">Session ID</div><div class="value">{session_id}</div></div>
-    <div class="meta-card"><div class="label">Start Time</div><div class="value">{start_time}</div></div>
-    <div class="meta-card"><div class="label">Duration</div><div class="value">{duration_s:.2f} s</div></div>
-    <div class="meta-card"><div class="label">Frames</div><div class="value">{frame_count:,}</div></div>
-    <div class="meta-card"><div class="label">Acquisition Rate</div><div class="value">{acq_rate:.1f} Hz</div></div>
-    <div class="meta-card"><div class="label">THD (V_an)</div><div class="value">{thd_van:.2f} %</div></div>
-    <div class="meta-card"><div class="label">Freq Range</div><div class="value">{min(freq):.3f} – {max(freq):.3f} Hz</div></div>
-    <div class="meta-card"><div class="label">Events Logged</div><div class="value">{len(events)}</div></div>
-  </div>
-
-  <h2>Per-Channel RMS</h2>
-  <div class="rms-grid">
-    <div class="rms-card"><div class="ch">V_an</div><div class="val" style="color:#f97316">{rms_van:.2f} V</div></div>
-    <div class="rms-card"><div class="ch">V_bn</div><div class="val" style="color:#3b82f6">{rms_vbn:.2f} V</div></div>
-    <div class="rms-card"><div class="ch">V_cn</div><div class="val" style="color:#22c55e">{rms_vcn:.2f} V</div></div>
-    <div class="rms-card"><div class="ch">I_a</div><div class="val" style="color:#f97316">{rms_ia:.3f} A</div></div>
-    <div class="rms-card"><div class="ch">I_b</div><div class="val" style="color:#3b82f6">{rms_ib:.3f} A</div></div>
-    <div class="rms-card"><div class="ch">I_c</div><div class="val" style="color:#22c55e">{rms_ic:.3f} A</div></div>
-  </div>
-
-  <h2>Waveforms</h2>
-  <img class="plot" src="waveform_plot.png" alt="Three-phase voltage, current, and frequency plots"/>
-
-  <h2>IEEE 2800-2022 Compliance (Informative Subset)</h2>
-  <table>
-    <tr><th>Rule</th><th style="width:80px;text-align:center">Result</th><th>Details</th></tr>
-    {compliance_rows}
-  </table>
-
-  <h2>Insight &amp; Event Timeline</h2>
-  <table>
-    <tr><th style="width:90px">Time (s)</th><th style="width:180px">Type</th><th>Description</th></tr>
-    {insight_rows}
-  </table>
-
-  <div class="footer">
-    Generated by VSM Evidence Workbench · Gannon University Senior Design 2025–2026 ·
-    IEEE 2800-2022 checks are an informative subset for HIL evaluation purposes only.
-  </div>
-</body>
-</html>"""
+    capsule, checks, event_payloads, summary, dataset = _resolve_inputs(
+        session_path,
+        profile="ieee_2800_inspired",
+        thresholds=None,
+        compliance_results=None,
+        events=None,
+        metrics=None,
+        session_data=None,
+    )
 
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    waveform_name = f"waveform_plot_{stamp}.png"
+    line_name = f"line_to_line_plot_{stamp}.png"
+    waveform_path = output / waveform_name
+    line_path = output / line_name
+    _save_waveform_overview_png(dataset, event_payloads, waveform_path)
+    line_plot_path = _save_line_to_line_png(dataset, line_path)
+
+    report_html = _build_report_html(
+        summary,
+        checks,
+        event_payloads,
+        metadata=_build_metadata_payload(capsule, summary, "ieee_2800_inspired"),
+        profile="ieee_2800_inspired",
+        waveform_plot_name=waveform_name,
+        line_plot_name=line_name if line_plot_path else None,
+        report_title="VSM Evidence Workbench — Session Report",
+        section_title="HIL Session Report",
+    )
     html_path = output / f"session_report_{stamp}.html"
-    html_path.write_text(html, encoding="utf-8")
-    return str(html_path)
-
-
-# ==========================================================================
-# Evidence package (Stage 6) — HTML + CSV + JSON, optional run comparison
-# ==========================================================================
-def _scorecard_rows(compliance):
-    rows = []
-    for c in compliance:
-        rows.append(
-            f"<tr>"
-            f"<td>{c['name']}</td>"
-            f"<td style='text-align:center'>{_pass_badge(c['passed'])}</td>"
-            f"<td style='font-family:monospace'>{c.get('measured','—')}</td>"
-            f"<td style='font-family:monospace;color:#94a3b8'>{c.get('threshold','—')} {c.get('units','')}</td>"
-            f"<td style='font-size:0.82em;color:#9ca3af'>{c.get('rule','')}</td>"
-            f"<td style='font-size:0.75em;color:#64748b'>{c.get('source','')}</td>"
-            f"</tr>"
-        )
-    return "\n".join(rows)
-
-
-def _event_rows(events):
-    if not events:
-        return "<tr><td colspan='4' style='text-align:center;color:#6b7280'>No events auto-detected.</td></tr>"
-    rows = []
-    for e in events:
-        rows.append(
-            f"<tr>"
-            f"<td style='font-family:monospace'>{e.get('t_rel',0):.3f}</td>"
-            f"<td><span style='color:#f97316;font-weight:bold'>{e.get('type','')}</span></td>"
-            f"<td style='font-size:0.88em'>{e.get('details','')}</td>"
-            f"<td style='font-family:monospace;color:#94a3b8;font-size:0.8em'>{json.dumps(e.get('meta',{}))}</td>"
-            f"</tr>"
-        )
-    return "\n".join(rows)
-
-
-def _comparison_section(compare_path, session_path, output_dir):
-    """If a comparison path is provided, build a scorecard block and write comparison CSV."""
-    from src.analysis import AnalysisEngine
-    try:
-        ref = AnalysisEngine.load_session(compare_path)
-        test = AnalysisEngine.load_session(session_path)
-        scorecard = AnalysisEngine.comparison_scorecard(ref, test)
-    except Exception as e:
-        return f"<p style='color:#ef4444'>Comparison failed: {e}</p>", None
-
-    # write a comparison CSV into output
-    csv_path = os.path.join(output_dir, "comparison_scorecard.csv")
-    try:
-        AnalysisEngine.scorecard_to_csv(scorecard, csv_path)
-    except Exception:
-        csv_path = None
-
-    rows = []
-    for metric, d in scorecard["deltas"].items():
-        delta = d["delta"]
-        color = "#22c55e" if (delta == 0) else ("#eab308" if abs(delta) < 0.1 else "#f97316")
-        rows.append(
-            f"<tr><td>{metric}</td>"
-            f"<td style='font-family:monospace'>{d['ref']:.4g}</td>"
-            f"<td style='font-family:monospace'>{d['test']:.4g}</td>"
-            f"<td style='font-family:monospace;color:{color}'>{delta:+.4g}</td></tr>"
-        )
-
-    sig_rows = []
-    for sig, d in scorecard["per_signal"].items():
-        sig_rows.append(
-            f"<tr><td>{sig}</td>"
-            f"<td style='font-family:monospace'>{d['rmse']:.4g}</td>"
-            f"<td style='font-family:monospace'>{d['max_delta']:.4g}</td>"
-            f"<td style='font-family:monospace'>{d['mean_delta']:.4g}</td></tr>"
-        )
-
-    verdict_color = "#22c55e"
-    if "reference" in scorecard["verdict"].lower():
-        verdict_color = "#f97316"
-    elif "equivalent" in scorecard["verdict"].lower():
-        verdict_color = "#eab308"
-
-    html = f"""
-    <h2>Run Comparison</h2>
-    <p style='color:#94a3b8'>Reference: <code>{os.path.basename(compare_path)}</code> vs Test: <code>{os.path.basename(session_path)}</code></p>
-    <div style='background:#1a2236;border:1px solid #1f2b3e;border-radius:6px;padding:10px 14px;margin:6px 0;'>
-      <div style='color:{verdict_color};font-size:1.1em;font-weight:700'>{scorecard['verdict']}</div>
-      <div style='color:#94a3b8;font-size:0.9em;margin-top:4px'>
-        Improvements: {scorecard['improvements']} &nbsp; | &nbsp;
-        Regressions: {scorecard['regressions']}
-      </div>
-    </div>
-
-    <h3 style='margin-top:14px;color:#cbd5e1'>Per-Metric Deltas</h3>
-    <table>
-      <tr><th>Metric</th><th>Reference</th><th>Test</th><th>Δ (Test − Ref)</th></tr>
-      {''.join(rows)}
-    </table>
-
-    <h3 style='margin-top:14px;color:#cbd5e1'>Time-Aligned Signal Errors</h3>
-    <table>
-      <tr><th>Signal</th><th>RMSE</th><th>max |Δ|</th><th>mean Δ</th></tr>
-      {''.join(sig_rows)}
-    </table>
-    """
-    return html, csv_path
+    html_path.write_text(report_html, encoding="utf-8")
+    return str(html_path.resolve())
 
 
 def generate_evidence_package(
     session_path: str,
     output_dir: str = "exports",
     profile: str = "project_demo",
-    thresholds: dict = None,
-    compare_path: str = None,
+    thresholds: dict | None = None,
+    compare_path: str | None = None,
     insights_path: str = "data/insights_log.json",
-):
+    compliance_results: list[dict] | None = None,
+    events: list[Any] | None = None,
+    metrics: dict | None = None,
+    session_data: dict | None = None,
+    include_full_resolution_csv: bool = False,
+    preview_csv_max_rows: int = _DEFAULT_PREVIEW_CSV_ROWS,
+) -> dict:
     """
-    Generate a polished evidence package for a session.
-
-    Produces:
-      - evidence_report.html
-      - waveform_plot.png
-      - session_frames.csv
-      - session_capsule.json          (copy of the source capsule)
-      - compliance_scorecard.json     (machine-readable compliance results)
-      - event_log.json                (auto-detected events)
-      - run_summary.json              (derived metrics)
-      - comparison_scorecard.csv      (only if compare_path provided)
-
-    Returns
-    -------
-    dict
-        Absolute paths to every artifact written.
+    Generate an evidence package that matches the app's recorded-data analysis.
     """
+    del insights_path
+
     output = Path(output_dir)
     output.mkdir(parents=True, exist_ok=True)
 
-    with open(session_path, "r") as f:
-        data = json.load(f)
+    capsule, checks, event_payloads, summary, dataset = _resolve_inputs(
+        session_path,
+        profile=profile,
+        thresholds=thresholds,
+        compliance_results=compliance_results,
+        events=events,
+        metrics=metrics,
+        session_data=session_data,
+    )
 
-    meta = data.get("meta", {})
-    frames = data.get("frames", [])
-    if not frames:
-        raise RuntimeError("No frames in session data capsule.")
+    waveform_png = output / "waveform_overview.png"
+    line_png = output / "line_to_line_overlay.png"
+    csv_path = output / "normalized_frames.csv"
+    metadata_json = output / "metadata.json"
+    metrics_json = output / "metrics.json"
+    compliance_json = output / "compliance.json"
+    events_json = output / "events.json"
+    capsule_json = output / "session_capsule.json"
 
-    # ---- core analytics ----
-    compliance = evaluate_session(data, profile=profile, thresholds=thresholds)
-    events = detect_events(data)
-    summary = run_summary(data)
+    _save_waveform_overview_png(dataset, event_payloads, waveform_png)
+    line_plot_path = _save_line_to_line_png(dataset, line_png)
+    csv_export = _write_dataset_csv(
+        dataset,
+        capsule,
+        csv_path,
+        include_full_resolution=include_full_resolution_csv,
+        max_preview_rows=preview_csv_max_rows,
+    )
 
-    # ---- time / channel arrays for the plot ----
-    ts0 = frames[0].get("ts", 0)
-    ts_end = frames[-1].get("ts", ts0)
-    t = [f.get("ts", ts0) - ts0 for f in frames]
-    duration_s = ts_end - ts0
-    acq_rate = len(frames) / duration_s if duration_s > 0 else 0.0
+    metadata_payload = _build_metadata_payload(
+        capsule,
+        summary,
+        profile,
+        normalized_csv=csv_export,
+    )
+    compliance_payload = {
+        "profile": profile,
+        "profile_label": _profile_label(profile),
+        "overall": {
+            "pass": _compliance_summary(checks)[0],
+            "fail": _compliance_summary(checks)[1],
+            "na": _compliance_summary(checks)[2],
+        },
+        "checks": checks,
+    }
+    events_payload = {
+        "count": len(event_payloads),
+        "events": event_payloads,
+    }
 
-    v_an = [f.get("v_an", 0.0) for f in frames]
-    v_bn = [f.get("v_bn", 0.0) for f in frames]
-    v_cn = [f.get("v_cn", 0.0) for f in frames]
-    i_a  = [f.get("i_a", 0.0) for f in frames]
-    i_b  = [f.get("i_b", 0.0) for f in frames]
-    i_c  = [f.get("i_c", 0.0) for f in frames]
-    freq = [f.get("freq", 60.0) for f in frames]
+    _write_json(metadata_json, metadata_payload)
+    _write_json(metrics_json, summary)
+    _write_json(compliance_json, compliance_payload)
+    _write_json(events_json, events_payload)
+    _write_json(capsule_json, _safe_capsule_copy(capsule))
 
-    # ---- waveform plot ----
-    fig = plt.figure(figsize=(12, 8), facecolor="#0f1115")
-    gs = gridspec.GridSpec(3, 1, hspace=0.45, figure=fig)
-
-    ax_v = fig.add_subplot(gs[0])
-    ax_v.plot(t, v_an, color="#f97316", lw=1.0, label="V_an")
-    ax_v.plot(t, v_bn, color="#3b82f6", lw=1.0, label="V_bn")
-    ax_v.plot(t, v_cn, color="#22c55e", lw=1.0, label="V_cn")
-    ax_v.set_title("Three-Phase Voltage", color="#e6e9ef", fontsize=10)
-    for ev in events:
-        if "sag" in ev["type"] or "overshoot" in ev["type"]:
-            ax_v.axvline(ev["t_rel"], color="#ef4444", alpha=0.4, ls="--", lw=0.8)
-
-    ax_i = fig.add_subplot(gs[1])
-    ax_i.plot(t, i_a, color="#f97316", lw=1.0, label="I_a")
-    ax_i.plot(t, i_b, color="#3b82f6", lw=1.0, label="I_b")
-    ax_i.plot(t, i_c, color="#22c55e", lw=1.0, label="I_c")
-    ax_i.set_title("Three-Phase Current", color="#e6e9ef", fontsize=10)
-
-    ax_f = fig.add_subplot(gs[2])
-    ax_f.plot(t, freq, color="#a78bfa", lw=1.2, label="Freq")
-    ax_f.axhline(59.5, color="#ef4444", lw=0.8, ls="--", alpha=0.7)
-    ax_f.axhline(60.5, color="#ef4444", lw=0.8, ls="--", alpha=0.7)
-    ax_f.set_title("Grid Frequency", color="#e6e9ef", fontsize=10)
-
-    for ax, ylabel in ((ax_v, "V"), (ax_i, "A"), (ax_f, "Hz")):
-        ax.set_facecolor("#1a1d24")
-        ax.set_ylabel(ylabel, color="#e6e9ef", fontsize=9)
-        ax.tick_params(colors="#8b95a8", labelsize=8)
-        ax.grid(True, alpha=0.2, color="#2d3748")
-        ax.legend(loc="upper right", fontsize=8, facecolor="#1a1d24", labelcolor="#e6e9ef")
-        for sp in ax.spines.values():
-            sp.set_edgecolor("#2d3748")
-    ax_f.set_xlabel("Time (s)", color="#e6e9ef", fontsize=9)
-
-    fig.patch.set_facecolor("#0f1115")
-    plot_path = output / "waveform_plot.png"
-    plt.savefig(plot_path, dpi=120, bbox_inches="tight", facecolor="#0f1115")
-    plt.close()
-
-    # ---- CSV (per-frame) ----
-    csv_path = output / "session_frames.csv"
-    with open(csv_path, "w") as f:
-        f.write("t_rel,ts,v_an,v_bn,v_cn,i_a,i_b,i_c,freq\n")
-        for idx, fr in enumerate(frames):
-            f.write(",".join(str(x) for x in [
-                t[idx], fr.get("ts", ""), fr.get("v_an", 0.0), fr.get("v_bn", 0.0),
-                fr.get("v_cn", 0.0), fr.get("i_a", 0.0), fr.get("i_b", 0.0),
-                fr.get("i_c", 0.0), fr.get("freq", 0.0),
-            ]) + "\n")
-
-    # ---- JSON artifacts ----
-    capsule_copy = output / "session_capsule.json"
-    with open(capsule_copy, "w") as f:
-        json.dump(data, f, indent=2)
-
-    scorecard_json = output / "compliance_scorecard.json"
-    with open(scorecard_json, "w") as f:
-        json.dump({
-            "profile": profile,
-            "checks": compliance,
-            "overall_passed": all(c["passed"] for c in compliance),
-        }, f, indent=2)
-
-    event_json = output / "event_log.json"
-    with open(event_json, "w") as f:
-        json.dump({"events": events, "count": len(events)}, f, indent=2)
-
-    summary_json = output / "run_summary.json"
-    with open(summary_json, "w") as f:
-        # largest_disturbance may contain np types → cast
-        def _safe(o):
-            try:
-                import numpy as _np
-                if isinstance(o, _np.generic):
-                    return o.item()
-            except Exception:
-                pass
-            return str(o)
-        json.dump(summary, f, indent=2, default=_safe)
-
-    # ---- Optional comparison section ----
     comparison_html = ""
     comparison_csv = None
     if compare_path:
-        comparison_html, comparison_csv = _comparison_section(
-            compare_path, session_path, str(output)
-        )
+        comparison_html, comparison_csv = _build_comparison_section(compare_path, session_path, str(output))
 
-    # ---- HTML ----
-    overall_pass = all(c["passed"] for c in compliance)
-    overall_badge = _pass_badge(overall_pass)
-    src_info = meta.get("source", {})
-    import_info = meta.get("import", {})
-    mapping = import_info.get("column_map", {})
-    warnings = import_info.get("warnings", [])
-
-    src_rows = ""
-    if src_info:
-        src_rows = "".join([
-            f"<tr><td>{k}</td><td><code>{v}</code></td></tr>"
-            for k, v in src_info.items() if v is not None
-        ])
-    if import_info:
-        src_rows += "".join([
-            f"<tr><td>mapping: {k}</td><td><code>{v}</code></td></tr>"
-            for k, v in mapping.items()
-        ])
-
-    warnings_html = ""
-    if warnings:
-        warnings_html = "<ul style='color:#eab308'>" + \
-            "".join([f"<li>{w}</li>" for w in warnings]) + "</ul>"
-
-    profile_label = next(
-        (p["label"] for p in available_profiles() if p["id"] == profile),
-        profile,
+    html = _build_report_html(
+        summary,
+        checks,
+        event_payloads,
+        metadata=metadata_payload,
+        profile=profile,
+        waveform_plot_name=waveform_png.name,
+        line_plot_name=line_png.name if line_plot_path else None,
+        report_title="VSM Evidence Workbench — Evidence Report",
+        section_title="Recorded Session Analysis",
+        compare_html=comparison_html,
     )
-
-    css = """
-      :root { --bg:#0f1115; --surface:#161b24; --border:#1f2b3e; --text:#e6e9ef; --muted:#8b95a8; }
-      * { box-sizing: border-box; margin:0; padding:0; }
-      body { font-family:'Segoe UI',Arial,sans-serif; background:var(--bg); color:var(--text);
-             padding:24px; font-size:14px; line-height:1.6; }
-      h1 { font-size:1.7em; margin-bottom:4px; color:#f8fafc; }
-      h2 { font-size:1.15em; margin:22px 0 8px; color:#cbd5e1;
-           border-bottom:1px solid var(--border); padding-bottom:4px; }
-      h3 { font-size:1em; margin:12px 0 6px; color:#cbd5e1; }
-      .subtitle { color:var(--muted); font-size:0.9em; margin-bottom:16px; }
-      table { width:100%; border-collapse:collapse; margin-bottom:18px; }
-      th { background:#1a2236; color:var(--muted); font-size:0.8em; text-transform:uppercase;
-           letter-spacing:0.05em; padding:8px 10px; text-align:left;
-           border-bottom:2px solid var(--border); }
-      td { padding:8px 10px; border-bottom:1px solid var(--border); vertical-align:top; }
-      tr:last-child td { border-bottom:none; }
-      tr:hover td { background:#1c2333; }
-      img.plot { width:100%; max-width:1100px; border:1px solid var(--border);
-                 border-radius:6px; margin-bottom:18px; }
-      .meta-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(220px, 1fr));
-                   gap:10px; margin-bottom:18px; }
-      .meta-card { background:var(--surface); border:1px solid var(--border); border-radius:6px;
-                   padding:10px 14px; }
-      .meta-card .label { font-size:0.75em; color:var(--muted); text-transform:uppercase;
-                          letter-spacing:0.05em; }
-      .meta-card .value { font-size:1.05em; font-weight:600; color:var(--text); margin-top:2px; }
-      .footer { color:var(--muted); font-size:0.78em; margin-top:24px; padding-top:10px;
-                border-top:1px solid var(--border); }
-      code { background:#1a2236; padding:1px 6px; border-radius:3px; font-size:0.88em; }
-    """
-
-    html = f"""<!DOCTYPE html>
-<html lang='en'>
-<head><meta charset='UTF-8'><title>VSM Evidence Report — {meta.get('session_id','session')}</title>
-<style>{css}</style></head>
-<body>
-  <h1>VSM Evidence Report {overall_badge}</h1>
-  <p class='subtitle'>Local engineering analysis · Profile: <b>{profile_label}</b> · Generated {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}</p>
-
-  <h2>Run Summary</h2>
-  <div class='meta-grid'>
-    <div class='meta-card'><div class='label'>Session</div><div class='value'>{meta.get('session_id','—')}</div></div>
-    <div class='meta-card'><div class='label'>Duration</div><div class='value'>{duration_s:.2f} s</div></div>
-    <div class='meta-card'><div class='label'>Frames</div><div class='value'>{len(frames):,}</div></div>
-    <div class='meta-card'><div class='label'>Sample Rate</div><div class='value'>{acq_rate:.1f} Hz</div></div>
-    <div class='meta-card'><div class='label'>Nominal V_rms</div><div class='value'>{summary.get('nominal_v_estimate',0):.2f} V</div></div>
-    <div class='meta-card'><div class='label'>Nominal Freq</div><div class='value'>{summary.get('nominal_freq_estimate',0):.3f} Hz</div></div>
-    <div class='meta-card'><div class='label'>THD V_an</div><div class='value'>{summary.get('thd_van_pct',0):.2f} %</div></div>
-    <div class='meta-card'><div class='label'>Events detected</div><div class='value'>{summary.get('event_count',0)}</div></div>
-  </div>
-
-  <h2>Source &amp; Provenance</h2>
-  <table>
-    <tr><th>Field</th><th>Value</th></tr>
-    {src_rows or '<tr><td colspan=2 style="color:#6b7280">No import metadata (session not imported via wizard).</td></tr>'}
-  </table>
-  {warnings_html}
-
-  <h2>Waveforms</h2>
-  <img class='plot' src='waveform_plot.png' alt='Three-phase voltage, current, frequency'/>
-
-  <h2>Standards Evidence — {profile_label}</h2>
-  <table>
-    <tr><th>Rule</th><th style='width:70px;text-align:center'>Result</th><th style='width:90px'>Measured</th><th style='width:100px'>Threshold</th><th>Rule text</th><th>Source</th></tr>
-    {_scorecard_rows(compliance)}
-  </table>
-  <p style='color:#94a3b8;font-size:0.85em'>
-    This is an engineering evaluation against a clearly labeled rule set.
-    It is <b>not</b> a certified standards compliance test and should not be cited as one.
-  </p>
-
-  <h2>Auto-Detected Events</h2>
-  <table>
-    <tr><th style='width:80px'>t (s)</th><th style='width:200px'>Type</th><th>Details</th><th style='width:180px'>Meta</th></tr>
-    {_event_rows(events)}
-  </table>
-
-  {comparison_html}
-
-  <div class='footer'>
-    Generated by the VSM Evidence Workbench · Senior Design Deliverable ·
-    Rule profiles are clearly labeled "inspired subset" or "project engineering threshold".
-    Full certification testing remains the province of accredited laboratories.
-  </div>
-</body>
-</html>"""
-
     html_path = output / "evidence_report.html"
     html_path.write_text(html, encoding="utf-8")
 
     result = {
         "html": str(html_path.resolve()),
-        "plot": str(plot_path.resolve()),
-        "csv": str(csv_path.resolve()),
-        "capsule_json": str(capsule_copy.resolve()),
-        "compliance_json": str(scorecard_json.resolve()),
-        "events_json": str(event_json.resolve()),
-        "summary_json": str(summary_json.resolve()),
+        "plot": str(waveform_png.resolve()),
+        "line_plot": str(line_png.resolve()) if line_plot_path else "",
+        "csv": csv_export["path"],
+        "capsule_json": str(capsule_json.resolve()),
+        "metrics_json": str(metrics_json.resolve()),
+        "summary_json": str(metrics_json.resolve()),
+        "compliance_json": str(compliance_json.resolve()),
+        "events_json": str(events_json.resolve()),
+        "metadata_json": str(metadata_json.resolve()),
     }
     if comparison_csv:
-        result["comparison_csv"] = os.path.abspath(comparison_csv)
+        result["comparison_csv"] = comparison_csv
     return result

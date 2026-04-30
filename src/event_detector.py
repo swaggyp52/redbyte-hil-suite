@@ -41,6 +41,7 @@ logger = logging.getLogger(__name__)
 
 _VOLTAGE_PREFIXES = ("v_", "vdc", "v_ab", "v_bc", "v_ca", "v_rms", "voltage")
 _FREQ_NAMES = frozenset({"freq", "frequency", "f_grid", "f_hz", "f"})
+_CURRENT_PREFIXES = ("i_", "current")
 
 # Explicit non-voltage unit suffixes to prevent false positives on CH1(A), time(s), etc.
 _NON_VOLTAGE_UNIT_SUFFIXES = frozenset({
@@ -79,6 +80,10 @@ _DUP_CORR_THRESH = 0.999
 # THD
 _THD_THRESHOLD_PCT = 10.0
 _THD_MIN_SAMPLES   = 100
+
+# Overcurrent
+_OVERCURRENT_MULTIPLIER = 1.20
+_OVERCURRENT_MIN_S = 0.05
 
 DEFAULT_THRESHOLDS: Dict[str, float] = {
     "nominal_v_rms": 120.0,
@@ -154,6 +159,11 @@ def _is_voltage_channel(name: str) -> bool:
 
 def _is_freq_channel(name: str) -> bool:
     return name.lower() in _FREQ_NAMES
+
+
+def _is_current_channel(name: str) -> bool:
+    nl = name.lower()
+    return nl.startswith(_CURRENT_PREFIXES) or "(a)" in nl
 
 
 # ---------------------------------------------------------------------------
@@ -483,6 +493,58 @@ def _detect_thd_spike(
     )]
 
 
+def _detect_overcurrent(
+    channel: str,
+    signal: np.ndarray,
+    time: np.ndarray,
+    sample_rate: float,
+) -> list[DetectedEvent]:
+    if len(signal) < 16:
+        return []
+
+    baseline_n = max(8, int(len(signal) * 0.2))
+    baseline_rms = _rms(signal[:baseline_n])
+    if baseline_rms < 1e-9:
+        return []
+
+    window_n = max(int(_OVERCURRENT_MIN_S * sample_rate), 8)
+    if len(signal) < window_n:
+        return []
+
+    rms_vals = np.array(
+        [_rms(signal[i:i + window_n]) for i in range(0, len(signal) - window_n + 1)]
+    )
+    threshold = baseline_rms * _OVERCURRENT_MULTIPLIER
+    flags = rms_vals > threshold
+    if not np.any(flags):
+        return []
+
+    events: list[DetectedEvent] = []
+    for rs, re in _find_runs(flags):
+        start_i = rs
+        end_i = min(re + window_n - 1, len(signal) - 1)
+        peak_rms = float(np.max(rms_vals[rs:re + 1]))
+        events.append(DetectedEvent(
+            kind="overcurrent",
+            ts_start=float(time[start_i]),
+            ts_end=float(time[end_i]),
+            channel=channel,
+            severity="warning",
+            description=(
+                f"Overcurrent on '{channel}': RMS ≈ {peak_rms:.3f} A "
+                f"(threshold {threshold:.3f} A)"
+            ),
+            metrics={
+                "baseline_rms_a": round(baseline_rms, 6),
+                "threshold_a": round(threshold, 6),
+                "peak_rms_a": round(peak_rms, 6),
+            },
+            confidence=0.85,
+        ))
+
+    return events
+
+
 def _detect_duplicate_channels(dataset: ImportedDataset) -> list[DetectedEvent]:
     """Flag channel pairs with Pearson correlation ≥ 0.999."""
     names = list(dataset.channels.keys())
@@ -564,6 +626,9 @@ def _detect_dataset_events(dataset: ImportedDataset) -> list[DetectedEvent]:
 
         if _is_freq_channel(ch_name):
             events.extend(_detect_freq_excursion(ch_name, signal, time, sr))
+
+        if _is_current_channel(ch_name):
+            events.extend(_detect_overcurrent(ch_name, signal, time, sr))
 
         # Universal detectors
         events.extend(_detect_flatline(ch_name, signal, time, sr))

@@ -1,176 +1,98 @@
-# RedByte GFM HIL Suite
+# VSM Evidence Workbench
 
-Grid-Forming Inverter Hardware-in-the-Loop diagnostics and validation platform.
+Local Python/PyQt6 desktop application for offline recorded-session analysis.
 
----
+## What It Is
 
-## Quick Start
+- local-first recorded-data analysis workbench
+- deterministic post-run waveform and metric review
+- standards-inspired engineering checks
+- evidence package generation for reports, plots, and normalized data
 
-**Windows - double-click to launch:**
-```
-run.bat
-```
+## What It Is Not
 
-`run.bat` creates `.venv` if needed, installs runtime dependencies from
-`requirements.txt`, and starts the app with the repo-local Python.
+- live monitoring product
+- cloud dashboard
+- Blynk application
+- UART streaming deliverable
+- hardware control or formal certification tool
 
-**Full setup/test tooling, also double-clickable:**
-```
-install.cmd
-```
+## Launch
 
-`install.cmd` installs runtime plus dev/test dependencies and attempts to
-install Playwright Chromium for browser UI tests.
-
-**Direct app launchers:**
-```
-bin\start.bat
-bin\demo.bat
-bin\launch_redbyte.bat
-bin\diagnostics.bat
-bin\replay.bat
-```
-
-Each Windows launcher runs the same dependency bootstrap before starting.
-
-**Or from terminal (any OS):**
-```bash
-pip install -r requirements.txt
-python run.py
-```
-
-Run commands from the repository root (`gfm_hil_suite/`).
-If multiple Python installations exist, prefer the repo-local interpreter.
-Windows:
 ```powershell
-.\.venv\Scripts\python.exe run.py
-```
-macOS/Linux:
-```bash
-.venv/bin/python run.py
+.\.venv\Scripts\python.exe -m src.main
 ```
 
-Launches to the Overview page (real-data-first) so you can import a run immediately.
-Demo telemetry remains available and clearly labeled from Overview.
+The app opens to **Overview**. After import, it stays on the dataset overview screen and pre-loads Replay and Compliance in the background.
 
----
+## Supported Inputs
 
-## Launch Options
+- `CSV`
+- `XLSX` / `XLS`
+- `JSON` saved session capsules
 
-| Command | Mode |
-|---|---|
-| `python run.py` | Overview-first launch, windowed |
-| `python run.py --demo` | Demo telemetry mode, windowed |
-| `python run.py --demo --fullscreen` | Demo telemetry mode, fullscreen |
-| `python run.py --live` | Live hardware mode (auto-detect serial port) |
-| `python run.py --live --port COM5` | Live hardware on specific port (e.g. COM5) |
-| `python run.py --no-3d` | Disable 3D (if OpenGL unavailable) |
+Supported datasets include:
 
----
+- three-phase oscilloscope captures
+- simulation exports
+- generic numeric CSV files with a time column
+- generic numeric CSV files without inverter-specific channel names
 
-## Setup (first time)
+## Main Product Workflow
 
-**Windows (one double-click):**
-```
-install.cmd
-```
+1. Import a recorded file from **Overview**.
+2. Review the import preview:
+   raw columns, detected time column, canonical mappings, derived channels, and generic channels.
+3. Use **Overview** to confirm:
+   source file, sample count, sample rate, analysis mode, mapped channels, derived channels, and missing expected channels.
+4. Open **Replay & Analysis** to inspect:
+   phase voltages, line-to-line overlays, current or clean N/A messaging, auxiliary channels, metrics, spectrum, events, and comparison.
+5. Open **Compliance** to run:
+   `project_demo`, `ieee_2800_inspired`, or `ieee_519_thd`.
+6. Export the evidence package.
 
-For normal use, `run.bat` is enough; it bootstraps runtime dependencies on
-first launch. Use `install.cmd` when you also want test and development tools.
+## Generic Data Workflow
 
-**Any OS (terminal):**
-```bash
-pip install -r requirements.txt
-```
+Files that do not map to a full inverter session still import successfully when they contain numeric columns.
 
-For dev/testing (optional):
-```bash
-pip install -r requirements-dev.txt
-```
+The app will:
 
-Requires Python 3.12. See `docs/FRESH_MACHINE_SETUP.md` for detailed steps.
+- use a detected time-like column when present
+- preserve numeric columns for plotting
+- compute basic stats such as min, max, mean, RMS, peak-to-peak, sample count, and time window
+- mark VSM-specific compliance checks as `N/A` with an explicit reason when required channels are missing
 
----
+## Evidence Export
 
-## Capabilities
+Evidence export writes real analysis artifacts under `exports/`, including:
 
-- **Import & analyze** Rigol oscilloscope captures (CSV), simulation output (Excel), or saved sessions (JSON)
-- **Automated event detection** — 8 deterministic detectors: voltage sag/swell, frequency excursion, flatline, step change, clipping, duplicate channels, THD spike
-- **Engineering summary cards** — worst sag depth, max freq deviation, max THD, max flatline duration per session
-- **Jump-to-event replay** — click any detected event to seek the waveform scrubber to that timestamp
-- **Inline annotations** — double-click any event row to add a note
-- **Session comparison** — dual-load overlay with delta traces and per-channel statistics
-- **IEEE 2800 compliance scorecard** — automated ride-through, frequency stability, and recovery checks
-- **Live demo mode** — synthetic 3-phase VSM telemetry for presentations without hardware
+- `evidence_report.html`
+- `waveform_overview.png`
+- `line_to_line_overlay.png`
+- `normalized_frames.csv`
+- `metrics.json`
+- `compliance.json`
+- `events.json`
+- `metadata.json`
+- `session_capsule.json`
 
----
+For very large captures, `normalized_frames.csv` defaults to a preview/downsampled export so the package completes quickly. Metrics and compliance values are still computed from the real imported analysis context.
 
-## Demo Walkthrough
+## Demo-Validated Files
 
-**Import-first (recommended — uses real data):**
-1. App opens on **Overview** — click **Import Run File**
-2. Select a CSV/Excel/JSON file; assign channel mappings in the dialog
-3. **Replay → Waveforms** — scrub the full capture timeline
-4. **Replay → Events** — automated event detection; click any row to jump to that moment
-5. **Replay → Compare** — load a second session for side-by-side comparison
-6. **Compliance** — run IEEE 2800 checks against the imported data
+- `RigolDS0.csv`
+- `RigolDS1.csv`
+- `InverterPower_Simulation.xlsx`
+- `VSGFrequency_Simulation.xlsx`
 
-**Demo mode (no file needed):**
-1. **Overview → Start Demo Session** (labeled [Demo])
-2. **Diagnostics → Inject Voltage Sag** — anomaly appears in insights panel
-3. **Replay → Waveforms** — scrub the recorded fault window
-4. **Compliance → Run Compliance Check**
+## Known Limitations
 
-Full script: `docs/DEMO_WALKTHROUGH.md`
+- Excel simulation files in the current dataset folder expose `Pinv` only, so compliance remains `N/A` without voltage or frequency channels.
+- Current and fault checks remain `N/A` unless the imported dataset actually includes those channels.
+- The default evidence bundle exports a preview CSV for very large captures; full-resolution CSV export can still be added later if needed.
 
----
+## Future Work
 
-## Project Layout
-
-```
-gfm_hil_suite/
-├── run.py              ← entry point
-├── run.bat             ← double-click launcher (Windows)
-├── install.cmd         ← one-click full setup (Windows)
-├── Makefile            ← make install / run / test (Unix/Git Bash)
-├── requirements.txt    ← runtime deps (pip install -r requirements.txt)
-├── requirements-dev.txt← dev/test deps (pytest, openpyxl, black, mypy)
-├── src/                ← backend: signal processing, compliance, recorder, I/O
-│   └── main.py
-├── ui/                 ← PyQt6 shell and widgets
-│   ├── app_shell.py    ← unified window shell
-│   ├── pages/          ← Overview, Diagnostics, Replay, Compliance, Console, Tools
-│   └── style.py        ← global stylesheet
-├── data/
-│   ├── sessions/       ← recorded sessions (auto-created)
-│   └── demo_sessions/  ← bundled demo sessions
-├── exports/            ← HTML reports, CSV exports (auto-created)
-├── docs/               ← reference docs
-└── tests/              ← pytest suite (408 passing)
-```
-
----
-
-## Tests
-
-```bash
-# Run all tests (display server not required)
-pytest tests/ --ignore=tests/test_ui_integration.py -q
-```
-
-408 tests passing across signal processing, file ingestion, channel mapping,
-event detection, session comparison, compliance, and live telemetry subsystems.
-3 tests skipped (require pandas — run `pip install pandas` to enable them).
-
----
-
-## Reference Docs
-
-| Doc | Contents |
-|-----|---------|
-| `docs/PROJECT_OVERVIEW.md` | What this is, capabilities, architecture summary |
-| `docs/architecture.md` | Module layout, data flow diagrams, key invariants |
-| `docs/DEMO_WALKTHROUGH.md` | 10-minute capstone demo script |
-| `docs/INGESTION_PIPELINE.md` | Import pipeline, data format assumptions, adding new hardware |
-| `docs/HARDWARE_INTEGRATION.md` | Serial protocol, firmware requirements, troubleshooting |
-| `docs/FRESH_MACHINE_SETUP.md` | First-time install steps |
+- richer scale-factor and probe-calibration workflow
+- explicit full-resolution CSV export toggle in the UI
+- broader simulation auto-mapping for more power-system file layouts

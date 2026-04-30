@@ -95,8 +95,8 @@ class ComparisonPanel(QWidget):
 
         label_a = session_a.get("label", "Dataset A")
         label_b = session_b.get("label", "Dataset B")
-        self._lbl_a.setText(f"A: {label_a}")
-        self._lbl_b.setText(f"B: {label_b}")
+        self._lbl_a.setText(f"Baseline: {label_a}")
+        self._lbl_b.setText(f"Comparison/Fault: {label_b}")
 
         # Hide empty-state guidance once both sessions are available
         self._empty_hint.setVisible(False)
@@ -201,14 +201,14 @@ class ComparisonPanel(QWidget):
         # ── Splitter: overlay + delta plots ──────────────────────
         splitter = QSplitter(Qt.Orientation.Vertical)
 
-        self._plot_overlay = pg.PlotWidget(title="Overlay (A solid · B dashed)")
+        self._plot_overlay = pg.PlotWidget(title="Overlay (Baseline solid · Comparison dashed)")
         self._plot_overlay.setBackground("#0b0f14")
         self._plot_overlay.showGrid(x=True, y=True, alpha=0.3)
         self._plot_overlay.setLabel("bottom", "Time", units="s")
         self._plot_overlay.addLegend()
         splitter.addWidget(self._plot_overlay)
 
-        self._plot_delta = pg.PlotWidget(title="Delta  (A − B)")
+        self._plot_delta = pg.PlotWidget(title="Delta  (Comparison − Baseline)")
         self._plot_delta.setBackground("#0b0f14")
         self._plot_delta.showGrid(x=True, y=True, alpha=0.3)
         self._plot_delta.setLabel("bottom", "Time", units="s")
@@ -250,12 +250,8 @@ class ComparisonPanel(QWidget):
         if not self._sessions_ready():
             return
         try:
-            ds_a = dataset_from_capsule(
-                self._session_a["data"], self._session_a.get("label", "A")
-            )
-            ds_b = dataset_from_capsule(
-                self._session_b["data"], self._session_b.get("label", "B")
-            )
+            ds_a = self._analysis_dataset(self._session_a)
+            ds_b = self._analysis_dataset(self._session_b)
         except Exception as exc:
             logger.warning("Auto-align: cannot build datasets: %s", exc)
             return
@@ -286,12 +282,8 @@ class ComparisonPanel(QWidget):
         if not self._sessions_ready():
             return
         try:
-            ds_a = dataset_from_capsule(
-                self._session_a["data"], self._session_a.get("label", "A")
-            )
-            ds_b = dataset_from_capsule(
-                self._session_b["data"], self._session_b.get("label", "B")
-            )
+            ds_a = self._analysis_dataset(self._session_a)
+            ds_b = self._analysis_dataset(self._session_b)
         except Exception as exc:
             logger.warning("Compare: cannot build datasets: %s", exc)
             return
@@ -368,6 +360,9 @@ class ComparisonPanel(QWidget):
             )
             if len(t_delta) > 0:
                 self._delta_curve.setData(t_delta, delta)
+                unit = result.channels[first_ch].units or ""
+                self._plot_delta.setTitle(f"Delta  ·  {first_ch}  (Comparison − Baseline)")
+                self._plot_delta.setLabel("left", "Δ", units=unit or None)
 
         # Metrics chips
         for ch, r in result.channels.items():
@@ -391,13 +386,20 @@ class ComparisonPanel(QWidget):
         corr_txt = f"{corr_val:.3f}" if corr_val == corr_val else "N/A"  # NaN check
         rms_txt  = f"{r.rms_error:.4f}" if r.rms_error == r.rms_error else "N/A"
 
+        delta_rms_txt = f"{r.delta_rms:+.4f}" if r.delta_rms == r.delta_rms else "N/A"
+        thd_txt = f"{r.delta_thd_pct:+.3f}%" if r.delta_thd_pct == r.delta_thd_pct else "N/A"
         body = QLabel(
-            f"RMS: {rms_txt}  |  Peak: {r.peak_abs_error:.4f}  |  r={corr_txt}"
+            f"ΔRMS: {delta_rms_txt} {r.units}  |  max|Δ|: {r.peak_abs_error:.4f} {r.units}  |  r={corr_txt}"
         )
         body.setStyleSheet("color: #94a3b8; font-size: 8pt; font-family: 'JetBrains Mono', 'Consolas', monospace;")
+        detail = QLabel(
+            f"Baseline RMS {r.ref_rms:.4f} {r.units}  |  Comparison RMS {r.test_rms:.4f} {r.units}  |  ΔTHD {thd_txt}"
+        )
+        detail.setStyleSheet("color: #64748b; font-size: 8pt;")
 
         v.addWidget(title)
         v.addWidget(body)
+        v.addWidget(detail)
 
         # Remove the trailing stretch before insert
         count = self._metrics_layout.count()
@@ -419,8 +421,8 @@ class ComparisonPanel(QWidget):
         if not self._session_a or not self._session_b:
             return
         try:
-            ds_a = dataset_from_capsule(self._session_a["data"])
-            ds_b = dataset_from_capsule(self._session_b["data"])
+            ds_a = self._analysis_dataset(self._session_a)
+            ds_b = self._analysis_dataset(self._session_b)
         except Exception:
             return
         channels = find_overlapping_channels(ds_a, ds_b)
@@ -431,6 +433,12 @@ class ComparisonPanel(QWidget):
 
     def _selected_channel(self) -> Optional[str]:
         return self._channel_combo.currentData()
+
+    def _analysis_dataset(self, session: dict):
+        dataset = session.get("_dataset")
+        if dataset is not None:
+            return dataset
+        return dataset_from_capsule(session["data"], session.get("label", ""))
 
     def _sessions_ready(self) -> bool:
         return self._session_a is not None and self._session_b is not None

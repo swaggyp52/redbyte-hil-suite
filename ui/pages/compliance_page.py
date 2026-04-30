@@ -5,13 +5,28 @@ import logging
 import webbrowser
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QStackedWidget,
                              QPushButton, QLabel, QFileDialog, QFrame,
-                             QScrollArea)
+                             QScrollArea, QComboBox)
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QColor
 
 from ui.validation_dashboard import ValidationDashboard
 
 logger = logging.getLogger(__name__)
+
+_PROFILE_DESCRIPTIONS = {
+    "project_demo": "Project demo: project-specific voltage, frequency, and THD checks.",
+    "ieee_2800_inspired": "IEEE 2800-inspired: inverter and grid behavior checks for recorded events.",
+    "ieee_519_thd": "IEEE 519-inspired: harmonic distortion and THD reference checks.",
+}
+
+
+def _serializable_capsule(capsule: dict) -> dict:
+    return {
+        "meta": dict(capsule.get("meta", {})),
+        "import_meta": dict(capsule.get("import_meta", {})),
+        "events": list(capsule.get("events", [])),
+        "frames": [dict(frame) for frame in capsule.get("frames", [])],
+    }
 
 
 class CompliancePage(QWidget):
@@ -28,11 +43,14 @@ class CompliancePage(QWidget):
         super().__init__(parent)
         self._session_path = None
         self._session_data = None
+        self._active_profile = "ieee_2800_inspired"
         self._state = "no_session"
         self._last_results: list = []
         self._last_events:  list = []
         self._last_annotations: dict = {}
         self._build(scenario_ctrl)
+        self._ready.set_profile(self._active_profile)
+        self._top_bar.set_profile_description(_PROFILE_DESCRIPTIONS[self._active_profile])
 
     def _build(self, scenario_ctrl):
         root = QVBoxLayout(self)
@@ -85,9 +103,11 @@ class CompliancePage(QWidget):
         # Wire
         self._top_bar.load_clicked.connect(self._on_load)
         self._top_bar.run_clicked.connect(self._on_run_tests)
+        self._top_bar.profile_changed.connect(self._on_profile_changed)
         bottom.html_clicked.connect(self._on_export_html)
         bottom.csv_clicked.connect(self._on_export_csv)
         bottom.events_clicked.connect(self._on_export_events_csv)
+        bottom.bundle_clicked.connect(self._on_export_evidence_package)
 
     # ─────────────────────────────────────────────────────────────
     # Public API
@@ -166,14 +186,14 @@ class CompliancePage(QWidget):
         if not self._session_data:
             return
         try:
-            from src.compliance_checker import evaluate_ieee_2800
-            results = evaluate_ieee_2800(self._session_data)
+            from src.compliance_checker import evaluate_session
+            results = evaluate_session(self._session_data, profile=self._active_profile)
         except Exception as exc:
             logger.error(f"Compliance check failed: {exc}")
             return
 
-        passed = sum(1 for r in results if r.get("passed"))
-        total  = len(results)
+        passed = sum(1 for r in results if r.get("status") == "PASS")
+        total  = sum(1 for r in results if r.get("status") in {"PASS", "FAIL"})
 
         self._scorecard.update_score(passed, total)
         self._scorecard.setVisible(True)
@@ -182,13 +202,18 @@ class CompliancePage(QWidget):
         self.dashboard.set_compliance(results)
         self.dashboard.add_entry({
             "ts":       time.time(),
-            "scenario": "IEEE 2800 Compliance",
-            "passed":   passed == total,
-            "details":  f"{passed}/{total} checks passed",
+            "scenario": f"{self._active_profile} checks",
+            "passed":   total > 0 and passed == total,
+            "details":  f"{passed}/{total} PASS/FAIL checks passed",
             "compliance": results,
         })
         self._stack.setCurrentIndex(2)
         self._state = "results"
+
+    def _on_profile_changed(self, profile_id: str) -> None:
+        self._active_profile = profile_id
+        self._ready.set_profile(profile_id)
+        self._top_bar.set_profile_description(_PROFILE_DESCRIPTIONS.get(profile_id, ""))
 
     def _on_export_html(self):
         if not self._session_data:
@@ -233,6 +258,37 @@ class CompliancePage(QWidget):
             except Exception as exc:
                 logger.error(f"Events CSV export failed: {exc}")
 
+    def _on_export_evidence_package(self):
+        if not self._session_data:
+            return
+        folder = QFileDialog.getExistingDirectory(
+            self, "Select Evidence Export Folder", "exports"
+        )
+        if not folder:
+            return
+        try:
+            from src.report_generator import generate_evidence_package
+            from src.session_analysis import compute_session_metrics
+            temp_path = self._session_path
+            if temp_path is None:
+                import tempfile
+                fd, temp_path = tempfile.mkstemp(suffix=".json", prefix="evidence_session_")
+                os.close(fd)
+                with open(temp_path, "w", encoding="utf-8") as fh:
+                    json.dump(_serializable_capsule(self._session_data), fh, indent=2)
+
+            generate_evidence_package(
+                session_path=temp_path,
+                output_dir=folder,
+                profile=self._active_profile,
+                compliance_results=self._last_results or None,
+                events=self._last_events or None,
+                metrics=compute_session_metrics(self._session_data, events=self._last_events or None),
+                session_data=self._session_data,
+            )
+        except Exception as exc:
+            logger.error(f"Evidence package export failed: {exc}")
+
 
 # ─────────────────────────────────────────────────────────────────
 # Sub-widgets
@@ -259,14 +315,14 @@ class _NoSessionPrompt(QWidget):
         icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(icon)
 
-        title = QLabel("IEEE 2800 Compliance")
+        title = QLabel("Standards-Inspired Validation")
         title.setObjectName("EmptyTitle")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(title)
 
         desc = QLabel(
-            "Load a recorded session to evaluate it against\n"
-            "IEEE 2800-inspired grid-forming inverter compliance checks."
+            "Load a recorded session to evaluate real measured values against\n"
+            "IEEE-inspired ride-through, THD, frequency, and evidence checks."
         )
         desc.setObjectName("EmptyDesc")
         desc.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -313,19 +369,20 @@ class _ReadyToRun(QWidget):
         checks_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(checks_label)
 
-        checks = [
-            "Ride-through 50% voltage sag ≥ 200ms",
-            "Frequency within ±0.5 Hz under load",
-            "Voltage recovery after sag clearance",
-        ]
-        for c in checks:
+        self._checks = []
+        for c in [
+            "Voltage regulation and phase RMS",
+            "THD against IEEE 519-style 5% reference",
+            "Frequency deviation, recovery, and honest N/A handling",
+        ]:
             row = QLabel(f"  ·  {c}")
             row.setObjectName("CheckPreviewItem")
             row.setAlignment(Qt.AlignmentFlag.AlignCenter)
             layout.addWidget(row)
+            self._checks.append(row)
 
         layout.addSpacing(8)
-        btn = QPushButton("Run IEEE Tests")
+        btn = QPushButton("Run Engineering Checks")
         btn.setObjectName("RunTestsBtn")
         btn.clicked.connect(self.run_clicked)
         layout.addWidget(btn, alignment=Qt.AlignmentFlag.AlignCenter)
@@ -334,6 +391,14 @@ class _ReadyToRun(QWidget):
 
     def set_session_name(self, name: str):
         self._title.setText(f"Ready  —  {name}")
+
+    def set_profile(self, profile_id: str):
+        pretty = profile_id.replace("_", " ")
+        if self._checks:
+            self._checks[0].setText(f"  ·  Profile: {pretty}")
+            self._checks[1].setText(
+                f"  ·  {_PROFILE_DESCRIPTIONS.get(profile_id, 'Standards-inspired engineering checks')}"
+            )
 
 
 class _CheckResultCards(QWidget):
@@ -370,12 +435,19 @@ class _CheckResultCards(QWidget):
         layout.setContentsMargins(12, 8, 12, 8)
         layout.setSpacing(4)
 
-        mark = QLabel("✓ PASS" if passed else "✗ FAIL")
+        status_text = result.get("status") or ("PASS" if passed else "FAIL")
+        mark = QLabel(
+            "✓ PASS" if status_text == "PASS"
+            else "✗ FAIL" if status_text == "FAIL"
+            else "• N/A"
+        )
         mark.setObjectName("CheckMark")
-        if passed:
+        if status_text == "PASS":
             mark.setStyleSheet("color: #10b981; font-weight: 700; font-size: 10pt;")
-        else:
+        elif status_text == "FAIL":
             mark.setStyleSheet("color: #ef4444; font-weight: 700; font-size: 10pt;")
+        else:
+            mark.setStyleSheet("color: #f59e0b; font-weight: 700; font-size: 10pt;")
         layout.addWidget(mark)
 
         lbl = QLabel(name)
@@ -383,13 +455,18 @@ class _CheckResultCards(QWidget):
         lbl.setWordWrap(True)
         layout.addWidget(lbl)
 
-        if detail:
-            det = QLabel(detail)
+        measured = result.get("measured")
+        threshold = result.get("threshold")
+        det_text = detail
+        if measured is not None or threshold is not None:
+            det_text = f"Measured: {measured}  ·  Threshold: {threshold}"
+        if det_text:
+            det = QLabel(det_text)
             det.setObjectName("CheckDetail")
             det.setWordWrap(True)
             layout.addWidget(det)
 
-        border_color = "#10b981" if passed else "#ef4444"
+        border_color = "#10b981" if status_text == "PASS" else "#ef4444" if status_text == "FAIL" else "#f59e0b"
         card.setStyleSheet(
             f"#CheckCard {{ border: 1px solid {border_color}; border-radius: 8px;"
             f" background: rgba(15,17,21,200); }}"
@@ -451,6 +528,7 @@ class _ScorecardStrip(QFrame):
 class _ComplianceTopBar(QWidget):
     load_clicked = pyqtSignal()
     run_clicked  = pyqtSignal()
+    profile_changed = pyqtSignal(str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -461,28 +539,41 @@ class _ComplianceTopBar(QWidget):
         layout.setContentsMargins(16, 0, 16, 0)
         layout.setSpacing(8)
 
-        self._lbl = QLabel("Compliance  ·  IEEE 2800 Validation")
+        self._lbl = QLabel("Compliance  ·  Standards-Inspired Validation")
         self._lbl.setObjectName("PageTitle")
         layout.addWidget(self._lbl)
         layout.addStretch()
 
+        self._profile = QComboBox()
+        self._profile.addItems(["ieee_2800_inspired", "ieee_519_thd", "project_demo"])
+        self._profile.setCurrentText("ieee_2800_inspired")
+        self._profile.currentTextChanged.connect(self.profile_changed)
+
         btn_load = QPushButton("Load Session")
         btn_load.clicked.connect(self.load_clicked)
-        btn_run = QPushButton("Run IEEE Tests")
+        btn_run = QPushButton("Run Checks")
         btn_run.setObjectName("RunTestsBtn")
         btn_run.clicked.connect(self.run_clicked)
 
+        layout.addWidget(self._profile)
         layout.addWidget(btn_load)
         layout.addWidget(btn_run)
+        self._desc = QLabel("")
+        self._desc.setStyleSheet("color:#94a3b8; font-size:9pt; padding-left:12px;")
+        layout.addWidget(self._desc)
 
     def set_session(self, name: str, frames: int):
         self._lbl.setText(f"Compliance  ·  {name}  ({frames:,} frames)")
+
+    def set_profile_description(self, text: str) -> None:
+        self._desc.setText(text)
 
 
 class _ExportBar(QWidget):
     html_clicked   = pyqtSignal()
     csv_clicked    = pyqtSignal()
     events_clicked = pyqtSignal()
+    bundle_clicked = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -494,6 +585,9 @@ class _ExportBar(QWidget):
         layout.setSpacing(8)
         layout.addStretch()
 
+        btn_bundle = QPushButton("Evidence Package")
+        btn_bundle.setObjectName("ExportBtn")
+        btn_bundle.clicked.connect(self.bundle_clicked)
         btn_html = QPushButton("Export Report")
         btn_html.setObjectName("ExportBtn")
         btn_html.clicked.connect(self.html_clicked)
@@ -502,6 +596,7 @@ class _ExportBar(QWidget):
         btn_events = QPushButton("Events CSV")
         btn_events.clicked.connect(self.events_clicked)
 
+        layout.addWidget(btn_bundle)
         layout.addWidget(btn_html)
         layout.addWidget(btn_csv)
         layout.addWidget(btn_events)

@@ -214,7 +214,7 @@ def test_active_session_from_live_capsule():
     assert session.source_type == "live"
     assert session.row_count == 20
     assert session.duration > 0
-    assert session.source_type_display == "Live Telemetry"
+    assert session.source_type_display == "Recorded Session"
     assert session.is_imported is False  # no import_meta block
 
 

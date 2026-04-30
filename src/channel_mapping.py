@@ -48,6 +48,9 @@ CANONICAL_SIGNALS: dict[str, dict] = {
     "v_an":   {"label": "V_an — Phase A voltage (V)",   "unit": "V",   "type": "voltage"},
     "v_bn":   {"label": "V_bn — Phase B voltage (V)",   "unit": "V",   "type": "voltage"},
     "v_cn":   {"label": "V_cn — Phase C voltage (V)",   "unit": "V",   "type": "voltage"},
+    "v_ab":   {"label": "V_ab — Line AB voltage (V)",   "unit": "V",   "type": "voltage"},
+    "v_bc":   {"label": "V_bc — Line BC voltage (V)",   "unit": "V",   "type": "voltage"},
+    "v_ca":   {"label": "V_ca — Line CA voltage (V)",   "unit": "V",   "type": "voltage"},
     "i_a":    {"label": "I_a — Phase A current (A)",    "unit": "A",   "type": "current"},
     "i_b":    {"label": "I_b — Phase B current (A)",    "unit": "A",   "type": "current"},
     "i_c":    {"label": "I_c — Phase C current (A)",    "unit": "A",   "type": "current"},
@@ -113,6 +116,12 @@ def auto_suggest_mapping(headers: list[str]) -> dict[str, str]:
             target = "v_bn"
         elif lo in ("v_c", "vc", "vcn", "v_phase_c", "ph_c_v"):
             target = "v_cn"
+        elif lo in ("v_ab", "vab", "vline_ab", "v_ll_ab"):
+            target = "v_ab"
+        elif lo in ("v_bc", "vbc", "vline_bc", "v_ll_bc"):
+            target = "v_bc"
+        elif lo in ("v_ca", "vca", "vline_ca", "v_ll_ca"):
+            target = "v_ca"
 
         # ── Current phase aliases ────────────────────────────────────────────
         elif lo in ("i_a", "ia", "i_an", "il_a", "ph_a_curr", "il1"):
@@ -244,6 +253,7 @@ class ChannelMapper:
         - The applied mapping is recorded in the returned dataset's meta dict
           under ``'applied_mapping'``.
         """
+        from src.derived_channels import derive_dataset_channels
         from src.file_ingestion import ImportedDataset
         import numpy as np
 
@@ -283,7 +293,7 @@ class ChannelMapper:
                 f"their original names: {unmapped_cols}"
             )
 
-        return ImportedDataset(
+        result = ImportedDataset(
             source_type=dataset.source_type,
             source_path=dataset.source_path,
             channels=new_channels,
@@ -294,3 +304,4 @@ class ChannelMapper:
             meta=new_meta,
             raw_headers=list(dataset.raw_headers),
         )
+        return derive_dataset_channels(result)

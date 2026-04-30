@@ -1,5 +1,5 @@
 """
-AppShell — unified application shell for the RedByte GFM HIL Suite.
+AppShell - unified application shell for the VSM Evidence Workbench.
 
 Replaces the MDI-based MainWindow with a left-sidebar + stacked-page layout.
 All backend managers live here; pages receive references to them.
@@ -47,7 +47,7 @@ class AppShell(QMainWindow):
                  enable_3d: bool = True, windowed: bool = False,
                  live_port: str = "", parent=None):
         super().__init__(parent)
-        self.setWindowTitle("RedByte GFM HIL Suite")
+        self.setWindowTitle("VSM Evidence Workbench")
         self.resize(1440, 900)
 
         self._demo_mode = demo_mode
@@ -225,7 +225,7 @@ class AppShell(QMainWindow):
                 f"<b>{os.path.basename(path)}</b> ({ext_display}) cannot be analyzed.\n\n"
                 "Supported data files:\n"
                 "  • <b>CSV</b>  — oscilloscope captures (Rigol DS0/DS1), "
-                "simulation logs, or telemetry exports\n"
+                "simulation logs, or recorded measurement exports\n"
                 "  • <b>XLSX / XLS</b>  — simulation output (Excel)\n"
                 "  • <b>JSON</b>  — saved Data Capsule sessions\n\n"
                 "Firmware, docs, and scripts don't contain waveform data "
@@ -240,13 +240,13 @@ class AppShell(QMainWindow):
         session = ActiveSession.from_capsule(capsule, label=label)
 
         self._set_active_session(session)
-        self._navigate("replay")
+        self._navigate("overview")
         self._replay.load_imported_session(capsule, session)
         self._compliance.load_from_capsule(capsule, session)
         self.session_bar.set_analysis_mode(True)
 
         source = session.source_type_display
-        self.session_bar.set_source(f"Imported: {source}")
+        self.session_bar.set_source(f"Offline Analysis Mode - {source}")
         self._show_toast(f"Imported: {label}", "#10b981")
         logger.info("Imported session '%s' loaded (%s).", label, source)
 
@@ -312,7 +312,7 @@ class AppShell(QMainWindow):
                 self.serial_mgr.start_mock_mode()
 
             self.session_bar.set_mode(mode_label)
-            self.session_bar.set_source(f"Live: {source_label}")
+            self.session_bar.set_source(f"Input: {source_label}")
             self.recorder.start()
             self.session_bar.set_recording(True)
             self._show_toast(f"Recording started — {mode_label}", "#10b981")
@@ -346,7 +346,7 @@ class AppShell(QMainWindow):
             self._replay.load_imported_session(live_capsule, session)
             self._compliance.load_from_capsule(live_capsule, session)
             self.session_bar.set_analysis_mode(True)
-            self.session_bar.set_source("Analysis: Live session")
+            self.session_bar.set_source("Analysis: Recorded session")
             self._show_toast(
                 f"Session recorded ({len(frames)} frames) — loaded for analysis",
                 "#10b981",

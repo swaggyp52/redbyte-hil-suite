@@ -119,7 +119,7 @@ def test_drop_unsupported_file_shows_clear_guidance(qapp, monkeypatch):
     shell.close()
 
 
-def test_supported_import_reaches_replay_with_events_compare_and_export(qapp):
+def test_supported_import_loads_overview_then_replay_with_events_compare_and_export(qapp):
     shell = AppShell(demo_mode=False, mock_mode=False, enable_3d=False, windowed=True)
 
     dataset = ingest_file("data/demo_sessions/session_nominal.json")
@@ -128,7 +128,10 @@ def test_supported_import_reaches_replay_with_events_compare_and_export(qapp):
 
     shell._on_session_imported(capsule)
 
-    assert shell.stack.currentIndex() == _PAGE_INDICES["replay"]
+    assert shell.stack.currentIndex() == _PAGE_INDICES["overview"]
+    assert shell._current_session is not None
+    assert not shell._overview._info_panel.isHidden()
+    assert shell._replay.studio.sessions
 
     tabs = shell._replay.studio.tabs
     tab_names = [tabs.tabText(i) for i in range(tabs.count())]

@@ -100,7 +100,7 @@ class EventTimeline(QFrame):
 
 class ValidationDashboard(QWidget):
     """
-    Live dashboard showing Scenario Validation results.
+    Standards-inspired engineering check dashboard.
     """
     def __init__(self, scenario_controller):
         super().__init__()
@@ -108,7 +108,7 @@ class ValidationDashboard(QWidget):
         self.layout = QVBoxLayout(self)
         
         header = QHBoxLayout()
-        title = QLabel("Validation Scorecard")
+        title = QLabel("Standards-Inspired Engineering Checks")
         title.setStyleSheet("font-size: 12pt; font-weight: 700; color: #22d3ee;")
         header.addWidget(title)
         header.addStretch()
@@ -133,14 +133,22 @@ class ValidationDashboard(QWidget):
         self.table.setColumnWidth(2, 140)  # Waveform thumbnail column
         self.table.setAlternatingRowColors(True)
         self.table.setRowHeight(0, 50)  # Taller rows for thumbnails
-        self.tabs.addTab(self.table, "Scorecard")
+        self.tabs.addTab(self.table, "Run Log")
 
         self.compliance_table = QTableWidget()
-        self.compliance_table.setColumnCount(3)
-        self.compliance_table.setHorizontalHeaderLabels(["Rule", "Result", "Details"])
-        self.compliance_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+        self.compliance_table.setColumnCount(7)
+        self.compliance_table.setHorizontalHeaderLabels(
+            ["Check", "Measured", "Threshold", "Units", "Result", "Standard / Profile", "Notes"]
+        )
+        self.compliance_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        self.compliance_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        self.compliance_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+        self.compliance_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
+        self.compliance_table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
+        self.compliance_table.horizontalHeader().setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)
+        self.compliance_table.horizontalHeader().setSectionResizeMode(6, QHeaderView.ResizeMode.Stretch)
         self.compliance_table.setAlternatingRowColors(True)
-        self.tabs.addTab(self.compliance_table, "Compliance")
+        self.tabs.addTab(self.compliance_table, "Checks")
         
         if hasattr(self.ctrl, 'validation_complete'):
             self.ctrl.validation_complete.connect(self.add_entry)
@@ -195,8 +203,22 @@ class ValidationDashboard(QWidget):
             row = self.compliance_table.rowCount()
             self.compliance_table.insertRow(row)
             self.compliance_table.setItem(row, 0, QTableWidgetItem(item.get("name", "")))
-            passed = item.get("passed", False)
-            status = QTableWidgetItem("PASS" if passed else "FAIL")
-            status.setForeground(QColor("green" if passed else "red"))
-            self.compliance_table.setItem(row, 1, status)
-            self.compliance_table.setItem(row, 2, QTableWidgetItem(item.get("details", "")))
+            measured = item.get("measured")
+            threshold = item.get("threshold")
+            self.compliance_table.setItem(row, 1, QTableWidgetItem(str(measured if measured is not None else "N/A")))
+            self.compliance_table.setItem(row, 2, QTableWidgetItem(str(threshold if threshold is not None else "N/A")))
+            self.compliance_table.setItem(row, 3, QTableWidgetItem(item.get("units", "")))
+
+            status_text = item.get("status") or ("PASS" if item.get("passed") else "FAIL")
+            status = QTableWidgetItem(status_text)
+            if status_text == "PASS":
+                status.setForeground(QColor("green"))
+            elif status_text == "FAIL":
+                status.setForeground(QColor("red"))
+            else:
+                status.setForeground(QColor("#f59e0b"))
+            self.compliance_table.setItem(row, 4, status)
+            self.compliance_table.setItem(row, 5, QTableWidgetItem(item.get("source", "")))
+
+            notes = item.get("notes") or item.get("na_reason") or item.get("details", "")
+            self.compliance_table.setItem(row, 6, QTableWidgetItem(notes))

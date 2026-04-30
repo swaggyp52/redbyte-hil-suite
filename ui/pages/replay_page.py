@@ -362,7 +362,7 @@ class _ReplayTopBar(QWidget):
         layout.setContentsMargins(16, 0, 16, 0)
         layout.setSpacing(8)
 
-        self._lbl = QLabel("Replay Studio  ·  Session Analysis")
+        self._lbl = QLabel("Replay & Analysis  ·  Recorded Session Workspace")
         self._lbl.setObjectName("PageTitle")
         layout.addWidget(self._lbl)
         layout.addStretch()
@@ -390,7 +390,7 @@ class _ReplayTopBar(QWidget):
             b.setToolTip("Load a session first")
 
     def set_loaded(self, name: str):
-        self._lbl.setText(f"Replay  ·  {name}")
+        self._lbl.setText(f"Replay & Analysis  ·  {name}")
         for b in self._export_btns:
             b.setEnabled(True)
             b.setToolTip("")

@@ -19,7 +19,7 @@ _SOURCE_TYPE_LABELS: dict[str, str] = {
     "rigol_csv":          "Rigol CSV",
     "simulation_excel":   "Simulation Excel",
     "data_capsule_json":  "Data Capsule",
-    "live":               "Live Telemetry",
+    "live":               "Recorded Session",
 }
 
 #: Sentinel value used in channel mapping for channels that were NOT renamed.

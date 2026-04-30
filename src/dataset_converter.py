@@ -19,11 +19,13 @@ from __future__ import annotations
 import json
 import logging
 import os
+import time
 from pathlib import Path
 from typing import Optional
 
 import numpy as np
 
+from src.derived_channels import derive_dataset_channels
 from src.file_ingestion import ImportedDataset
 
 logger = logging.getLogger(__name__)
@@ -58,6 +60,7 @@ def dataset_to_session(
     Raises:
         ValueError  if the dataset has no data rows.
     """
+    dataset = derive_dataset_channels(dataset)
     n = len(dataset.time)
     if n == 0:
         raise ValueError("Dataset has no data rows — nothing to convert.")
@@ -113,6 +116,10 @@ def dataset_to_session(
             "duration_s":            round(dataset.duration, 4),
             "original_row_count":    n,
             "decimation_factor":     dec_factor,
+            "time_range_s":          {
+                "start": round(float(dataset.time[0]), 6),
+                "end": round(float(dataset.time[-1]), 6),
+            },
         },
         "frames":   frames,
         "insights": [],
@@ -125,6 +132,10 @@ def dataset_to_session(
             "applied_mapping":       dataset.meta.get("applied_mapping", {}),
             "original_sample_rate":  dataset.sample_rate,
             "original_row_count":    n,
+            "derived_channels":      list(dataset.meta.get("derived_channels", [])),
+            "scale_factors":         dict(dataset.meta.get("scale_factors", {})),
+            "imported_at":           time.time(),
+            "source_hash_sha256":    dataset.meta.get("source_hash_sha256"),
         },
     }
 
@@ -152,8 +163,13 @@ def save_session(capsule: dict, out_dir: str = "data/sessions") -> str:
     os.makedirs(out_dir, exist_ok=True)
     sid = capsule["meta"]["session_id"]
     path = os.path.join(out_dir, f"{sid}.json")
+    serializable = {
+        key: value
+        for key, value in capsule.items()
+        if not key.startswith("_")
+    }
     with open(path, "w") as fh:
-        json.dump(capsule, fh, indent=2)
+        json.dump(serializable, fh, indent=2)
     logger.info("Session saved: %s", path)
     return path
 

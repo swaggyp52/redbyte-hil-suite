@@ -49,7 +49,7 @@ class InverterScope(QWidget):
         self.paused = False
 
     def _init_ui(self):
-        header = QLabel("Inverter Scope — Live Telemetry")
+        header = QLabel("Inverter Scope — Demo / Adapter Preview")
         header.setStyleSheet("font-size: 12pt; font-weight: 700; color: #93c5fd;")
         self.layout.addWidget(header)
 
@@ -65,7 +65,7 @@ class InverterScope(QWidget):
         self.btn_clear = QPushButton("Clear")
         self.btn_clear.clicked.connect(self.clear_data)
         
-        self.lbl_status = QLabel("Status: Live")
+        self.lbl_status = QLabel("Status: Preview active")
         
         control_layout.addWidget(self.btn_pause)
         control_layout.addWidget(self.btn_clear)
@@ -262,7 +262,7 @@ class InverterScope(QWidget):
 
     def _toggle_pause(self, checked):
         self.paused = checked
-        self.lbl_status.setText("Status: Paused" if checked else "Status: Live")
+        self.lbl_status.setText("Status: Preview paused" if checked else "Status: Preview active")
         if checked:
             self.overlay.show_message("Paused", color="#f59e0b", pos=(10, 40))
 

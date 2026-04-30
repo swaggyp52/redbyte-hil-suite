@@ -1,0 +1,145 @@
+{
+  "balance": {
+    "available": true,
+    "max_rms_deviation_v": 0.011409,
+    "mean_phase_rms_v": 1.205869,
+    "percent_voltage_imbalance": 0.946123,
+    "unit": "%"
+  },
+  "current": {
+    "i_a": {
+      "available": false,
+      "reason": "i_a not present",
+      "unit": "A"
+    },
+    "i_b": {
+      "available": false,
+      "reason": "i_b not present",
+      "unit": "A"
+    },
+    "i_c": {
+      "available": false,
+      "reason": "i_c not present",
+      "unit": "A"
+    }
+  },
+  "current_thresholds": {
+    "available": false,
+    "overcurrent_count": 0,
+    "reason": "No phase current channels available",
+    "unit": "A"
+  },
+  "events": {
+    "counts": {
+      "frequency_excursion": 0,
+      "overcurrent": 0,
+      "voltage_sag": 0
+    },
+    "total": 0
+  },
+  "frequency": {
+    "available": true,
+    "excursion_count": 0,
+    "max_deviation_hz": 0.253063,
+    "max_hz": 60.253063,
+    "mean_hz": 60.019908,
+    "min_hz": 59.839928,
+    "source": "estimated_from_v_an",
+    "unit": "Hz"
+  },
+  "generic_numeric": {},
+  "line_voltage": {
+    "v_ab": {
+      "available": true,
+      "rms": 2.076161,
+      "sample_count": 1000000,
+      "unit": "V"
+    },
+    "v_bc": {
+      "available": true,
+      "rms": 2.087395,
+      "sample_count": 1000000,
+      "unit": "V"
+    },
+    "v_ca": {
+      "available": true,
+      "rms": 2.07116,
+      "sample_count": 1000000,
+      "unit": "V"
+    }
+  },
+  "phase_voltage": {
+    "v_an": {
+      "available": true,
+      "rms": 1.202544,
+      "sample_count": 1000000,
+      "thd_pct": 1.002666,
+      "unit": "V"
+    },
+    "v_bn": {
+      "available": true,
+      "rms": 1.217278,
+      "sample_count": 1000000,
+      "thd_pct": 1.073067,
+      "unit": "V"
+    },
+    "v_cn": {
+      "available": true,
+      "rms": 1.197785,
+      "sample_count": 1000000,
+      "thd_pct": 1.026727,
+      "unit": "V"
+    }
+  },
+  "session": {
+    "analysis_mode": "vsm",
+    "analysis_mode_label": "VSM/GFM analysis mode",
+    "app_version": "1.0.0",
+    "available_canonical_channels": [
+      "v_ab",
+      "v_an",
+      "v_bc",
+      "v_bn",
+      "v_ca",
+      "v_cn"
+    ],
+    "derived_channels": [
+      "v_ab",
+      "v_bc",
+      "v_ca"
+    ],
+    "detected_time_column": "Time(s)",
+    "file_type": "rigol_csv",
+    "generic_numeric_channels": [],
+    "mapped_channels": [
+      "v_an",
+      "v_bn",
+      "v_cn"
+    ],
+    "missing_expected_channels": [
+      "freq",
+      "i_a",
+      "i_b",
+      "i_c",
+      "p_mech",
+      "status"
+    ],
+    "raw_source_columns": [
+      "Time(s)",
+      "CH1(V)",
+      "CH2(V)",
+      "CH3(V)"
+    ],
+    "sample_count": 1000000,
+    "sample_interval_s": 1e-07,
+    "sample_rate_hz": 10000000.0,
+    "scale_factors": {},
+    "session_id": "RigolDS0",
+    "source_hash_sha256": "6b1acd3bc691dbc3934b1e20f3ef3120b417c7d291004fa281ae6084ba8727eb",
+    "source_name": "RigolDS0.csv",
+    "source_path": "C:\\Users\\Administrator\\OneDrive - Gannon University\\Spring 2026\\Senior Design\\RigolDS0.csv",
+    "time_end_s": 0.1,
+    "time_start_s": 0.0,
+    "time_window_s": 0.1
+  }
+}

@@ -1,0 +1,138 @@
+{
+  "checks": [
+    {
+      "details": "Measured voltage regulation = 0.0100 p.u. (mean RMS 1.20 V).",
+      "measured": 0.010038,
+      "na_reason": null,
+      "name": "Voltage regulation",
+      "notes": "Reference presentation threshold: 1.0 \u00b1 0.025 p.u.",
+      "passed": false,
+      "rule": "mean phase RMS / 120.0 V within [0.975, 1.025]",
+      "source": "IEEE 2800-2022 (inspired subset)",
+      "status": "FAIL",
+      "threshold": [
+        0.975,
+        1.025
+      ],
+      "units": "p.u.",
+      "window": null
+    },
+    {
+      "details": "Minimum three-phase averaged voltage = 0.85 V (at t = 0.000 s). Threshold = 60.00 V. FAIL \u2014 voltage collapsed below the ride-through threshold.",
+      "measured": 0.847,
+      "na_reason": null,
+      "name": "Ride-through \u2014 Minimum 3\u03c6 Voltage",
+      "notes": "",
+      "passed": false,
+      "rule": "min(3\u03c6 avg voltage) \u2265 50% \u00d7 V_nominal (120.0 V)",
+      "source": "IEEE 2800-2022 (inspired subset)",
+      "status": "FAIL",
+      "threshold": 60.0,
+      "units": "V",
+      "window": {
+        "end_s": 0.1,
+        "start_s": 0.0
+      }
+    },
+    {
+      "details": "Observed frequency range [59.9332, 60.2023] Hz.",
+      "measured": [
+        59.933175,
+        60.20234
+      ],
+      "na_reason": null,
+      "name": "Frequency deviation",
+      "notes": "Source: estimated_from_v_an",
+      "passed": true,
+      "rule": "frequency must remain within [59.500, 60.500] Hz",
+      "source": "IEEE 2800-2022 (inspired subset)",
+      "status": "PASS",
+      "threshold": [
+        59.5,
+        60.5
+      ],
+      "units": "Hz",
+      "window": null
+    },
+    {
+      "details": "Worst-window minimum = 0.85 V at t = 0.000 s. Threshold = 72.00 V. FAIL \u2014 sustained under-voltage observed.",
+      "measured": 0.847,
+      "na_reason": null,
+      "name": "Recovery \u2014 No Sustained Under-voltage",
+      "notes": "",
+      "passed": false,
+      "rule": "no 1.00 s sliding window has 3\u03c6 avg below 60% \u00d7 V_nominal",
+      "source": "IEEE 2800-2022 (inspired subset)",
+      "status": "FAIL",
+      "threshold": 72.0,
+      "units": "V",
+      "window": {
+        "end_s": 1.0,
+        "start_s": 0.0
+      }
+    },
+    {
+      "details": "Worst measured phase THD = 1.813% on v_an.",
+      "measured": 1.813292,
+      "na_reason": null,
+      "name": "THD",
+      "notes": "IEEE 519-2014 inspired reference limit",
+      "passed": true,
+      "rule": "worst phase THD \u2264 5.0%",
+      "source": "IEEE 2800-2022 (inspired subset)",
+      "status": "PASS",
+      "threshold": 5.0,
+      "units": "%",
+      "window": null
+    },
+    {
+      "details": "Voltage imbalance = 1.109% (max RMS deviation 0.013 V).",
+      "measured": 1.108638,
+      "na_reason": null,
+      "name": "Phase Imbalance",
+      "notes": "",
+      "passed": true,
+      "rule": "max RMS deviation / mean \u2264 5.0%",
+      "source": "IEEE 2800-2022 (inspired subset)",
+      "status": "PASS",
+      "threshold": 5.0,
+      "units": "%",
+      "window": null
+    },
+    {
+      "details": "N/A \u2014 No phase current channels available",
+      "measured": null,
+      "na_reason": "No phase current channels available",
+      "name": "Overcurrent",
+      "notes": "Project engineering threshold derived from baseline current",
+      "passed": null,
+      "rule": "max phase current RMS must remain below the project overcurrent threshold",
+      "source": "IEEE 2800-2022 (inspired subset)",
+      "status": "N/A",
+      "threshold": null,
+      "units": "A",
+      "window": null
+    },
+    {
+      "details": "N/A \u2014 No fault/status channel in dataset",
+      "measured": null,
+      "na_reason": "No fault/status channel in dataset",
+      "name": "Fault ride-through",
+      "notes": "",
+      "passed": null,
+      "rule": "requires explicit fault/status channel to identify fault windows",
+      "source": "IEEE 2800-2022 (inspired subset)",
+      "status": "N/A",
+      "threshold": null,
+      "units": "V",
+      "window": null
+    }
+  ],
+  "overall": {
+    "fail": 3,
+    "na": 2,
+    "pass": 3
+  },
+  "profile": "ieee_2800_inspired",
+  "profile_label": "IEEE 2800-2022 Inspired Subset"
+}

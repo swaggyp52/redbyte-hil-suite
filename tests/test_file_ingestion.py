@@ -182,6 +182,29 @@ def test_rigol_csv_no_fabricated_canonical_channels():
         os.unlink(path)
 
 
+def test_generic_numeric_csv_ingests_without_vsm_channel_names(tmp_path):
+    path = tmp_path / "generic.csv"
+    path.write_text(
+        "\n".join(
+            [
+                "time,signal_a,signal_b",
+                "0.00,0.0,1.0",
+                "0.01,0.1,0.9",
+                "0.02,0.2,0.8",
+                "0.03,0.3,0.7",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    ds = ingest_file(str(path))
+
+    assert ds.row_count == 4
+    assert ds.meta.get("time_column") == "time"
+    assert set(ds.channel_names) == {"signal_a", "signal_b"}
+    assert abs(ds.time[-1] - 0.03) < 1e-9
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Simulation Excel tests
 # ──────────────────────────────────────────────────────────────────────────────

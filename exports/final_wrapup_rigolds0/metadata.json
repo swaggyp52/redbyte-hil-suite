@@ -1,0 +1,43 @@
+{
+  "app_version": "1.0.0",
+  "compliance_profile": "ieee_2800_inspired",
+  "derived_channels": [
+    "v_ab",
+    "v_bc",
+    "v_ca"
+  ],
+  "git_commit": "8822bbeb41248a8d433b83ded4277cf2c3170251",
+  "import_timestamp": 1777582618.0348873,
+  "mapped_channels": [
+    "v_an",
+    "v_bn",
+    "v_cn"
+  ],
+  "meta_channels": [
+    "v_ab",
+    "v_an",
+    "v_bc",
+    "v_bn",
+    "v_ca",
+    "v_cn"
+  ],
+  "normalized_csv": {
+    "mode": "preview_downsampled",
+    "note": "Preview CSV downsampled to 50,000 rows for package size; metrics computed on full-resolution data.",
+    "path": "C:\\Users\\angiel001\\redbyte-hil-suite\\exports\\final_wrapup_rigolds0\\normalized_frames.csv",
+    "rows_written": 50000,
+    "source_rows": 1000000
+  },
+  "sample_count": 1000000,
+  "sample_rate_hz": 10000000.0,
+  "scale_factors": {},
+  "session_id": "RigolDS0",
+  "source_file_name": "RigolDS0.csv",
+  "source_file_path": "C:\\Users\\Administrator\\OneDrive - Gannon University\\Spring 2026\\Senior Design\\RigolDS0.csv",
+  "source_hash_sha256": "6b1acd3bc691dbc3934b1e20f3ef3120b417c7d291004fa281ae6084ba8727eb",
+  "time_range_s": {
+    "end": 0.1,
+    "start": 0.0,
+    "window": 0.1
+  }
+}

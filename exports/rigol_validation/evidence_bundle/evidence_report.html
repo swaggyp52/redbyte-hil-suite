@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>VSM Evidence Workbench — Evidence Report — RigolDS0</title>
+  <style>
+    :root {
+      --bg:#0f1115; --surface:#161b24; --surface-2:#1b2230; --border:#243244;
+      --text:#e6e9ef; --muted:#94a3b8; --accent:#38bdf8;
+    }
+    * { box-sizing:border-box; }
+    body {
+      margin:0; padding:24px; background:var(--bg); color:var(--text);
+      font-family:'Segoe UI',Arial,sans-serif; line-height:1.55; font-size:14px;
+    }
+    h1 { margin:0 0 6px; font-size:26px; }
+    h2 { margin:24px 0 10px; font-size:18px; color:#dbeafe; }
+    p { margin:6px 0 0; }
+    .subtitle { color:var(--muted); margin-bottom:14px; }
+    .hero {
+      display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+      gap:12px; margin:18px 0 10px;
+    }
+    .card, .callout {
+      background:linear-gradient(180deg, rgba(29,39,54,.98), rgba(21,27,36,.98));
+      border:1px solid var(--border); border-radius:10px; padding:12px 14px;
+    }
+    .label { color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.06em; }
+    .value { font-size:20px; font-weight:700; margin-top:4px; }
+    table {
+      width:100%; border-collapse:collapse; background:var(--surface);
+      border:1px solid var(--border); border-radius:10px; overflow:hidden;
+    }
+    th {
+      text-align:left; background:var(--surface-2); color:var(--muted);
+      font-size:12px; text-transform:uppercase; letter-spacing:.05em; padding:10px;
+    }
+    td { padding:10px; border-top:1px solid var(--border); vertical-align:top; }
+    img.plot {
+      width:100%; border:1px solid var(--border); border-radius:10px; margin-top:8px;
+      background:#111827;
+    }
+    .muted { color:var(--muted); }
+    code {
+      background:#172132; border:1px solid var(--border); border-radius:6px;
+      padding:2px 6px; color:#cbd5e1;
+    }
+    .footer {
+      margin-top:28px; padding-top:14px; border-top:1px solid var(--border);
+      color:var(--muted); font-size:12px;
+    }
+    </style>
+</head>
+<body>
+  <h1>VSM Evidence Workbench — Evidence Report</h1>
+  <p class="subtitle">Offline recorded-session analysis · Standards-inspired engineering checks · IEEE 2800-2022 Inspired Subset</p>
+
+  <h2>Recorded Session Analysis</h2>
+  <div class="hero">
+    <div class="card"><div class="label">Source File</div><div class="value">RigolDS0.csv</div></div>
+    <div class="card"><div class="label">Samples</div><div class="value">4,000</div></div>
+    <div class="card"><div class="label">Sample Rate</div><div class="value">40000.00 Hz</div></div>
+    <div class="card"><div class="label">Time Window</div><div class="value">0.1000 s</div></div>
+    <div class="card"><div class="label">Overall Check Status</div><div class="value">FAIL</div></div>
+    <div class="card"><div class="label">Compliance Totals</div><div class="value">3 PASS / 3 FAIL / 2 N/A</div></div>
+  </div>
+
+  <h2>Waveform Overview</h2>
+  <img class="plot" src="waveform_overview.png" alt="Waveform overview"/>
+
+  <h2>Line-to-Line Overlay</h2>
+  <img class='plot' src='line_to_line_overlay.png' alt='Line-to-line overlay'/>
+
+  <h2>Metrics Summary</h2>
+  <table>
+    <tr><th>Section</th><th>Metric</th><th>Measured Value</th><th>Units</th><th>Notes</th></tr>
+    <tr><td>Phase Voltage</td><td>v_an RMS</td><td>1.197</td><td>V</td><td>THD 1.813 %</td></tr><tr><td>Phase Voltage</td><td>v_bn RMS</td><td>1.218</td><td>V</td><td>THD 1.168 %</td></tr><tr><td>Phase Voltage</td><td>v_cn RMS</td><td>1.198</td><td>V</td><td>THD 1.233 %</td></tr><tr><td>Line Voltage</td><td>v_ab RMS</td><td>2.076</td><td>V</td><td></td></tr><tr><td>Line Voltage</td><td>v_bc RMS</td><td>2.086</td><td>V</td><td></td></tr><tr><td>Line Voltage</td><td>v_ca RMS</td><td>2.066</td><td>V</td><td></td></tr><tr><td>Frequency</td><td>Mean</td><td>60.0586</td><td>Hz</td><td>estimated_from_v_an</td></tr><tr><td>Frequency</td><td>Min / Max</td><td>59.9332 / 60.2023</td><td>Hz</td><td>Deviation vs 60 Hz: 0.2023 Hz</td></tr><tr><td>Balance</td><td>Voltage imbalance</td><td>1.109</td><td>%</td><td>Max RMS deviation: 0.013 V</td></tr><tr><td>Events</td><td>Voltage sag count</td><td>0</td><td>events</td><td></td></tr><tr><td>Events</td><td>Frequency excursion count</td><td>0</td><td>events</td><td></td></tr><tr><td>Events</td><td>Overcurrent count</td><td>N/A</td><td>events</td><td>No phase current channels available</td></tr>
+  </table>
+
+  <h2>Standards-Inspired Engineering Checks</h2>
+  <table>
+    <tr><th>Check</th><th>Measured</th><th>Threshold</th><th>Units</th><th>Result</th><th>Standard / Profile Reference</th><th>Notes</th></tr>
+    <tr><td>Voltage regulation</td><td>0.0100</td><td>[0.975, 1.025]</td><td>p.u.</td><td><span style='background:#ef4444; color:#fff; padding:2px 10px; border-radius:999px; font-weight:700; font-size:12px;'>FAIL</span></td><td>IEEE 2800-2022 (inspired subset)</td><td>Reference presentation threshold: 1.0 ± 0.025 p.u.</td></tr><tr><td>Ride-through — Minimum 3φ Voltage</td><td>0.8470</td><td>60.0000</td><td>V</td><td><span style='background:#ef4444; color:#fff; padding:2px 10px; border-radius:999px; font-weight:700; font-size:12px;'>FAIL</span></td><td>IEEE 2800-2022 (inspired subset)</td><td>Minimum three-phase averaged voltage = 0.85 V (at t = 0.000 s). Threshold = 60.00 V. FAIL — voltage collapsed below the ride-through threshold.</td></tr><tr><td>Frequency deviation</td><td>[59.933175, 60.20234]</td><td>[59.5, 60.5]</td><td>Hz</td><td><span style='background:#10b981; color:#fff; padding:2px 10px; border-radius:999px; font-weight:700; font-size:12px;'>PASS</span></td><td>IEEE 2800-2022 (inspired subset)</td><td>Source: estimated_from_v_an</td></tr><tr><td>Recovery — No Sustained Under-voltage</td><td>0.8470</td><td>72.0000</td><td>V</td><td><span style='background:#ef4444; color:#fff; padding:2px 10px; border-radius:999px; font-weight:700; font-size:12px;'>FAIL</span></td><td>IEEE 2800-2022 (inspired subset)</td><td>Worst-window minimum = 0.85 V at t = 0.000 s. Threshold = 72.00 V. FAIL — sustained under-voltage observed.</td></tr><tr><td>THD</td><td>1.8133</td><td>5.0000</td><td>%</td><td><span style='background:#10b981; color:#fff; padding:2px 10px; border-radius:999px; font-weight:700; font-size:12px;'>PASS</span></td><td>IEEE 2800-2022 (inspired subset)</td><td>IEEE 519-2014 inspired reference limit</td></tr><tr><td>Phase Imbalance</td><td>1.1086</td><td>5.0000</td><td>%</td><td><span style='background:#10b981; color:#fff; padding:2px 10px; border-radius:999px; font-weight:700; font-size:12px;'>PASS</span></td><td>IEEE 2800-2022 (inspired subset)</td><td>Voltage imbalance = 1.109% (max RMS deviation 0.013 V).</td></tr><tr><td>Overcurrent</td><td>N/A</td><td>N/A</td><td>A</td><td><span style='background:#f59e0b; color:#fff; padding:2px 10px; border-radius:999px; font-weight:700; font-size:12px;'>N/A</span></td><td>IEEE 2800-2022 (inspired subset)</td><td>Project engineering threshold derived from baseline current</td></tr><tr><td>Fault ride-through</td><td>N/A</td><td>N/A</td><td>V</td><td><span style='background:#f59e0b; color:#fff; padding:2px 10px; border-radius:999px; font-weight:700; font-size:12px;'>N/A</span></td><td>IEEE 2800-2022 (inspired subset)</td><td>No fault/status channel in dataset</td></tr>
+  </table>
+
+  <h2>Detected Events</h2>
+  <table>
+    <tr><th>Event</th><th>Start (s)</th><th>Duration (s)</th><th>Channel</th><th>Severity</th><th>Description</th></tr>
+    <tr><td colspan="6">No events detected.</td></tr>
+  </table>
+
+  
+
+  <h2>Provenance</h2>
+  <table>
+    <tr><th>Field</th><th>Value</th></tr>
+    <tr><td>Source path</td><td><code>C:\Users\Administrator\OneDrive - Gannon University\Spring 2026\Senior Design\RigolDS0.csv</code></td></tr>
+    <tr><td>Source SHA-256</td><td><code>N/A</code></td></tr>
+    <tr><td>Mapped channels</td><td><code>v_an, v_bn, v_cn</code></td></tr>
+    <tr><td>Derived channels</td><td><code>v_ab, v_bc, v_ca</code></td></tr>
+    <tr><td>Scale factors</td><td><code>{}</code></td></tr>
+    <tr><td>Compliance profile</td><td><code>ieee_2800_inspired</code></td></tr>
+    <tr><td>App version</td><td><code>1.0.0</code></td></tr>
+    <tr><td>Git commit</td><td><code>8822bbeb41248a8d433b83ded4277cf2c3170251</code></td></tr>
+  </table>
+
+  <div class="footer">
+    Generated by VSM Evidence Workbench. This report documents deterministic,
+    offline engineering analysis of recorded data. It is not a certification statement.
+  </div>
+</body>
+</html>
