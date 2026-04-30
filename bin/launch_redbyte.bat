@@ -9,11 +9,19 @@ echo.
 
 cd /d "%~dp0.."
 
-python src\redbyte_launcher.py
+call scripts\bootstrap.cmd
+if errorlevel 1 (
+    echo.
+    echo [ERROR] Startup setup failed.
+    pause
+    exit /b 1
+)
+
+"%REDBYTE_PYTHON%" src\redbyte_launcher.py %*
 
 if errorlevel 1 (
     echo.
     echo [ERROR] Failed to launch VSM Evidence Workbench
-    echo Check that Python and PyQt6 are installed
+    echo Check the setup output above for details
     pause
 )

@@ -6,15 +6,32 @@ Grid-Forming Inverter Hardware-in-the-Loop diagnostics and validation platform.
 
 ## Quick Start
 
-**Windows — double-click to install everything:**
+**Windows - double-click to launch:**
+```
+run.bat
+```
+
+`run.bat` creates `.venv` if needed, installs runtime dependencies from
+`requirements.txt`, and starts the app with the repo-local Python.
+
+**Full setup/test tooling, also double-clickable:**
 ```
 install.cmd
 ```
 
-**Then launch:**
+`install.cmd` installs runtime plus dev/test dependencies and attempts to
+install Playwright Chromium for browser UI tests.
+
+**Direct app launchers:**
 ```
-run.bat
+bin\start.bat
+bin\demo.bat
+bin\launch_redbyte.bat
+bin\diagnostics.bat
+bin\replay.bat
 ```
+
+Each Windows launcher runs the same dependency bootstrap before starting.
 
 **Or from terminal (any OS):**
 ```bash
@@ -57,6 +74,9 @@ Demo telemetry remains available and clearly labeled from Overview.
 ```
 install.cmd
 ```
+
+For normal use, `run.bat` is enough; it bootstraps runtime dependencies on
+first launch. Use `install.cmd` when you also want test and development tools.
 
 **Any OS (terminal):**
 ```bash
