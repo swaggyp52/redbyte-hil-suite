@@ -108,6 +108,7 @@ class CompliancePage(QWidget):
         bottom.csv_clicked.connect(self._on_export_csv)
         bottom.events_clicked.connect(self._on_export_events_csv)
         bottom.bundle_clicked.connect(self._on_export_evidence_package)
+        bottom.quick_export_clicked.connect(self._on_quick_export)
 
     # ─────────────────────────────────────────────────────────────
     # Public API
@@ -192,10 +193,11 @@ class CompliancePage(QWidget):
             logger.error(f"Compliance check failed: {exc}")
             return
 
-        passed = sum(1 for r in results if r.get("status") == "PASS")
-        total  = sum(1 for r in results if r.get("status") in {"PASS", "FAIL"})
+        passed   = sum(1 for r in results if r.get("status") == "PASS")
+        total    = sum(1 for r in results if r.get("status") in {"PASS", "FAIL"})
+        na_count = sum(1 for r in results if r.get("status") == "N/A")
 
-        self._scorecard.update_score(passed, total)
+        self._scorecard.update_score(passed, total, na_count=na_count)
         self._scorecard.setVisible(True)
         self._check_cards.set_results(results)
         self._last_results = results
@@ -257,6 +259,36 @@ class CompliancePage(QWidget):
                 export_events_csv(self._last_events, self._last_annotations, path)
             except Exception as exc:
                 logger.error(f"Events CSV export failed: {exc}")
+
+    def _on_quick_export(self):
+        """Write evidence package to artifacts/evidence_exports/ without a file dialog."""
+        if not self._session_data:
+            return
+        try:
+            from src.session_exporter import quick_export
+            result = quick_export(
+                self._session_data,
+                events=self._last_events or [],
+                compliance_results=self._last_results or None,
+                base_dir="artifacts/evidence_exports",
+            )
+            export_dir = result["export_dir"]
+            artifact_lines = "\n".join(
+                f"  {a['name']}: {a['size_bytes']:,} bytes"
+                for a in result["artifacts"]
+            )
+            from PyQt6.QtWidgets import QMessageBox
+            msg = QMessageBox(self)
+            msg.setWindowTitle("Quick Export Complete")
+            msg.setText(
+                f"Evidence package exported to:\n{export_dir}\n\n"
+                f"Artifacts ({len(result['artifacts'])}):\n{artifact_lines}\n\n"
+                f"Total: {result['total_bytes']:,} bytes"
+            )
+            msg.setIcon(QMessageBox.Icon.Information)
+            msg.exec()
+        except Exception as exc:
+            logger.error(f"Quick export failed: {exc}")
 
     def _on_export_evidence_package(self):
         if not self._session_data:
@@ -499,17 +531,21 @@ class _ScorecardStrip(QFrame):
         self._pct.setObjectName("ScorecardPct")
         layout.addWidget(self._pct)
 
-    def update_score(self, passed: int, total: int):
+    def update_score(self, passed: int, total: int, na_count: int = 0):
         pct = int(100 * passed / total) if total else 0
-        if passed == total:
+        na_note = f"  ·  {na_count} N/A" if na_count else ""
+        if total == 0:
+            color, icon = "#64748b", "–"
+            msg = f"No applicable checks{na_note}"
+        elif passed == total:
             color, icon = "#10b981", "✓"
-            msg = f"All {total} checks passed"
+            msg = f"Applicable checks: {total}/{total} PASS{na_note}"
         elif passed == 0:
             color, icon = "#ef4444", "✗"
-            msg = f"0 of {total} checks passed"
+            msg = f"0 of {total} applicable checks passed{na_note}"
         else:
             color, icon = "#f59e0b", "⚠"
-            msg = f"{passed} of {total} checks passed"
+            msg = f"{passed} of {total} applicable checks passed{na_note}"
 
         self._icon.setText(icon)
         self._icon.setStyleSheet(f"color: {color}; font-size: 16pt; font-weight: 700;")
@@ -574,6 +610,7 @@ class _ExportBar(QWidget):
     csv_clicked    = pyqtSignal()
     events_clicked = pyqtSignal()
     bundle_clicked = pyqtSignal()
+    quick_export_clicked = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -585,6 +622,10 @@ class _ExportBar(QWidget):
         layout.setSpacing(8)
         layout.addStretch()
 
+        btn_quick = QPushButton("⚡ Quick Export")
+        btn_quick.setObjectName("ExportBtn")
+        btn_quick.setToolTip("Export evidence package to artifacts/evidence_exports/ (no dialog)")
+        btn_quick.clicked.connect(self.quick_export_clicked)
         btn_bundle = QPushButton("Evidence Package")
         btn_bundle.setObjectName("ExportBtn")
         btn_bundle.clicked.connect(self.bundle_clicked)
@@ -596,6 +637,7 @@ class _ExportBar(QWidget):
         btn_events = QPushButton("Events CSV")
         btn_events.clicked.connect(self.events_clicked)
 
+        layout.addWidget(btn_quick)
         layout.addWidget(btn_bundle)
         layout.addWidget(btn_html)
         layout.addWidget(btn_csv)

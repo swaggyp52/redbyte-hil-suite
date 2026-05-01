@@ -378,16 +378,20 @@ def generate_html_report(
 
     # ── Compliance section ───────────────────────────────────────────────────
     if compliance_results is not None:
-        passed = sum(1 for r in compliance_results if r.get("passed"))
-        total  = len(compliance_results)
-        pct    = int(100 * passed / total) if total else 0
-        grade_color = "#10b981" if passed == total else (
+        passed     = sum(1 for r in compliance_results if r.get("status") == "PASS")
+        applicable = sum(1 for r in compliance_results if r.get("status") in {"PASS", "FAIL"})
+        na_count   = sum(1 for r in compliance_results if r.get("status") == "N/A")
+        total      = len(compliance_results)
+        pct        = int(100 * passed / applicable) if applicable else 0
+        na_note    = f" · {na_count} N/A" if na_count else ""
+        grade_color = "#10b981" if passed == applicable and applicable > 0 else (
             "#f59e0b" if passed > 0 else "#ef4444"
         )
         rows_parts = []
         for r in compliance_results:
-            r_color  = "#10b981" if r['passed'] else "#ef4444"
-            r_result = "PASS" if r['passed'] else "FAIL"
+            status = r.get('status') or ('PASS' if r.get('passed') else 'FAIL')
+            r_color  = {"PASS": "#10b981", "FAIL": "#ef4444", "N/A": "#64748b"}.get(status, "#64748b")
+            r_result = status
             rows_parts.append(
                 f"<tr>"
                 f"<td>{r['name']}</td>"
@@ -397,9 +401,9 @@ def generate_html_report(
             )
         rows = "".join(rows_parts)
         compliance_html = f"""
-<h2>IEEE 2800 Compliance</h2>
+<h2>Standards-Inspired Engineering Checks</h2>
 <p style='font-size:16px;color:{grade_color};font-weight:700;'>
-  {passed}/{total} checks passed &nbsp; ({pct}%)
+  {passed}/{applicable} applicable checks passed &nbsp; ({pct}%){na_note}
 </p>
 <table>
   <tr><th>Rule</th><th>Result</th><th>Details</th></tr>
@@ -545,3 +549,187 @@ def generate_html_report(
     Path(out_path).write_text(html, encoding="utf-8")
     logger.info("HTML report generated → %s", out_path)
     return out_path
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Quick Export — no QFileDialog, writes to artifacts/evidence_exports/
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _write_json(path: Path, payload) -> str:
+    """Write *payload* to *path* as pretty-printed JSON.  Returns path string."""
+    import math as _math
+
+    def _default(v):
+        if hasattr(v, "item"):
+            try:
+                return v.item()
+            except Exception:
+                pass
+        if isinstance(v, set):
+            return sorted(v)
+        if isinstance(v, Path):
+            return str(v)
+        if isinstance(v, float) and (_math.isnan(v) or _math.isinf(v)):
+            return None
+        return str(v)
+
+    path.write_text(
+        json.dumps(payload, indent=2, sort_keys=True, default=_default),
+        encoding="utf-8",
+    )
+    return str(path.resolve())
+
+
+
+def quick_export(
+    capsule: dict,
+    events: list | None = None,
+    compliance_results: list[dict] | None = None,
+    base_dir: str = "artifacts/evidence_exports",
+    preview_csv_max_rows: int = 5000,
+) -> dict:
+    """
+    Write a complete evidence package to a timestamped subfolder WITHOUT a
+    QFileDialog.  Designed to be non-blocking for large files.
+
+    Returns a dict with:
+        export_dir   — absolute path to the created folder
+        artifacts    — list of {name, path, size_bytes, description}
+        session_id   — session identifier string
+        timestamp    — ISO timestamp string
+    """
+    m = _session_meta(capsule)
+    sid = m["session_id"].replace(" ", "_").replace("/", "-")
+    ts_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+    export_dir = Path(base_dir) / f"{sid}_{ts_str}"
+    export_dir.mkdir(parents=True, exist_ok=True)
+
+    artifacts: list[dict] = []
+
+    def _add(name: str, path: Path, description: str) -> None:
+        size = path.stat().st_size if path.exists() else 0
+        artifacts.append({
+            "name":        name,
+            "path":        str(path.resolve()),
+            "size_bytes":  size,
+            "description": description,
+        })
+        logger.info("quick_export artifact: %s (%d bytes)", path.name, size)
+
+    # 1. HTML report
+    try:
+        html_path_str = generate_html_report(
+            capsule, events, compliance_results, output_dir=str(export_dir)
+        )
+        _add("HTML Report", Path(html_path_str), "Self-contained engineering analysis report")
+    except Exception as exc:
+        logger.warning("quick_export HTML report failed: %s", exc)
+
+    # 2. Waveform PNG (phase voltages)
+    try:
+        frames = capsule.get("frames", [])
+        _phase_chs = ["v_an", "v_bn", "v_cn"]
+        b64_phase = _plot_group_base64(frames, _phase_chs, "Phase Voltages", "Voltage (V)")
+        if b64_phase:
+            img_path = export_dir / "waveform_phase.png"
+            import base64 as _b64
+            img_path.write_bytes(_b64.b64decode(b64_phase))
+            _add("Phase Voltage PNG", img_path, "Phase-to-neutral voltage waveforms")
+    except Exception as exc:
+        logger.warning("quick_export phase PNG failed: %s", exc)
+
+    # 3. Line-to-line PNG
+    try:
+        _line_chs = ["v_ab", "v_bc", "v_ca"]
+        b64_line = _plot_group_base64(frames, _line_chs, "Line-to-Line Voltages", "Voltage (V)")
+        if b64_line:
+            img_path = export_dir / "waveform_line.png"
+            img_path.write_bytes(_b64.b64decode(b64_line))
+            _add("Line-to-Line Voltage PNG", img_path, "Line-to-line voltage waveforms")
+    except Exception as exc:
+        logger.warning("quick_export line PNG failed: %s", exc)
+
+    # 4. Metrics JSON
+    try:
+        from src.session_analysis import compute_session_metrics
+        from src.event_detector import detect_events as _detect_events
+        from src.session_analysis import dataset_for_analysis
+        ev_list = events if events is not None else []
+        metrics_payload = compute_session_metrics(capsule, events=ev_list)
+        metrics_path = export_dir / "metrics.json"
+        _write_json(metrics_path, metrics_payload)
+        _add("Metrics JSON", metrics_path, "Session engineering metrics summary")
+    except Exception as exc:
+        logger.warning("quick_export metrics JSON failed: %s", exc)
+
+    # 5. Compliance JSON
+    try:
+        if compliance_results is not None:
+            comp_path = export_dir / "compliance.json"
+            _write_json(comp_path, compliance_results)
+            _add("Compliance JSON", comp_path, "Standards-inspired check results")
+    except Exception as exc:
+        logger.warning("quick_export compliance JSON failed: %s", exc)
+
+    # 6. Events JSON
+    try:
+        ev_list = events or []
+        events_path = export_dir / "events.json"
+        _write_json(events_path, [
+            {
+                "kind": e.kind, "severity": e.severity,
+                "ts_start": e.ts_start, "ts_end": e.ts_end,
+                "channel": e.channel, "description": e.description,
+                "metrics": e.metrics,
+            }
+            for e in ev_list
+        ])
+        _add("Events JSON", events_path, "Detected power-quality events")
+    except Exception as exc:
+        logger.warning("quick_export events JSON failed: %s", exc)
+
+    # 7. Metadata JSON
+    try:
+        meta_path = export_dir / "metadata.json"
+        _write_json(meta_path, {
+            "exported_at":    datetime.now().isoformat(),
+            "session_id":     m["session_id"],
+            "source_type":    m["source_type"],
+            "source_path":    m["source_path"],
+            "frame_count":    m["frame_count"],
+            "duration_s":     m["duration_s"],
+            "sample_rate_hz": m["sample_rate"],
+            "channels":       m["channels"],
+            "warnings":       m["warnings"],
+            "applied_mapping": m["applied_mapping"],
+        })
+        _add("Metadata JSON", meta_path, "Session and import provenance")
+    except Exception as exc:
+        logger.warning("quick_export metadata JSON failed: %s", exc)
+
+    # 8. Preview CSV (capped at preview_csv_max_rows)
+    try:
+        frames_all = capsule.get("frames", [])
+        preview_frames = frames_all[:preview_csv_max_rows] if len(frames_all) > preview_csv_max_rows else frames_all
+        if preview_frames:
+            preview_capsule = dict(capsule)
+            preview_capsule["frames"] = preview_frames
+            csv_path = export_dir / "preview.csv"
+            export_session_csv(preview_capsule, str(csv_path))
+            note = f"Capped at {preview_csv_max_rows:,} rows" if len(frames_all) > preview_csv_max_rows else ""
+            _add("Preview CSV", csv_path, f"Session data preview{' — ' + note if note else ''}")
+    except Exception as exc:
+        logger.warning("quick_export preview CSV failed: %s", exc)
+
+    total_bytes = sum(a["size_bytes"] for a in artifacts)
+    logger.info(
+        "quick_export complete: %d artifacts, %d bytes → %s",
+        len(artifacts), total_bytes, export_dir,
+    )
+    return {
+        "export_dir":  str(export_dir.resolve()),
+        "artifacts":   artifacts,
+        "session_id":  m["session_id"],
+        "timestamp":   datetime.now().isoformat(),
+        "total_bytes": total_bytes,
+    }

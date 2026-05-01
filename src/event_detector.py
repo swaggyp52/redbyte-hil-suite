@@ -48,7 +48,14 @@ _NON_VOLTAGE_UNIT_SUFFIXES = frozenset({
     "(a)", "(amp)", "(ampere)", "(hz)", "(w)", "(var)", "(s)", "(sec)", "(ms)"
 })
 
-# Sag / swell (fraction of nominal RMS)
+# Canonical AC phase-voltage channels — these are periodic sinusoids whose
+# per-sample derivative naturally exceeds the step-change threshold at normal
+# power-system frequencies.  Suppress _detect_step_change on these channels
+# to avoid flooding the event log with spurious "step change" events.
+_AC_VOLTAGE_CHANNELS = frozenset({
+    "v_an", "v_bn", "v_cn",
+    "v_ab", "v_bc", "v_ca",
+})
 _SAG_WARN_THRESH   = 0.90   # < 90% nominal  → warning
 _SAG_CRIT_THRESH   = 0.50   # < 50% nominal  → critical
 _SWELL_WARN_THRESH = 1.10   # > 110% nominal → warning
@@ -630,9 +637,12 @@ def _detect_dataset_events(dataset: ImportedDataset) -> list[DetectedEvent]:
         if _is_current_channel(ch_name):
             events.extend(_detect_overcurrent(ch_name, signal, time, sr))
 
-        # Universal detectors
+        # Universal detectors — but skip step-change on AC sinusoidal voltage
+        # channels (v_an, v_bn, …) where the natural dV/dt at power-system
+        # frequencies always exceeds the step-change threshold.
         events.extend(_detect_flatline(ch_name, signal, time, sr))
-        events.extend(_detect_step_change(ch_name, signal, time, sr))
+        if ch_name not in _AC_VOLTAGE_CHANNELS:
+            events.extend(_detect_step_change(ch_name, signal, time, sr))
         events.extend(_detect_clipping(ch_name, signal, time, sr))
 
     events.extend(_detect_duplicate_channels(dataset))

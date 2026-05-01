@@ -547,8 +547,43 @@ class ImportDialog(QDialog):
         if self._dataset is None:
             return
 
-        # Apply channel mapping to produce renamed dataset
-        mapped_ds = self._mapper.apply(self._dataset, self._mapping)
+        # ── Probe-scale detection for Rigol CSV voltage channels ─────────────
+        # Rigol oscilloscopes with a ×100 probe write reduced-amplitude values.
+        # Detect this automatically: if source is a Rigol CSV and the mapped
+        # phase voltages have a raw RMS below 5 V (vs expected ~120 V), apply
+        # a ×100 scale factor so every downstream component (metrics, compliance,
+        # waveform plots) sees physically-correct voltages.
+        _VOLTAGE_CANONICAL = {"v_an", "v_bn", "v_cn", "v_ab", "v_bc", "v_ca"}
+        scale_factors: dict[str, float] = {}
+        probe_note: str = ""
+        if self._dataset.source_type == "rigol_csv":
+            mapped_voltage_channels = {
+                target: src
+                for src, target in self._mapping.items()
+                if target in _VOLTAGE_CANONICAL and src in self._dataset.channels
+            }
+            if mapped_voltage_channels:
+                import numpy as _np
+                first_ch_src = next(iter(mapped_voltage_channels.values()))
+                raw_arr = self._dataset.channels[first_ch_src]
+                raw_rms = float(_np.sqrt(_np.mean(raw_arr.astype(_np.float64) ** 2)))
+                # raw_rms < 5 V strongly suggests ×100 probe attenuation
+                if 0.0 < raw_rms < 5.0:
+                    for canonical in mapped_voltage_channels:
+                        scale_factors[canonical] = 100.0
+                    probe_note = (
+                        f"Rigol ×100 probe scale auto-applied to "
+                        f"{', '.join(sorted(mapped_voltage_channels))} "
+                        f"(raw RMS was {raw_rms:.3f} V → scaled to "
+                        f"{raw_rms * 100:.1f} V)"
+                    )
+                    logger.info("import_dialog.probe_scale: %s", probe_note)
+
+        # Apply channel mapping (and scale factors) to produce renamed dataset
+        mapped_ds = self._mapper.apply(
+            self._dataset, self._mapping,
+            scale_factors=scale_factors if scale_factors else None,
+        )
 
         try:
             t0 = time.perf_counter()
@@ -565,6 +600,10 @@ class ImportDialog(QDialog):
 
         # Attach the full-resolution dataset for analysis tabs that need it
         capsule["_dataset"] = mapped_ds
+
+        if probe_note:
+            capsule.setdefault("import_meta", {}).setdefault("notes", [])
+            capsule["import_meta"]["notes"].append(probe_note)
 
         logger.info(
             "Import confirmed: '%s', %d frames, channels=%s",

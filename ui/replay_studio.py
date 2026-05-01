@@ -100,6 +100,11 @@ class ReplayStudio(QWidget):
         self.btn_export.setEnabled(False)
         self.btn_export.setToolTip("Load a session first")
 
+        self.btn_quick_export = QPushButton("⚡ Quick Export")
+        self.btn_quick_export.clicked.connect(self._on_quick_export)
+        self.btn_quick_export.setEnabled(False)
+        self.btn_quick_export.setToolTip("Export evidence package to artifacts/evidence_exports/ (no dialog)")
+
         self.btn_reset_zoom = QPushButton("Reset Zoom")
         self.btn_reset_zoom.setToolTip("Reset all plots to auto-range")
         self.btn_reset_zoom.clicked.connect(self._reset_zoom)
@@ -113,6 +118,7 @@ class ReplayStudio(QWidget):
         ctrl.addWidget(self.btn_play)
         ctrl.addWidget(self.btn_reset_zoom)
         ctrl.addWidget(self.btn_export)
+        ctrl.addWidget(self.btn_quick_export)
         ctrl.addWidget(self.lbl_time)
         ctrl.addStretch()
 
@@ -463,6 +469,11 @@ class ReplayStudio(QWidget):
                 self._plot_channel_group(self.plot_wave, frames, ts, generic_channels[:3], colors, style, suffix)
             elif session['is_primary'] and generic_channels:
                 self._plot_channel_group(self.plot_wave, frames, ts, generic_channels[:3], colors, style, suffix)
+            elif session['is_primary'] and aux_channels and not phase_channels and not generic_channels:
+                # Simulation datasets (e.g. p_mech-only) have channels that land
+                # exclusively in aux_channels.  Plot them in plot_wave too so the
+                # primary waveform view is never blank when data is present.
+                self._plot_channel_group(self.plot_wave, frames, ts, aux_channels[:3], colors, style, suffix)
 
             if line_channels:
                 self._plot_channel_group(self.plot_line, frames, ts, line_channels, colors, style, suffix)
@@ -494,6 +505,8 @@ class ReplayStudio(QWidget):
             self.plot_wave.setTitle("Phase-to-Neutral Voltages")
         elif primary_generic_channels:
             self.plot_wave.setTitle("Generic Numeric Signals")
+        elif primary_aux_channels:
+            self.plot_wave.setTitle("Auxiliary Signals")
         else:
             self._set_empty_plot_state(
                 self.plot_wave,
@@ -684,6 +697,30 @@ class ReplayStudio(QWidget):
                 )
             )
 
+        # For simulation / generic datasets with no phase voltage channels,
+        # plot available generic/aux channels (p_mech, v_dc, etc.) in the metrics view.
+        _ALREADY_PLOTTED = frozenset({'v_an', 'v_bn', 'v_cn', 'freq'})
+        generic_colors = ['#38bdf8', '#fbbf24', '#34d399', '#a78bfa', '#f97316']
+        generic_idx = 0
+        for ch in sorted(dataset.channels.keys()):
+            if ch in _ALREADY_PLOTTED:
+                continue
+            arr = np.asarray(dataset.channels[ch], dtype=float)
+            if not np.any(np.isfinite(arr)):
+                continue
+            color = generic_colors[generic_idx % len(generic_colors)]
+            self._metric_curves.append(
+                self.plot_metrics.plot(
+                    t_rel,
+                    arr,
+                    pen=pg.mkPen(color, width=1.3),
+                    name=ch,
+                )
+            )
+            generic_idx += 1
+            if generic_idx >= 5:
+                break
+
     def _populate_metrics_table(self, rows: list[dict]) -> None:
         self._metrics_table.setRowCount(0)
         for row_data in rows:
@@ -730,6 +767,7 @@ class ReplayStudio(QWidget):
         self.btn_play.setEnabled(has)
         self.btn_export.setEnabled(has)
         self.btn_export.setToolTip("" if has else "Load a session first")
+        self.btn_quick_export.setEnabled(has)
         self.btn_reset_zoom.setEnabled(has)
 
     def _update_comparison_tab(self) -> None:
@@ -897,6 +935,8 @@ class ReplayStudio(QWidget):
         primary = next((s for s in self.sessions if s.get('is_primary')), None)
         if primary is None or primary.get('label') != label:
             return  # Stale result.
+        # Cache events on the session dict so quick_export can access them.
+        primary['_events'] = events
         self._event_lane.load_events(events)
         self.events_detected.emit(len(events))
         self.events_ready.emit(events)
@@ -1021,6 +1061,41 @@ class ReplayStudio(QWidget):
                 json.dump(data, f, indent=2)
         except Exception:
             pass
+
+    def _on_quick_export(self):
+        """Export evidence package without a file dialog."""
+        if not self.sessions:
+            return
+        primary = next((s for s in self.sessions if s.get('is_primary')), None)
+        if not primary:
+            return
+        capsule = primary.get('data', {})
+        events = primary.get('_events', [])
+        try:
+            from src.session_exporter import quick_export
+            result = quick_export(
+                capsule,
+                events=events,
+                compliance_results=None,
+                base_dir="artifacts/evidence_exports",
+            )
+            export_dir = result["export_dir"]
+            artifact_lines = "\n".join(
+                f"  {a['name']}: {a['size_bytes']:,} bytes"
+                for a in result["artifacts"]
+            )
+            from PyQt6.QtWidgets import QMessageBox
+            msg = QMessageBox(self)
+            msg.setWindowTitle("Quick Export Complete")
+            msg.setText(
+                f"Evidence package exported to:\n{export_dir}\n\n"
+                f"Artifacts ({len(result['artifacts'])}):\n{artifact_lines}\n\n"
+                f"Total: {result['total_bytes']:,} bytes"
+            )
+            msg.setIcon(QMessageBox.Icon.Information)
+            msg.exec()
+        except Exception as exc:
+            logger.error(f"Quick export failed: {exc}")
 
     def _export_plot(self):
         if not self.sessions:

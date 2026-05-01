@@ -305,7 +305,12 @@ class ChannelMapper:
 
     # ── Application ──────────────────────────────────────────────────────────
 
-    def apply(self, dataset, mapping: dict[str, str]):
+    def apply(
+        self,
+        dataset,
+        mapping: dict[str, str],
+        scale_factors: dict[str, float] | None = None,
+    ):
         """
         Return a *new* ImportedDataset with channels renamed per mapping.
 
@@ -315,6 +320,13 @@ class ChannelMapper:
           wins and subsequent entries keep their original names (with a warning).
         - The applied mapping is recorded in the returned dataset's meta dict
           under ``'applied_mapping'``.
+        - If *scale_factors* is supplied it must be a dict mapping **canonical**
+          (post-rename) channel names to a numeric multiplier.  Each matching
+          channel array is multiplied by its factor so that downstream code
+          (metrics, compliance, frames) always sees physically-correct values.
+          Example: ``{"v_an": 100, "v_bn": 100, "v_cn": 100}`` converts
+          oscilloscope probe voltages (÷100 attenuation) to actual line voltages.
+          Factors are stored in ``meta["scale_factors"]`` for traceability.
         """
         from src.derived_channels import derive_dataset_channels
         from src.file_ingestion import ImportedDataset
@@ -338,11 +350,22 @@ class ChannelMapper:
                 )
                 out_name = src_col
 
-            new_channels[out_name] = data_arr
+            arr = data_arr
+            if scale_factors and out_name in scale_factors:
+                factor = float(scale_factors[out_name])
+                if factor != 1.0:
+                    arr = arr * factor
+
+            new_channels[out_name] = arr
             used_targets.add(out_name)
 
         new_meta = dict(dataset.meta)
         new_meta["applied_mapping"] = {k: v for k, v in mapping.items()}
+        if scale_factors:
+            # Merge with any pre-existing scale_factors from ingestion
+            merged_sf = dict(new_meta.get("scale_factors", {}))
+            merged_sf.update({k: float(v) for k, v in scale_factors.items()})
+            new_meta["scale_factors"] = merged_sf
 
         new_warnings = list(dataset.warnings)
         # Warn about unmapped channels so the user knows they exist

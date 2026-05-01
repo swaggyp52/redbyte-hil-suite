@@ -203,6 +203,24 @@ def _check_ride_through(arr, cfg, source) -> Dict:
     min_v = float(np.min(avg))
     min_idx = int(np.argmin(avg))
     t_min = float(arr["t_rel"][min_idx])
+
+    # Use interior of the signal (trim 5% from each end) to avoid rolling-RMS
+    # edge artifacts causing false sag detection on normal-operation captures.
+    _NO_SAG_BAND = 0.80
+    trim = max(1, avg.size // 20)
+    interior_min = float(np.min(avg[trim:-trim])) if avg.size > 2 * trim else min_v
+    if interior_min >= _NO_SAG_BAND * nom:
+        return _na_result(
+            "Ride-through — Minimum 3φ Voltage",
+            round(thr, 3),
+            "V",
+            f"min(3φ avg voltage) ≥ {cfg['sag_ride_through_ratio']:.0%} × V_nominal",
+            source,
+            f"No voltage sag detected (min interior 3φ avg = {interior_min:.2f} V ≥ "
+            f"{_NO_SAG_BAND:.0%} × {nom:.2f} V); ride-through not applicable "
+            f"for normal-operation captures.",
+        )
+
     ok = min_v >= thr
     return _result(
         name="Ride-through — Minimum 3φ Voltage",
@@ -252,6 +270,24 @@ def _check_recovery(arr, cfg, source) -> Dict:
     nom = cfg["nominal_v_rms"]
     recov_ratio = cfg["recovery_undervolt_ratio"]
     thr = recov_ratio * nom
+
+    # Use interior of the signal (trim 5% from each end) to avoid rolling-RMS
+    # edge artifacts causing false sag detection on normal-operation captures.
+    _NO_SAG_BAND = 0.80
+    trim = max(1, avg.size // 20)
+    interior_min = float(np.min(avg[trim:-trim])) if avg.size > 2 * trim else float(np.min(avg))
+    if interior_min >= _NO_SAG_BAND * nom:
+        return _na_result(
+            "Recovery — No Sustained Under-voltage",
+            round(thr, 3),
+            "V",
+            f"no {cfg['recovery_window_s']:.2f} s sliding window has 3φ avg below "
+            f"{recov_ratio:.0%} × V_nominal",
+            source,
+            f"No voltage sag detected (min interior 3φ avg ≥ {_NO_SAG_BAND:.0%} × V_nominal); "
+            f"recovery check not applicable for normal-operation captures.",
+        )
+
     # Sliding window the size of recovery_window_s
     if arr["t_rel"].size >= 2:
         dt = float(np.median(np.diff(arr["t_rel"])))
@@ -771,6 +807,39 @@ def _check_fault_ride_through(arr: Dict[str, np.ndarray], cfg: Dict, source: str
     )
 
 
+
+def _auto_detect_nominal_v_rms(arr: Dict[str, np.ndarray], cfg_nominal: float) -> float:
+    """
+    Auto-detect the effective nominal voltage from measured data.
+
+    Oscilloscope probe data may be at a reduced scale (e.g., 1.2 V RMS
+    instead of 120 V due to a ×100 probe factor).  If the measured RMS is
+    significantly lower than the configured nominal, use the measured value
+    as the per-unit base so that ride-through and regulation checks still
+    produce meaningful results.
+
+    Returns the configured nominal when data is within 20% of it (no
+    adjustment needed).  Returns the 90th-percentile RMS of the three-phase
+    average when the data appears to be at a different scale.
+    """
+    v_an_rms = arr.get("v_an_rms", np.array([]))
+    v_bn_rms = arr.get("v_bn_rms", np.array([]))
+    v_cn_rms = arr.get("v_cn_rms", np.array([]))
+    if not (v_an_rms.size and v_bn_rms.size and v_cn_rms.size):
+        return cfg_nominal
+    avg = (v_an_rms + v_bn_rms + v_cn_rms) / 3.0
+    # Use 90th percentile to avoid edge-effect artifacts from rolling RMS
+    measured_nominal = float(np.percentile(avg, 90))
+    if measured_nominal < 1e-6:
+        return cfg_nominal
+    ratio = measured_nominal / cfg_nominal
+    # If data is within 20% of configured nominal, keep the configured value
+    if 0.80 <= ratio <= 1.20:
+        return cfg_nominal
+    # Data is at a different scale — use the measured value as nominal
+    return measured_nominal
+
+
 _ENHANCED_CHECKS = {
     "voltage_regulation": _check_voltage_regulation_summary,
     "ride_through": _check_ride_through,
@@ -827,6 +896,20 @@ def evaluate_session(
     arr = _dataset_arrays_for_checks(dataset)
     events = events_for_capsule(capsule)
     summary = compute_session_metrics(capsule, events=events)
+
+    # Auto-adjust nominal_v_rms when probe/sensor scale differs from expected.
+    # This handles Rigol captures where CH1(V) is at 1.2 V scale for a 120 V
+    # inverter output, without requiring the user to manually enter a scale factor.
+    if "nominal_v_rms" not in (thresholds or {}):
+        auto_nom = _auto_detect_nominal_v_rms(arr, cfg["nominal_v_rms"])
+        if abs(auto_nom - cfg["nominal_v_rms"]) > 0.01:
+            cfg = dict(cfg)
+            cfg["nominal_v_rms"] = auto_nom
+            cfg["_auto_nominal_note"] = (
+                f"Nominal auto-adjusted to {auto_nom:.4f} V from measured data "
+                f"(configured: {prof['thresholds']['nominal_v_rms']:.1f} V). "
+                f"Checks use measured per-unit base."
+            )
     results: List[Dict] = []
     for key in enabled:
         check = _ENHANCED_CHECKS.get(key)

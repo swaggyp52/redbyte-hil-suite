@@ -30,9 +30,36 @@ from src.file_ingestion import ImportedDataset
 
 logger = logging.getLogger(__name__)
 
-# Replay decimation target — enough for smooth scrubbing without memory explosion
-MAX_REPLAY_FRAMES = 4_000
+# Replay decimation target — enough for smooth scrubbing without memory explosion.
+# Increased to 20 000 so 60 Hz sinusoids in 10 MSa/s Rigol captures keep enough
+# resolution after the min/max-envelope pass below.
+MAX_REPLAY_FRAMES = 20_000
 MIN_REPLAY_FRAMES = 50
+
+
+def _minmax_decimate(arr: np.ndarray, target_pts: int) -> np.ndarray:
+    """Return indices that preserve peaks/troughs via min/max pairs per bucket.
+
+    For each of *target_pts//2* equal-width buckets the index of both the
+    minimum and the maximum sample is included, so oscillating waveforms
+    (60 Hz AC sinusoids) retain their amplitude envelope even after heavy
+    decimation.  The returned indices are sorted and unique.
+    """
+    n = len(arr)
+    if n <= target_pts:
+        return np.arange(n, dtype=np.intp)
+    n_buckets = max(1, target_pts // 2)
+    bucket_size = n / n_buckets
+    indices: list[int] = []
+    for i in range(n_buckets):
+        start = int(i * bucket_size)
+        end   = min(int((i + 1) * bucket_size), n)
+        if start >= end:
+            continue
+        chunk = arr[start:end]
+        indices.append(start + int(np.argmin(chunk)))
+        indices.append(start + int(np.argmax(chunk)))
+    return np.array(sorted(set(indices)), dtype=np.intp)
 
 
 # ---------------------------------------------------------------------------
@@ -69,7 +96,23 @@ def dataset_to_session(
     # ── Decimation ───────────────────────────────────────────────────────────
     target = max(MIN_REPLAY_FRAMES, min(MAX_REPLAY_FRAMES, n))
     if n > target:
-        indices = np.round(np.linspace(0, n - 1, target)).astype(int)
+        # Use min/max envelope decimation if any phase-voltage channel is present
+        # so that AC sinusoid peaks are preserved.  Fall back to uniform sampling
+        # for datasets that have no oscillating voltage channels.
+        _PHASE_VOLTAGE_CHANNELS = {"v_an", "v_bn", "v_cn", "v_ab", "v_bc", "v_ca"}
+        has_ac_voltage = bool(_PHASE_VOLTAGE_CHANNELS & dataset.channels.keys())
+        if has_ac_voltage:
+            # Use v_an (or the first available phase channel) as the reference
+            # waveform for bucket min/max index selection.
+            ref_ch = next(
+                (ch for ch in ("v_an", "v_bn", "v_cn", "v_ab", "v_bc", "v_ca")
+                 if ch in dataset.channels),
+                None,
+            )
+            ref_arr = dataset.channels[ref_ch] if ref_ch else dataset.time
+            indices = _minmax_decimate(ref_arr, target)
+        else:
+            indices = np.round(np.linspace(0, n - 1, target)).astype(int)
         dec_factor = round(n / len(indices), 1)
     else:
         indices = np.arange(n)
