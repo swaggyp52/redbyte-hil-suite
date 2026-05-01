@@ -60,6 +60,7 @@ def dataset_to_session(
     Raises:
         ValueError  if the dataset has no data rows.
     """
+    t0 = time.perf_counter()
     dataset = derive_dataset_channels(dataset)
     n = len(dataset.time)
     if n == 0:
@@ -145,6 +146,9 @@ def dataset_to_session(
         Path(dataset.source_path).name, sid, n, len(frames), dec_factor,
         sorted(channel_names),
     )
+
+    elapsed = time.perf_counter() - t0
+    logger.info("dataset_to_session.end: %s (%.3fs)", Path(dataset.source_path).name, elapsed)
 
     return capsule
 

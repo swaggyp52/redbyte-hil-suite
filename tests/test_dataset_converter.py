@@ -1,3 +1,31 @@
+import numpy as np
+
+from src.file_ingestion import ImportedDataset
+from src.dataset_converter import dataset_to_session, MAX_REPLAY_FRAMES
+
+
+def test_decimation_caps_frames():
+    # Create a synthetic dataset larger than the MAX_REPLAY_FRAMES cap
+    n = 10_000
+    t = np.linspace(0.0, 1.0, n)
+    channels = {
+        'v_an': np.sin(2 * np.pi * 50.0 * t),
+        'freq': np.full(n, 50.0),
+    }
+    ds = ImportedDataset(
+        source_type='rigol_csv',
+        source_path='RigolDS0.csv',
+        channels=channels,
+        time=t,
+        sample_rate=float(n),
+        duration=1.0,
+        raw_headers=['Time', 'CH1(V)', 'CH2', 'CH3'],
+    )
+
+    capsule = dataset_to_session(ds, session_id='test_decimation')
+    assert capsule['meta']['original_row_count'] == n
+    assert capsule['meta']['frame_count'] <= MAX_REPLAY_FRAMES
+    assert 'v_an' in capsule['meta']['channels']
 """
 Tests for src/dataset_converter.py
 

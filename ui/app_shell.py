@@ -6,6 +6,7 @@ All backend managers live here; pages receive references to them.
 """
 import logging
 import os
+import time
 from PyQt6.QtWidgets import (QMainWindow, QWidget, QHBoxLayout, QVBoxLayout,
                              QMessageBox, QStackedWidget)
 from PyQt6.QtCore import Qt, QTimer
@@ -241,9 +242,12 @@ class AppShell(QMainWindow):
 
         self._set_active_session(session)
         self._navigate("overview")
+        t0 = time.perf_counter()
+        logger.info("app_shell.load.start: %s", label)
         self._replay.load_imported_session(capsule, session)
         self._compliance.load_from_capsule(capsule, session)
         self.session_bar.set_analysis_mode(True)
+        logger.info("app_shell.load.end: %s (%.3fs)", label, time.perf_counter() - t0)
 
         source = session.source_type_display
         self.session_bar.set_source(f"Offline Analysis Mode - {source}")

@@ -3,6 +3,7 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QPushButton, QHBoxLayout,
                              QCheckBox, QFrame, QGridLayout, QTableWidget,
                              QTableWidgetItem, QHeaderView)
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal
+import threading
 import pyqtgraph as pg
 import pyqtgraph.exporters
 import json
@@ -10,6 +11,7 @@ import time
 import os
 import logging
 import numpy as np
+from dataclasses import replace as _dc_replace
 from src.signal_processing import compute_rms, compute_thd, compute_fft
 from src.event_detector import detect_events
 from src.comparison import dataset_from_capsule
@@ -19,6 +21,29 @@ from ui.comparison_panel import ComparisonPanel
 from ui.event_lane import EventLane
 
 logger = logging.getLogger(__name__)
+
+
+def _cap_dataset_for_events(dataset, max_samples: int = 50_000):
+    """
+    Return a downsampled copy of *dataset* so event detection never blocks
+    the main thread on huge full-resolution recordings.
+
+    At 10 MSa/s a 1 M-row import is only 0.1 s of data; 50 K samples is more
+    than enough to detect sags, flatlines, THD spikes, and clipping reliably.
+    """
+    n = int(dataset.time.size)
+    if n <= max_samples:
+        return dataset
+    step = max(1, n // max_samples)
+    idx = np.arange(0, n, step)
+    new_time = dataset.time[idx]
+    new_channels = {ch: arr[idx] for ch, arr in dataset.channels.items()}
+    new_sr = (
+        1.0 / float(np.median(np.diff(new_time)))
+        if len(new_time) > 1
+        else dataset.sample_rate
+    )
+    return _dc_replace(dataset, time=new_time, channels=new_channels, sample_rate=new_sr)
 
 
 class ReplayStudio(QWidget):
@@ -33,6 +58,9 @@ class ReplayStudio(QWidget):
     events_detected = pyqtSignal(int)
     # Carries the full list of DetectedEvent objects for the insights panel.
     events_ready = pyqtSignal(list)
+    # Internal signals: background worker → Qt main-thread UI update.
+    _bg_analysis_ready = pyqtSignal(dict, str)   # (result_dict, session_label)
+    _bg_events_ready   = pyqtSignal(list, str)   # (events_list, session_label)
 
     def __init__(self, recorder, serial_mgr):
         super().__init__()
@@ -257,6 +285,8 @@ class ReplayStudio(QWidget):
         self.plot_wave.addItem(self.scrubber)
         self.plot_wave.scene().sigMouseClicked.connect(self._on_wave_click)
         self._event_lane.event_selected.connect(self._seek_to_time)
+        self._bg_analysis_ready.connect(self._on_bg_analysis_ready)
+        self._bg_events_ready.connect(self._on_bg_events_ready)
 
         self.markers = []
         self._ts_arr = np.array([])
@@ -363,8 +393,8 @@ class ReplayStudio(QWidget):
 
         self._render_all_sessions()
         self._update_comparison_tab()
-        # Defer event detection so the waveform plots appear immediately.
-        QTimer.singleShot(0, self._update_event_lane)
+        # Event detection and metrics are now handled by background workers
+        # started inside _render_all_sessions via _start_background_* methods.
         self._sync_button_state()
         logger.info("Loaded session '%s' with %d frames (overlay=%s)", label, len(frames), not is_primary)
 
@@ -497,13 +527,24 @@ class ReplayStudio(QWidget):
             )
 
         if primary_session:
-            self._update_analysis_view(primary_session)
+            # Lightweight UI updates first (channel bar, basic markers)
             sample = primary_session['frames'][0] if primary_session['frames'] else {}
             ch_names = [
                 key for key in sample
                 if key != 'ts' and isinstance(sample.get(key), (int, float))
             ]
             self._update_channel_bar(ch_names)
+
+            # Defer heavy analysis (metrics, THD, FFT) and event detection to
+            # background threads so the Qt main thread remains responsive.
+            try:
+                self._start_background_analysis(primary_session)
+            except Exception:
+                logger.exception("Failed to start async analysis worker")
+            try:
+                self._start_background_event_detection(primary_session)
+            except Exception:
+                logger.exception("Failed to start async event detection worker")
 
         self.play_idx = 0
         self._update_ui(0)
@@ -719,6 +760,147 @@ class ReplayStudio(QWidget):
                         len(events), primary.get('label', '?'))
         except Exception as exc:
             logger.warning("Event detection failed: %s", exc)
+
+    # ── Background workers ─────────────────────────────────────────────────
+
+    def _start_background_analysis(self, session: dict) -> None:
+        """Run metrics computation in a daemon thread; deliver result via Qt signal."""
+        label = session.get('label', '')
+        data = session.get('data', {})
+
+        def _worker():
+            try:
+                t0 = time.perf_counter()
+                logger.info("metrics.compute.start: %s", label)
+                # Pass events=[] to skip redundant detect_events inside metrics.
+                summary = compute_session_metrics(data, events=[])
+                rows = build_metric_rows(summary)
+                logger.info("metrics.compute.end: %s (%.3fs)", label, time.perf_counter() - t0)
+                try:
+                    self._bg_analysis_ready.emit({'summary': summary, 'rows': rows}, label)
+                except RuntimeError:
+                    pass  # Studio was GC'd before worker finished (e.g. test teardown).
+            except Exception:
+                logger.exception("Background analysis failed for '%s'", label)
+
+        threading.Thread(target=_worker, daemon=True, name=f"analysis-{label[:20]}").start()
+
+    def _start_background_event_detection(self, session: dict) -> None:
+        """Run event detection in a daemon thread; deliver result via Qt signal."""
+        label = session.get('label', '')
+        dataset = session.get('_dataset')
+
+        def _worker():
+            try:
+                t0 = time.perf_counter()
+                logger.info("event_detection.start: %s", label)
+                ds = dataset
+                if ds is None:
+                    try:
+                        ds = dataset_from_capsule(session.get('data', {}))
+                    except Exception:
+                        logger.warning(
+                            "Cannot reconstruct dataset for event detection: '%s'", label
+                        )
+                        try:
+                            self._bg_events_ready.emit([], label)
+                        except RuntimeError:
+                            pass
+                        return
+                # Cap to avoid multi-second FFT / corrcoef on full-resolution arrays.
+                ds = _cap_dataset_for_events(ds, max_samples=50_000)
+                events = detect_events(ds)
+                logger.info(
+                    "event_detection.end: %s (%.3fs) \u2014 %d events",
+                    label, time.perf_counter() - t0, len(events),
+                )
+                try:
+                    self._bg_events_ready.emit(events, label)
+                except RuntimeError:
+                    pass  # Studio was GC'd before worker finished.
+            except Exception:
+                logger.exception("Background event detection failed for '%s'", label)
+                try:
+                    self._bg_events_ready.emit([], label)
+                except RuntimeError:
+                    pass
+
+        threading.Thread(target=_worker, daemon=True, name=f"events-{label[:20]}").start()
+
+    def _on_bg_analysis_ready(self, result: dict, label: str) -> None:
+        """Update metrics UI on the Qt main thread when analysis finishes."""
+        primary = next((s for s in self.sessions if s.get('is_primary')), None)
+        if primary is None or primary.get('label') != label:
+            return  # Stale — session was replaced before the worker finished.
+        rows = result.get('rows', [])
+        self._populate_metrics_table(rows)
+        summary = result.get('summary', {})
+        if not summary:
+            return
+        session_info = summary.get('session', {})
+        derived = ', '.join(session_info.get('derived_channels', [])) or 'none'
+        self._wave_summary.setText(
+            f"{session_info.get('analysis_mode_label', '')}  ·  "
+            f"{session_info.get('source_name', '')}  ·  "
+            f"{session_info.get('sample_count', 0):,} samples  ·  "
+            f"{session_info.get('sample_rate_hz', 0):.2f} Hz  ·  "
+            f"{session_info.get('time_window_s', 0):.4f} s  ·  "
+            f"Canonical: {', '.join(session_info.get('available_canonical_channels', [])) or 'none'}  ·  "
+            f"Derived: {derived}"
+        )
+        event_counts = summary.get('events', {}).get('counts', {})
+        current_info = summary.get('current_thresholds', {})
+        self._metrics_summary.setText(
+            '  |  '.join([
+                f"Voltage sag events: {event_counts.get('voltage_sag', 0)}",
+                f"Frequency excursions: {event_counts.get('frequency_excursion', 0)}",
+                (
+                    f"Overcurrent events: {event_counts.get('overcurrent', 0)}"
+                    if current_info.get('available')
+                    else f"Overcurrent: N/A ({current_info.get('reason', 'missing current')})"
+                ),
+                (
+                    f"Generic channels: {', '.join(session_info.get('generic_numeric_channels', [])[:3])}"
+                    if session_info.get('generic_numeric_channels')
+                    else "Generic channels: none"
+                ),
+            ])
+        )
+        # Rebuild rolling-RMS plot using the decimated frame data (fast; avoids
+        # the expensive np.convolve on 1 M-row full-resolution arrays).
+        self.plot_metrics.clear()
+        self._metric_curves = []
+        frames = primary.get('frames', [])
+        if not frames:
+            return
+        ts_arr = np.array([f['ts'] for f in frames], dtype=float)
+        t_rel = ts_arr - ts_arr[0]
+        phase_colors = {'v_an': '#f97316', 'v_bn': '#3b82f6', 'v_cn': '#22c55e'}
+        window_n = max(8, min(len(frames) // 20, 200))
+        kernel = np.ones(window_n) / window_n
+        for ch in ('v_an', 'v_bn', 'v_cn'):
+            vals = [f.get(ch) for f in frames]
+            if not any(v is not None for v in vals):
+                continue
+            arr = np.array([v if v is not None else np.nan for v in vals], dtype=float)
+            rolling = np.sqrt(np.maximum(np.convolve(arr * arr, kernel, mode='same'), 0.0))
+            self._metric_curves.append(
+                self.plot_metrics.plot(
+                    t_rel, rolling,
+                    pen=pg.mkPen(phase_colors[ch], width=1.5),
+                    name=f"{ch} RMS",
+                )
+            )
+
+    def _on_bg_events_ready(self, events: list, label: str) -> None:
+        """Populate the Events tab on the Qt main thread when detection finishes."""
+        primary = next((s for s in self.sessions if s.get('is_primary')), None)
+        if primary is None or primary.get('label') != label:
+            return  # Stale result.
+        self._event_lane.load_events(events)
+        self.events_detected.emit(len(events))
+        self.events_ready.emit(events)
+        logger.info("Event lane updated: %d events for '%s'", len(events), label)
 
     def _seek_to_time(self, ts: float) -> None:
         """Seek the waveform scrubber to *ts* seconds and switch to Waveforms tab."""

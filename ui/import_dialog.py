@@ -17,6 +17,7 @@ from __future__ import annotations
 import logging
 import os
 import threading
+import time
 from typing import Optional
 
 from PyQt6.QtCore import Qt, pyqtSignal
@@ -550,7 +551,11 @@ class ImportDialog(QDialog):
         mapped_ds = self._mapper.apply(self._dataset, self._mapping)
 
         try:
+            t0 = time.perf_counter()
+            logger.info("import_dialog.convert.start: %s", os.path.basename(self._dataset.source_path))
             capsule = dataset_to_session(mapped_ds)
+            elapsed = time.perf_counter() - t0
+            logger.info("import_dialog.convert.end: %s (%.3fs)", os.path.basename(self._dataset.source_path), elapsed)
         except Exception as exc:
             QMessageBox.critical(
                 self, "Conversion Error",
@@ -568,8 +573,11 @@ class ImportDialog(QDialog):
             capsule["meta"]["channels"],
         )
 
+        t1 = time.perf_counter()
+        logger.info("import_dialog.emit.start: %s", os.path.basename(self._dataset.source_path))
         self.session_imported.emit(capsule)
         self.accept()
+        logger.info("import_dialog.emit.end: %s (%.3fs)", os.path.basename(self._dataset.source_path), time.perf_counter() - t1)
 
     def _refresh_analysis_preview(self) -> None:
         if self._dataset is None:
