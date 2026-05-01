@@ -78,6 +78,9 @@ exports/*.png
 exports/*.csv
 temp/*.json
 
+# Evidence export packages (runtime-generated output)
+artifacts/evidence_exports/
+
 # Runtime data
 data/sessions/
 data/insights_log.json
