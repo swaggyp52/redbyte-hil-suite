@@ -20,7 +20,7 @@ Total files: 14 PNGs
 | 07 | `07_metrics_summary.png` | 147 KB | 2560×1351 | Metrics tab — rolling-RMS plot + table: Source file, Analysis mode (VSM/GFM), File type (rigol\_csv), Sample count (1 000 000), Sample rate (10 MHz), v\_an RMS (~120 V after ×100 probe scale), v\_an THD (vs IEEE 519 ref 5 %), v\_bn RMS, … | **Step 5 — Compute metrics** |
 | 08 | `08_compliance_table.png` | 81 KB | 2560×1351 | Compliance page — DS0 run with applicable checks plus N/A checks. In this capture: 6 applicable checks, 5 PASS, 1 FAIL (Voltage overshoot), 2 N/A (Ride-through, Recovery) | **Step 8 — Standards compliance** |
 | 09 | `09_comparison_normal_vs_fault.png` | 173 KB | 2560×1351 | Compare tab — Baseline RigolDS0 vs Comparison/Fault RigolDS1. Overlay plot shows both datasets' 3-phase sinusoids (solid vs dashed). Delta plot shows v\_ab difference. Stats bar: ΔRMS, max\|Δ\|, correlation, Baseline/Comparison RMS, ΔTHD per channel | **Step 7 — Compare sessions** ⭐ BEST VISUAL |
-| 10 | `10_export_complete.png` | 38 KB | 1200×725 | Evidence Package Exported widget — 7 artifacts written to `artifacts/evidence_exports/RigolDS0_*/`: HTML Report (~70 KB), Phase Voltage PNG (~50 KB), Line-to-Line Voltage PNG (~54 KB), Metrics JSON (~3 KB), Events JSON (<1 KB), Metadata JSON (~1 KB), Preview CSV (~485 KB). Total ~662 KB / 7 artifacts | **Step 9 — Export evidence package** |
+| 10 | `10_export_complete.png` | 38 KB | 1200×725 | Evidence Package Exported widget — up to 8 artifacts written to `artifacts/evidence_exports/RigolDS0_*/`: HTML Report (~70 KB), Phase Voltage PNG (~50 KB), Line-to-Line Voltage PNG (~54 KB), Metrics JSON (~3 KB), Compliance JSON (~4 KB, only when compliance was run), Events JSON (<1 KB), Metadata JSON (~1 KB), Preview CSV (~485 KB). Screenshot was captured before compliance was run so shows 7 artifacts; with compliance: 8. | **Step 9 — Export evidence package** |
 | 11 | `11_simulation_import_power.png` | 70 KB | 1125×960 | Import dialog for InverterPower\_Simulation.xlsx — Source type: Simulation Excel, 16 703 rows, 20 kHz, 0.835 s, Pinv→p\_mech, range -0.001 → 458.5 | **Step 1b — Import simulation** |
 | 12 | `12_simulation_analysis_power.png` | 148 KB | 2560×1351 | Replay tab for InverterPower\_Simulation — **5 events detected** (1 critical). Events: clipping × 2, flatline × 2, step\_change × 1 ("Abrupt step in p\_mech: 254.9, 55.6 % of signal range"). p\_mech waveform/event lane visible; this dataset is treated as Generic data analysis mode | **Step 6 — Event detection** ⭐ STRONG |
 | 13 | `13_simulation_import_frequency.png` | 71 KB | 1125×960 | Import dialog for VSGFrequency\_Simulation.xlsx — Same Simulation Excel structure, Pinv→p\_mech. Demonstrates multi-format ingestion pipeline (second distinct file). Signal data is structurally identical to shot 11 (same Pinv column). | **Step 1c — Import frequency sim** |
@@ -42,7 +42,7 @@ Total files: 14 PNGs
 | 6 | `09_comparison_normal_vs_fault.png` | Baseline vs fault overlay — most visually compelling slide ⭐ |
 | 7 | `12_simulation_analysis_power.png` | Event detection — 5 events, 1 critical, jump-to-event |
 | 8 | `08_compliance_table.png` | Standards compliance — 6 applicable checks, 5 PASS, 1 FAIL (Voltage overshoot), 2 N/A |
-| 9 | `10_export_complete.png` | Evidence package export — 7 artifacts, self-contained HTML report |
+| 9 | `10_export_complete.png` | Evidence package export — up to 8 artifacts, self-contained HTML report |
 
 ---
 
@@ -70,7 +70,7 @@ All 6 above plus:
 | `04_dataset_overview_rigol_ds0.png` | Dataset overview with VSM/GFM mode badge |
 | `05_replay_phase_voltages.png` | All four replay plots, scaled waveforms, events panel |
 | `06_replay_line_to_line.png` | Derived line-to-line channels focus view |
-| `10_export_complete.png` | Evidence package export — 7 artifacts, ~662 KB total |
+| `10_export_complete.png` | Evidence package export — 7–8 artifacts (compliance.json added when compliance run before export) |
 
 ---
 

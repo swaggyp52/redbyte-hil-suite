@@ -38,8 +38,19 @@ Demo and adapter-preview pages still exist as secondary surfaces, but the final 
 
 ## Launch
 
+**Windows (double-click or terminal):**
+
+```bat
+run.bat
+```
+
+`run.bat` locates the project `.venv`, checks Python 3.12+, installs missing
+dependencies, and launches `run.py`. It is the supported user launcher.
+
+**Alternative (already inside `.venv`):**
+
 ```powershell
-.\.venv\Scripts\python.exe -m src.main
+.\.venv\Scripts\python.exe run.py
 ```
 
 ## Import Experience
@@ -98,23 +109,22 @@ Behavior:
 
 ## Evidence Export
 
-The evidence bundle includes:
+The evidence bundle is written to `artifacts/evidence_exports/<session>_<timestamp>/` and includes:
 
-- `evidence_report.html`
-- `waveform_overview.png`
-- `line_to_line_overlay.png`
-- `normalized_frames.csv`
-- `metrics.json`
-- `compliance.json`
-- `events.json`
-- `metadata.json`
-- `session_capsule.json`
+- `report_<session>_<timestamp>.html` — self-contained HTML engineering report
+- `waveform_phase.png` — phase-to-neutral voltage waveforms (PNG)
+- `waveform_line.png` — line-to-line voltage waveforms (PNG)
+- `metrics.json` — computed engineering metrics (RMS, THD, frequency, balance)
+- `compliance.json` — standards-inspired check results (written only when compliance has been run)
+- `events.json` — detected power-quality events list
+- `metadata.json` — session provenance (source file, mapping, scale factors, sample count)
+- `preview.csv` — normalized session data (downsampled to 20 k rows for large captures)
 
-Large captures now export a preview/downsampled `normalized_frames.csv` by default so the bundle finishes quickly. The metadata file records that downsampling note explicitly.
+Up to 8 artifacts. `compliance.json` is only written when the Compliance page has been opened and checks run before export. The metadata file records the downsampling note explicitly for large captures.
 
 ## Final Demo Path
 
-1. Launch `python -m src.main`
+1. Launch `run.bat` (double-click or terminal from project root)
 2. Import `RigolDS0.csv`
 3. Show Overview
 4. Open Replay and show phase plus line-to-line plots

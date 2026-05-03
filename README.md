@@ -19,8 +19,19 @@ Local Python/PyQt6 desktop application for offline recorded-session analysis.
 
 ## Launch
 
+**Windows (double-click or terminal):**
+
+```bat
+run.bat
+```
+
+`run.bat` locates the project `.venv`, checks Python 3.12+, installs missing dependencies,
+and launches `run.py`. It is the supported user launcher.
+
+**Alternative (already inside the project `.venv`):**
+
 ```powershell
-.\.venv\Scripts\python.exe -m src.main
+.\.venv\Scripts\python.exe run.py
 ```
 
 The app opens to **Overview**. After import, it stays on the dataset overview screen and pre-loads Replay and Compliance in the background.
@@ -64,19 +75,18 @@ The app will:
 
 ## Evidence Export
 
-Evidence export writes real analysis artifacts under `exports/`, including:
+Evidence export writes real analysis artifacts under `artifacts/evidence_exports/<session>_<timestamp>/`, including:
 
-- `evidence_report.html`
-- `waveform_overview.png`
-- `line_to_line_overlay.png`
-- `normalized_frames.csv`
-- `metrics.json`
-- `compliance.json`
-- `events.json`
-- `metadata.json`
-- `session_capsule.json`
+- `report_<session>_<timestamp>.html` — self-contained HTML engineering report
+- `waveform_phase.png` — phase-to-neutral voltage waveforms (PNG)
+- `waveform_line.png` — line-to-line voltage waveforms (PNG)
+- `metrics.json` — computed engineering metrics (RMS, THD, frequency, etc.)
+- `compliance.json` — standards-inspired check results with PASS/FAIL/N/A per rule (written only when compliance has been run)
+- `events.json` — detected power-quality events
+- `metadata.json` — session provenance (source file, mapping, scale factors, sample count)
+- `preview.csv` — normalized session data (downsampled to 20 k rows for large captures)
 
-For very large captures, `normalized_frames.csv` defaults to a preview/downsampled export so the package completes quickly. Metrics and compliance values are still computed from the real imported analysis context.
+Up to 8 artifacts total. `compliance.json` is written only when the Compliance page has been opened and checks have been run before export. For very large captures, `preview.csv` is a downsampled preview; full-resolution export is a known future-work item.
 
 ## Demo-Validated Files
 
