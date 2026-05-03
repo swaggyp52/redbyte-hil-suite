@@ -8,7 +8,7 @@ from src.dataset_converter import dataset_to_session
 from src.derived_channels import compute_line_to_line_channels
 from src.file_ingestion import ImportedDataset
 from src.report_generator import generate_evidence_package
-from src.session_analysis import compute_session_metrics
+from src.session_analysis import build_dataset_overview, compute_session_metrics
 
 
 def _three_phase_dataset(include_current: bool = False) -> ImportedDataset:
@@ -59,6 +59,24 @@ def _generic_dataset(n: int = 600) -> ImportedDataset:
         duration=float(time[-1] - time[0]),
         raw_headers=["time", *channels.keys()],
         meta={"time_column": "time"},
+    )
+
+
+def _p_mech_only_dataset(n: int = 600) -> ImportedDataset:
+    sample_rate = 2000.0
+    time = np.arange(n, dtype=np.float64) / sample_rate
+    channels = {
+        "p_mech": 100.0 + 15.0 * np.sin(2.0 * math.pi * 4.0 * time),
+    }
+    return ImportedDataset(
+        source_type="simulation_excel",
+        source_path="/fake/p_mech_only.xlsx",
+        channels=channels,
+        time=time,
+        sample_rate=sample_rate,
+        duration=float(time[-1] - time[0]),
+        raw_headers=["Pinv"],
+        meta={"scale_factors": {"p_mech": 1.0}},
     )
 
 
@@ -136,6 +154,21 @@ def test_generic_dataset_compliance_returns_na_instead_of_false_pass(tmp_path):
     assert results
     assert all(row["status"] == "N/A" for row in results)
     assert any("required" in (row.get("na_reason") or "").lower() for row in results)
+
+
+def test_p_mech_only_dataset_uses_generic_analysis_mode():
+    capsule = dataset_to_session(_p_mech_only_dataset())
+    summary = compute_session_metrics(capsule)
+
+    assert summary["session"]["analysis_mode"] == "generic"
+    assert summary["session"]["analysis_mode_label"] == "Generic data analysis mode"
+
+
+def test_dataset_overview_exposes_scale_factors_for_ui_panel():
+    capsule = dataset_to_session(_p_mech_only_dataset())
+    overview = build_dataset_overview(capsule)
+
+    assert overview["scale_factors"] == {"p_mech": 1.0}
 
 
 def test_evidence_package_can_downsample_preview_csv(tmp_path):

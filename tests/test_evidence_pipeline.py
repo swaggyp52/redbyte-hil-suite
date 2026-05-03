@@ -88,9 +88,17 @@ def test_nominal_session_passes_project_profile():
     from src.compliance_checker import evaluate_session
     session = _make_session(duration_s=1.0, fs=500.0)
     results = evaluate_session(session, profile="project_demo")
-    assert all(r["passed"] for r in results), \
-        "Nominal session should pass project_demo profile: " + \
-        str([(r["name"], r["details"]) for r in results if not r["passed"]])
+    applicable = [r for r in results if r.get("status") in {"PASS", "FAIL"}]
+    failed = [r for r in applicable if r.get("status") == "FAIL"]
+    assert not failed, (
+        "Nominal session should have no FAIL on applicable checks: "
+        + str([(r["name"], r["details"]) for r in failed])
+    )
+
+    ride = next(r for r in results if "Ride-through" in r["name"])
+    recovery = next(r for r in results if "Recovery" in r["name"])
+    assert ride["status"] == "N/A"
+    assert recovery["status"] == "N/A"
 
 
 def test_severe_sag_fails_ride_through():

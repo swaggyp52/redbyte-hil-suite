@@ -45,6 +45,16 @@ def test_suggest_mapping_common_headers():
     assert m["freq"] == "Frequency"
 
 
+def test_suggest_mapping_pinv_and_vsg_frequency_aliases():
+    cols = ["time", "Pinv", "vsg_freq", "omega_r"]
+    m = DataImporter.suggest_mapping(cols)
+    assert m["ts"] == "time"
+    # Pinv should map to p_mech for power-only simulation exports
+    assert m["p_mech"] == "Pinv"
+    # Frequency aliases should be recognized when present
+    assert m["freq"] in {"vsg_freq", "omega_r"}
+
+
 def test_suggest_mapping_ignores_unknown():
     cols = ["foo", "bar", "baz"]
     assert DataImporter.suggest_mapping(cols) == {}
@@ -67,6 +77,25 @@ def test_import_csv_roundtrip(tmp_path):
     # time values should be source-relative (same as the original values)
     assert cap["frames"][0]["ts"] == pytest.approx(df["time_s"].iloc[0], rel=1e-6)
     assert cap.mapping["v_an"] == "V_an"
+
+
+def test_preview_reads_only_requested_csv_rows(tmp_path):
+    # Build a large-enough CSV and verify preview does not read all rows.
+    n = 10_000
+    df = pd.DataFrame({
+        "Time(s)": np.arange(n, dtype=float) * 1e-4,
+        "CH1(V)": np.sin(np.linspace(0, 20 * np.pi, n)),
+        "CH2(V)": np.cos(np.linspace(0, 20 * np.pi, n)),
+    })
+    csv_path = tmp_path / "large_preview.csv"
+    df.to_csv(csv_path, index=False)
+
+    preview = DataImporter.preview(str(csv_path), n_rows=8)
+    assert preview["n_rows"] == n
+    assert len(preview["head"]) == 8
+    # Ensure no hidden full-read side effect by checking head content only
+    assert preview["head"][0]["Time(s)"] == pytest.approx(0.0)
+    assert preview["head"][-1]["Time(s)"] == pytest.approx(7e-4)
 
 
 def test_import_csv_ms_time_unit_detected(tmp_path):

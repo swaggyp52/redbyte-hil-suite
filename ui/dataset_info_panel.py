@@ -95,6 +95,10 @@ class DatasetInfoPanel(QFrame):
             if overview["analysis_mode"] == "vsm"
             else "color:#38bdf8; font-size:12px; font-weight:700;"
         )
+        self._scale_label.setText(
+            "Applied scale factors: "
+            + self._format_scale_factors(overview.get("scale_factors", {}))
+        )
         self._raw_label.setText(
             "Raw source columns: " + self._truncate_channels(overview["raw_source_columns"])
         )
@@ -194,6 +198,9 @@ class DatasetInfoPanel(QFrame):
 
         self._mode_label = QLabel("-")
         self._mode_label.setStyleSheet("color:#cbd5e1; font-size:12px; font-weight:700;")
+        self._scale_label = QLabel("Applied scale factors: none")
+        self._scale_label.setWordWrap(True)
+        self._scale_label.setStyleSheet("font-size:11px; color:#94a3b8;")
         self._raw_label = QLabel("Raw source columns: -")
         self._mapped_label = QLabel("Canonical mapped channels: -")
         self._derived_label = QLabel("Derived computed channels: -")
@@ -236,6 +243,7 @@ class DatasetInfoPanel(QFrame):
         root.addLayout(row2)
         root.addLayout(row3)
         root.addWidget(self._mode_label)
+        root.addWidget(self._scale_label)
         root.addWidget(self._raw_label)
         root.addWidget(self._mapped_label)
         root.addWidget(self._derived_label)
@@ -319,3 +327,18 @@ class DatasetInfoPanel(QFrame):
         if len(channels) > limit:
             text += f" +{len(channels) - limit}"
         return text
+
+    @staticmethod
+    def _format_scale_factors(scale_factors: dict[str, float]) -> str:
+        if not scale_factors:
+            return "none"
+
+        formatted = []
+        for channel in sorted(scale_factors):
+            value = float(scale_factors[channel])
+            if value.is_integer():
+                text = str(int(value))
+            else:
+                text = f"{value:.6g}"
+            formatted.append(f"{channel}×{text}")
+        return ", ".join(formatted)

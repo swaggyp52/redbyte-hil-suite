@@ -41,7 +41,7 @@ _VSM_MODE_CHANNELS = frozenset(
     _PHASE_VOLTAGE_CHANNELS
     + _LINE_VOLTAGE_CHANNELS
     + _CURRENT_CHANNELS
-    + ("freq", "p_mech", "v_dc", "i_dc")
+    + ("freq", "v_dc", "i_dc")
 )
 
 
@@ -380,6 +380,7 @@ def compute_session_metrics(
     frequency = _frequency_metrics(dataset, event_counts)
     balance = _balance_metrics(phase_voltage)
     current_thresholds = _current_threshold_metrics(dataset, event_counts)
+    scale_factors = dict(import_meta.get("scale_factors") or dataset.meta.get("scale_factors", {}))
 
     return {
         "session": {
@@ -412,7 +413,7 @@ def compute_session_metrics(
             "raw_source_columns": list(import_meta.get("raw_headers", dataset.raw_headers)),
             "analysis_mode": analysis_mode,
             "analysis_mode_label": analysis_mode_label,
-            "scale_factors": dict(dataset.meta.get("scale_factors", {})),
+            "scale_factors": scale_factors,
             "app_version": APP_VERSION,
         },
         "phase_voltage": phase_voltage,
@@ -553,6 +554,7 @@ def build_dataset_overview(capsule: dict) -> dict:
         if value and value != "__unmapped__"
     )
     warnings = list(capsule.get("import_meta", {}).get("warnings", []))
+    scale_factors = dict(import_meta.get("scale_factors") or dataset.meta.get("scale_factors", {}))
     return {
         "source_name": source_name,
         "source_path": source_path,
@@ -565,6 +567,7 @@ def build_dataset_overview(capsule: dict) -> dict:
         "time_window_s": round(float(dataset.duration), 6),
         "analysis_mode": analysis_mode,
         "analysis_mode_label": analysis_mode_label,
+        "scale_factors": scale_factors,
         "mapped_channels": mapped_channels,
         "canonical_channels": available_canonical_channels,
         "derived_channels": derived_channels,

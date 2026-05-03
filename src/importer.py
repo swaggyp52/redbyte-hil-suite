@@ -85,10 +85,16 @@ ALIAS_TABLE: Dict[str, Tuple[str, ...]] = {
     "freq": (
         "freq", "frequency", "hz", "f", "f_grid", "grid_freq", "grid_frequency",
         "fgrid", "fline",
+        # VSG / VSM simulation exports
+        "freq_vsg", "vsg_freq", "vsgfreq", "f_vsg", "fvsg", "vsgfrequency",
+        "freq_out", "fout", "omega", "omega_r",
     ),
     "p_mech": (
         "p_mech", "pmech", "mechanical_power", "mech_power", "power",
         "p_kw", "p(kw)", "kw", "p_out", "active_power", "p", "p_w",
+        # Simulink / VSM inverter power exports
+        "pinv", "p_inv", "p_inverter", "inverter_power", "inverterpwr",
+        "p_elec", "pelec", "pout_inv",
     ),
 }
 
@@ -197,33 +203,55 @@ class DataImporter:
         return "s"
 
     @staticmethod
-    def _read_tabular(filepath: str, sheet_name=None) -> pd.DataFrame:
+    def _read_tabular(filepath: str, sheet_name=None, nrows: Optional[int] = None) -> pd.DataFrame:
         ext = os.path.splitext(filepath)[1].lower()
         if ext == ".csv":
             # tolerate common separators
             try:
-                return pd.read_csv(filepath)
+                return pd.read_csv(filepath, nrows=nrows)
             except Exception:
-                return pd.read_csv(filepath, sep=None, engine="python")
+                return pd.read_csv(filepath, sep=None, engine="python", nrows=nrows)
         if ext in (".xlsx", ".xls"):
-            return pd.read_excel(filepath, sheet_name=sheet_name or 0)
+            return pd.read_excel(filepath, sheet_name=sheet_name or 0, nrows=nrows)
         raise ValueError(f"Unsupported file extension: {ext}")
 
     # ---- preview ---------------------------------------------------------
     @classmethod
     def preview(cls, filepath: str, sheet_name=None, n_rows: int = 10) -> Dict:
-        """Return columns + head rows without converting to a capsule."""
-        df = cls._read_tabular(filepath, sheet_name=sheet_name)
-        head = df.head(n_rows)
+        """Return columns + head rows without converting to a capsule.
+
+        For CSV files only ``n_rows`` data rows are read from disk so that
+        previewing a 1 M-row Rigol capture does not block the UI thread.
+        Excel files are small enough that a full read is acceptable.
+        The total row count is estimated by a fast line-count pass for CSV.
+        """
+        ext = os.path.splitext(filepath)[1].lower()
+        # For CSV, read only as many rows as needed for the preview.  A separate
+        # fast pass counts lines so we can still report the total row count.
+        if ext == ".csv":
+            df_head = cls._read_tabular(filepath, sheet_name=None, nrows=n_rows)
+            # Count lines quickly (subtract 1 for header)
+            try:
+                with open(filepath, "rb") as _fh:
+                    total_rows = sum(1 for _ in _fh) - 1
+            except Exception:
+                total_rows = n_rows
+        else:
+            df_head = cls._read_tabular(filepath, sheet_name=sheet_name)
+            total_rows = int(len(df_head))
+
+        # For time-unit detection we need a few rows — df_head is enough.
+        cols = list(df_head.columns)
+        suggested = cls.suggest_mapping(cols)
+        time_unit = "s"
+        if "ts" in suggested and suggested["ts"] in df_head.columns:
+            time_unit = cls._detect_time_unit(df_head[suggested["ts"]])
         return {
-            "columns": [str(c) for c in df.columns],
-            "n_rows": int(len(df)),
-            "head": head.to_dict(orient="records"),
-            "suggested_mapping": cls.suggest_mapping(list(df.columns)),
-            "suggested_time_unit": (
-                cls._detect_time_unit(df[cls.suggest_mapping(list(df.columns)).get("ts", df.columns[0])])
-                if "ts" in cls.suggest_mapping(list(df.columns)) else "s"
-            ),
+            "columns": [str(c) for c in cols],
+            "n_rows": total_rows,
+            "head": df_head.head(n_rows).to_dict(orient="records"),
+            "suggested_mapping": suggested,
+            "suggested_time_unit": time_unit,
         }
 
     @classmethod
@@ -242,8 +270,18 @@ class DataImporter:
         filepath: str,
         column_map: Optional[Dict[str, str]] = None,
         options: Optional[Dict] = None,
+        max_rows: Optional[int] = None,
     ) -> ImportResult:
-        df = cls._read_tabular(filepath)
+        """Import a CSV file.
+
+        Parameters
+        ----------
+        max_rows:
+            When set, only the first *max_rows* data rows are loaded.  Used
+            by the import wizard's live-validation preview to avoid blocking
+            the UI thread on large Rigol captures (1 M+ rows).
+        """
+        df = cls._read_tabular(filepath, nrows=max_rows)
         return cls._dataframe_to_capsule(
             df,
             source_path=filepath,

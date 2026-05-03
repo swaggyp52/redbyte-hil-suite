@@ -315,6 +315,13 @@ class ImportWizard(QDialog):
     # ------------------------------------------------------------------
     # Validate / Import
     # ------------------------------------------------------------------
+
+    # Maximum number of rows used for the live validation preview.
+    # Large Rigol CSV files (1 M+ rows) must NOT be fully loaded in the
+    # UI thread — we only need a representative sample to check whether
+    # the mapping is structurally valid.
+    _VALIDATE_PREVIEW_ROWS = 2_000
+
     def _on_validate(self):
         if not self._filepath:
             self.txt_summary.setPlainText("Select a file first.")
@@ -327,37 +334,56 @@ class ImportWizard(QDialog):
                 "The importer needs a numeric time column (seconds or ms).\n"
                 "Map the 'ts' row to the appropriate source column."
             )
+            self._capsule = None
             return
 
         try:
             sheet = self.cb_sheet.currentText() if self.cb_sheet.isVisible() else None
             options = self._collect_options()
+            # Use a row-limited sample so the UI does not freeze on large CSV
+            # files.  The sample capsule is only used to populate the summary
+            # text; the full import happens later in _on_import().
+            sample_options = dict(options)
             if sheet is not None:
                 capsule = DataImporter.import_excel(
                     self._filepath, sheet_name=sheet,
-                    column_map=mapping, options=options,
+                    column_map=mapping, options=sample_options,
                 )
             else:
                 capsule = DataImporter.import_csv(
-                    self._filepath, column_map=mapping, options=options,
+                    self._filepath, column_map=mapping,
+                    options=sample_options,
+                    max_rows=self._VALIDATE_PREVIEW_ROWS,
                 )
         except Exception as e:
             self.txt_summary.setPlainText(f"✖ Import would fail:\n{e}")
             self._capsule = None
             return
 
-        self._capsule = capsule
+        # Store the validated mapping/options so _on_import can rebuild with
+        # the full dataset.  Do NOT store the row-limited capsule as the final
+        # output — it is only used for the summary text below.
+        self._validated_mapping = mapping
+        self._validated_options = options
+        self._capsule = capsule  # preview only; overwritten in _on_import
+
         meta_imp = capsule["meta"].get("import", {})
-        n = capsule["meta"]["frame_count"]
+        n_preview = capsule["meta"]["frame_count"]
         dur = capsule["meta"]["duration_s"]
         missing = meta_imp.get("missing_channels", [])
         warns = meta_imp.get("warnings", [])
         resample = meta_imp.get("resample")
 
+        # Estimate total frames from preview row count
+        preview_note = (
+            f" (preview of first {n_preview:,} rows — full file imported on save)"
+            if n_preview >= self._VALIDATE_PREVIEW_ROWS else ""
+        )
+
         lines = [
-            f"✔  Import would produce {n} frame(s).",
-            f"   Duration: {dur:.3f} s",
-            f"   Time unit used: {meta_imp.get('time_unit_detected','?')}",
+            f"✔  Mapping validated{preview_note}.",
+            f"   Duration (preview): {dur:.3f} s",
+            f"   Time unit used: {meta_imp.get('time_unit_detected', '?')}",
         ]
         if resample:
             lines.append(
@@ -381,26 +407,49 @@ class ImportWizard(QDialog):
         self.txt_summary.setPlainText("\n".join(lines))
 
     def _on_import(self):
-        # Recompute with the current settings so the button can't commit a
-        # stale validation snapshot.
+        # Re-run validation to confirm mapping is still coherent and to
+        # populate self._validated_mapping / self._validated_options.
         self._on_validate()
         if self._capsule is None:
             QMessageBox.warning(self, "Cannot import", "Fix the validation errors first.")
             return
 
-        default_name = self._capsule["meta"].get("session_id", "imported_session") + ".json"
-        default_dir = os.path.join(os.getcwd(), "data", "sessions")
-        os.makedirs(default_dir, exist_ok=True)
+        mapping = getattr(self, "_validated_mapping", self._collect_mapping())
+        options = getattr(self, "_validated_options", self._collect_options())
+        sheet = self.cb_sheet.currentText() if self.cb_sheet.isVisible() else None
+
+        # Derive a sensible default output filename from the source file.
+        import os as _os
+        src_stem = _os.path.splitext(_os.path.basename(self._filepath))[0]
+        default_name = src_stem + ".json"
+        default_dir = _os.path.join(_os.getcwd(), "data", "sessions")
+        _os.makedirs(default_dir, exist_ok=True)
+
         fname, _ = QFileDialog.getSaveFileName(
             self, "Save Session Capsule",
-            os.path.join(default_dir, default_name),
+            _os.path.join(default_dir, default_name),
             "JSON Session (*.json)",
         )
         if not fname:
             return
 
+        # Perform the FULL import now (not the row-limited preview).
         try:
-            self.saved_capsule_path = DataImporter.save_capsule(self._capsule, fname)
+            if sheet is not None:
+                full_capsule = DataImporter.import_excel(
+                    self._filepath, sheet_name=sheet,
+                    column_map=mapping, options=options,
+                )
+            else:
+                full_capsule = DataImporter.import_csv(
+                    self._filepath, column_map=mapping, options=options,
+                )
+        except Exception as e:
+            QMessageBox.critical(self, "Import failed", str(e))
+            return
+
+        try:
+            self.saved_capsule_path = DataImporter.save_capsule(full_capsule, fname)
         except Exception as e:
             QMessageBox.critical(self, "Save failed", str(e))
             return

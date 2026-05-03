@@ -173,6 +173,43 @@ def _is_current_channel(name: str) -> bool:
     return nl.startswith(_CURRENT_PREFIXES) or "(a)" in nl
 
 
+def _looks_periodic_ac_voltage(signal: np.ndarray, sample_rate: float) -> bool:
+    """Heuristic: True when *signal* resembles a steady AC waveform.
+
+    Used to suppress generic point-to-point step detection on channels like
+    v_an/v_bn/v_cn for normal sinusoidal operation, while still allowing
+    step detection on non-periodic voltage traces (e.g. DC-like jumps).
+    """
+    n = int(signal.size)
+    if n < 128 or sample_rate <= 0:
+        return False
+
+    centered = signal.astype(np.float64) - float(np.mean(signal))
+    std = float(np.std(centered))
+    if std < 1e-9:
+        return False
+
+    # Moderate threshold to ignore tiny noise crossings around zero.
+    zc = int(np.sum((centered[:-1] <= 0.0) & (centered[1:] > 0.0)))
+    duration_s = n / float(sample_rate)
+    if duration_s <= 0:
+        return False
+    est_freq = zc / duration_s
+    if not (40.0 <= est_freq <= 80.0):
+        return False
+
+    # Confirm that 45–75 Hz dominates the spectrum.
+    spectrum = np.fft.rfft(centered)
+    freqs = np.fft.rfftfreq(n, d=1.0 / float(sample_rate))
+    mags = np.abs(spectrum)
+    total = float(np.sum(mags[1:]))
+    if total <= 0:
+        return False
+    band = (freqs >= 45.0) & (freqs <= 75.0)
+    band_energy = float(np.sum(mags[band]))
+    return (band_energy / total) >= 0.35
+
+
 # ---------------------------------------------------------------------------
 # Individual detectors
 # ---------------------------------------------------------------------------
@@ -637,11 +674,16 @@ def _detect_dataset_events(dataset: ImportedDataset) -> list[DetectedEvent]:
         if _is_current_channel(ch_name):
             events.extend(_detect_overcurrent(ch_name, signal, time, sr))
 
-        # Universal detectors — but skip step-change on AC sinusoidal voltage
-        # channels (v_an, v_bn, …) where the natural dV/dt at power-system
-        # frequencies always exceeds the step-change threshold.
+        # Universal detectors — suppress step-change only when a canonical
+        # phase/line voltage channel looks like periodic AC.  This prevents
+        # false "abrupt step" events on healthy sinusoids while preserving
+        # true discontinuity detection for non-periodic voltage traces.
         events.extend(_detect_flatline(ch_name, signal, time, sr))
-        if ch_name not in _AC_VOLTAGE_CHANNELS:
+        periodic_ac = (
+            ch_name in _AC_VOLTAGE_CHANNELS
+            and _looks_periodic_ac_voltage(signal, sr)
+        )
+        if not periodic_ac:
             events.extend(_detect_step_change(ch_name, signal, time, sr))
         events.extend(_detect_clipping(ch_name, signal, time, sr))
 
