@@ -128,8 +128,11 @@ def _wait_for(condition, timeout_s: float = 2.0) -> bool:
         return False
     deadline = time.time() + timeout_s
     while time.time() < deadline:
-        if condition():
-            return True
+        try:
+            if condition():
+                return True
+        except Exception:
+            pass
         app.processEvents()
         time.sleep(0.02)
     return False
@@ -165,7 +168,8 @@ def main() -> int:
 
     studio = ReplayStudio(Recorder(), FakeSerialMgr())
     studio.load_session_from_dict(ds0_capsule, label=ds0_session.label, is_primary=True)
-    _wait_for(lambda: studio._metrics_table.rowCount() > 0, timeout_s=2.5)
+    metrics_ready = _wait_for(lambda: studio._metrics_table.rowCount() > 0, timeout_s=2.5)
+    results.append(_check(metrics_ready, "Metrics table populated after DS0 import"))
     results.append(_check(studio.play_idx == 0 and abs(studio.scrubber.value()) < 1e-6, "Replay cursor resets to start after import"))
     results.append(_check(_assert_replay_view_overlap(studio, float(ds0_time[-1])), "Replay default view overlaps DS0 session range"))
     results.append(_check(bool(studio._metric_cards.get("phase_rms", None) and studio._metric_cards["phase_rms"].text() not in ("—", "N/A")), "Metrics summary card exposes DS0 phase RMS values"))
@@ -210,7 +214,8 @@ def main() -> int:
 
     # 4) Compare contract (A baseline + B overlay should auto-render)
     studio.load_session_from_dict(ds1_capsule, label="RigolDS1-overlay", is_primary=False)
-    _wait_for(lambda: studio._comparison_tab._last_result is not None, timeout_s=3.0)
+    compare_ready = _wait_for(lambda: studio._comparison_tab._last_result is not None, timeout_s=3.0)
+    results.append(_check(compare_ready, "Compare result populated after DS1 overlay load"))
     cmp_result = studio._comparison_tab._last_result
     results.append(_check(cmp_result is not None, "Compare state is populated when DS0 and DS1 are loaded"))
     if cmp_result is not None:

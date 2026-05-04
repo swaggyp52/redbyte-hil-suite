@@ -1,7 +1,9 @@
 import json
+import time
 
 import numpy as np
 from PyQt6.QtCore import QObject, pyqtSignal
+from PyQt6.QtWidgets import QApplication
 
 from src.dataset_converter import dataset_to_session
 from src.file_ingestion import ImportedDataset
@@ -103,6 +105,13 @@ def test_compare_auto_populates_after_overlay_load(qapp):
     ds_b.channels["v_an"] = ds_b.channels["v_an"] * 1.01
     cap_b = dataset_to_session(ds_b, session_id="comparison")
     studio.load_session_from_dict(cap_b, label="comparison", is_primary=False)
+
+    app = QApplication.instance()
+    assert app is not None
+    deadline = time.time() + 2.0
+    while time.time() < deadline and studio._comparison_tab._last_result is None:
+        app.processEvents()
+        time.sleep(0.02)
 
     result = studio._comparison_tab._last_result
     assert result is not None
