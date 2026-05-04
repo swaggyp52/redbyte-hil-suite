@@ -397,7 +397,10 @@ class ReplayStudio(QWidget):
         if is_primary:
             self.active_session = idx
 
-        self._render_all_sessions()
+        try:
+            self._render_all_sessions()
+        except Exception:
+            logger.exception("Error rendering session '%s' — session loaded but display may be incomplete.", label)
         self._update_comparison_tab()
         # Event detection and metrics are now handled by background workers
         # started inside _render_all_sessions via _start_background_* methods.
@@ -577,6 +580,10 @@ class ReplayStudio(QWidget):
         if not frames:
             return
 
+        # Safe y-anchor for labels: use nanmax, but fall back to 0 if all-NaN.
+        valid_vals = primary_arr[~np.isnan(primary_arr)] if len(primary_arr) else np.array([])
+        y_anchor = float(valid_vals.max()) if len(valid_vals) > 0 else 0.0
+
         t0 = frames[0]['ts']
         events = session['data'].get('events', [])
         for evt in events:
@@ -585,7 +592,7 @@ class ReplayStudio(QWidget):
             color = 'r' if 'fault' in evt_label.lower() else 'b'
             line = pg.InfiniteLine(pos=t_evt, angle=90, pen=pg.mkPen(color, style=Qt.PenStyle.DashLine))
             txt = pg.TextItem(evt_label, color=color, anchor=(0, 1))
-            txt.setPos(t_evt, float(np.nanmax(primary_arr)) if len(primary_arr) else 0)
+            txt.setPos(t_evt, y_anchor)
             self.plot_wave.addItem(line)
             self.plot_wave.addItem(txt)
             self.markers.append(line)
@@ -604,7 +611,7 @@ class ReplayStudio(QWidget):
                     + (" …" if len(unmapped) > 4 else "")
                 )
                 notice = pg.TextItem(notice_text, color='#f59e0b', anchor=(0, 0))
-                notice.setPos(0, float(np.nanmax(primary_arr)) if len(primary_arr) else 0)
+                notice.setPos(0, y_anchor)
                 self.plot_wave.addItem(notice)
                 self.markers.append(notice)
 

@@ -127,3 +127,6 @@ class RotorSplashScreen(QSplashScreen):
         """Finish animation and close splash"""
         self.timer.stop()
         self.finish(window)
+        # On Windows 11, finish() alone doesn't always raise the window.
+        window.raise_()
+        window.activateWindow()

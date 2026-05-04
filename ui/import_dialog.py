@@ -399,7 +399,11 @@ class ImportDialog(QDialog):
         import numpy as np
 
         suggested = self._mapper.auto_suggest(ds.raw_headers)
-        self._mapping = dict(suggested)
+        # Exclude the time column from channel mappings — it is the x-axis, not a
+        # signal channel, and including it produces a spurious "Unmapped: Time(s)"
+        # notice in the waveform view.
+        _time_col = ds.meta.get("time_column")
+        self._mapping = {k: v for k, v in suggested.items() if k != _time_col}
         self._combo_map.clear()
         self._map_table.setRowCount(0)
 

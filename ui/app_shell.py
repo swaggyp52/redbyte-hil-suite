@@ -238,21 +238,29 @@ class AppShell(QMainWindow):
     def _on_session_imported(self, capsule: dict):
         """Receive an imported session capsule and make it the active session."""
         label = capsule.get("meta", {}).get("session_id", "import")
-        session = ActiveSession.from_capsule(capsule, label=label)
+        try:
+            session = ActiveSession.from_capsule(capsule, label=label)
 
-        self._set_active_session(session)
-        self._navigate("overview")
-        t0 = time.perf_counter()
-        logger.info("app_shell.load.start: %s", label)
-        self._replay.load_imported_session(capsule, session)
-        self._compliance.load_from_capsule(capsule, session)
-        self.session_bar.set_analysis_mode(True)
-        logger.info("app_shell.load.end: %s (%.3fs)", label, time.perf_counter() - t0)
+            self._set_active_session(session)
+            self._navigate("overview")
+            t0 = time.perf_counter()
+            logger.info("app_shell.load.start: %s", label)
+            self._replay.load_imported_session(capsule, session)
+            self._compliance.load_from_capsule(capsule, session)
+            self.session_bar.set_analysis_mode(True)
+            logger.info("app_shell.load.end: %s (%.3fs)", label, time.perf_counter() - t0)
 
-        source = session.source_type_display
-        self.session_bar.set_source(f"Offline Analysis Mode - {source}")
-        self._show_toast(f"Imported: {label}", "#10b981")
-        logger.info("Imported session '%s' loaded (%s).", label, source)
+            source = session.source_type_display
+            self.session_bar.set_source(f"Offline Analysis Mode - {source}")
+            self._show_toast(f"Imported: {label}", "#10b981")
+            logger.info("Imported session '%s' loaded (%s).", label, source)
+        except Exception as exc:
+            logger.exception("Failed to load imported session '%s'", label)
+            from PyQt6.QtWidgets import QMessageBox
+            QMessageBox.critical(
+                self, "Load Error",
+                f"Failed to load session '{label}':\n{exc}\n\nCheck the log for details."
+            )
 
     # ──────────────────────────────────────────────────────────────
     # Active session management
