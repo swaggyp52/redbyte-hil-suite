@@ -160,6 +160,16 @@ class ReplayPage(QWidget):
         self._summary.setVisible(True)
         self._stack.setCurrentIndex(1)
 
+    def clear_session(self) -> None:
+        """Return Replay to its empty state for the final demo flow."""
+        self._session_path = None
+        self._capsule = None
+        self.studio._clear_all()
+        self.insights._clear_insights()
+        self._summary.setVisible(False)
+        self._top_bar.set_unloaded()
+        self._stack.setCurrentIndex(0)
+
     def try_autoload_last_session(self, sessions_dir: str = "data/sessions"):
         """Auto-load the most recently modified session file if available."""
         try:

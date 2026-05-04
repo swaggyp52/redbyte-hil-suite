@@ -34,6 +34,15 @@ def _make_dataset(duration_s: float = 0.1, n: int = 2000) -> ImportedDataset:
     )
 
 
+def _visible_tab_names(studio: ReplayStudio) -> list[str]:
+    tab_bar = studio.tabs.tabBar()
+    return [
+        studio.tabs.tabText(i)
+        for i in range(studio.tabs.count())
+        if tab_bar.isTabVisible(i)
+    ]
+
+
 def test_dataset_converter_emits_display_time_field():
     ds = _make_dataset(duration_s=0.1, n=2000)
     capsule = dataset_to_session(ds, session_id="display_time_test")
@@ -92,6 +101,42 @@ def test_primary_load_replaces_prior_session(tmp_path, qapp):
     assert studio.sessions[0]["label"] == "session_b"
 
 
+def test_replay_surface_uses_demo_tab_sequence(qapp):
+    _ = qapp
+    studio = ReplayStudio(Recorder(), _FakeSerialMgr())
+
+    assert _visible_tab_names(studio) == ["Replay", "Metrics", "Compare"]
+    assert studio.chk_link_axes.isChecked()
+
+
+def test_axis_link_toggle_allows_independent_zoom(qapp):
+    _ = qapp
+    studio = ReplayStudio(Recorder(), _FakeSerialMgr())
+
+    ds = _make_dataset(duration_s=0.1, n=2000)
+    capsule = dataset_to_session(ds, session_id="link_toggle_test")
+    studio.load_session_from_dict(capsule, label="link_toggle_test", is_primary=True)
+
+    app = QApplication.instance()
+    assert app is not None
+
+    studio.plot_wave.setXRange(0.01, 0.03, padding=0.0)
+    app.processEvents()
+    linked_range = studio.plot_line.viewRange()[0]
+    assert linked_range[0] <= 0.011
+    assert linked_range[1] >= 0.029
+
+    studio.chk_link_axes.setChecked(False)
+    app.processEvents()
+    frozen_range = tuple(studio.plot_line.viewRange()[0])
+
+    studio.plot_wave.setXRange(0.05, 0.07, padding=0.0)
+    app.processEvents()
+    unlinked_range = studio.plot_line.viewRange()[0]
+    assert abs(unlinked_range[0] - frozen_range[0]) < 1e-6
+    assert abs(unlinked_range[1] - frozen_range[1]) < 1e-6
+
+
 def test_compare_auto_populates_after_overlay_load(qapp):
     _ = qapp
     studio = ReplayStudio(Recorder(), _FakeSerialMgr())
@@ -116,3 +161,4 @@ def test_compare_auto_populates_after_overlay_load(qapp):
     result = studio._comparison_tab._last_result
     assert result is not None
     assert result.channels
+    assert studio._comparison_tab._selected_channel() is not None

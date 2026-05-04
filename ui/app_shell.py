@@ -248,12 +248,13 @@ class AppShell(QMainWindow):
             session = ActiveSession.from_capsule(capsule, label=label)
 
             self._set_active_session(session)
-            self._navigate("overview")
             t0 = time.perf_counter()
             logger.info("app_shell.load.start: %s", label)
             self._replay.load_imported_session(capsule, session)
             self._compliance.load_from_capsule(capsule, session)
+            self.sidebar.set_page_visible("overview", False)
             self.session_bar.set_analysis_mode(True)
+            self._navigate("replay")
             logger.info("app_shell.load.end: %s (%.3fs)", label, time.perf_counter() - t0)
 
             source = session.source_type_display
@@ -283,8 +284,12 @@ class AppShell(QMainWindow):
         """Clear the active session and reset related UI state."""
         self._current_session = None
         self._overview.clear_active_session()
+        self._replay.clear_session()
+        self._compliance.clear_session()
         self.session_bar.set_source("—")
         self.session_bar.set_analysis_mode(False)
+        self.sidebar.set_page_visible("overview", True)
+        self._navigate("overview")
         logger.info("Active session cleared.")
 
     # ──────────────────────────────────────────────────────────────

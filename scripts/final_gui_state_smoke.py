@@ -138,6 +138,15 @@ def _wait_for(condition, timeout_s: float = 2.0) -> bool:
     return False
 
 
+def _visible_tab_names(tab_widget) -> list[str]:
+    tab_bar = tab_widget.tabBar()
+    return [
+        tab_widget.tabText(i)
+        for i in range(tab_widget.count())
+        if tab_bar.isTabVisible(i)
+    ]
+
+
 def main() -> int:
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
     _require_files()
@@ -169,6 +178,8 @@ def main() -> int:
     studio = ReplayStudio(Recorder(), FakeSerialMgr())
     studio.load_session_from_dict(ds0_capsule, label=ds0_session.label, is_primary=True)
     metrics_ready = _wait_for(lambda: studio._metrics_table.rowCount() > 0, timeout_s=2.5)
+    results.append(_check(_visible_tab_names(studio.tabs) == ["Replay", "Metrics", "Compare"], "Replay surface hides non-demo tabs"))
+    results.append(_check(studio.chk_link_axes.isChecked(), "Replay exposes linked-axes toggle by default"))
     results.append(_check(metrics_ready, "Metrics table populated after DS0 import"))
     results.append(_check(studio.play_idx == 0 and abs(studio.scrubber.value()) < 1e-6, "Replay cursor resets to start after import"))
     results.append(_check(_assert_replay_view_overlap(studio, float(ds0_time[-1])), "Replay default view overlaps DS0 session range"))

@@ -57,8 +57,8 @@ class ComparisonPanel(QWidget):
     Dual-session comparison view.
 
     Call :meth:`set_sessions` whenever the caller has a primary session (A)
-    and an overlay session (B) ready.  The panel does not trigger comparison
-    automatically — the user must click **Compare** (or **Auto-Align** first).
+    and an overlay session (B) ready. The panel auto-renders an initial
+    overlay and delta as soon as both sessions are present.
     """
 
     def __init__(self, parent: Optional[QWidget] = None) -> None:
@@ -147,7 +147,7 @@ class ComparisonPanel(QWidget):
         self._channel_combo.setMinimumWidth(120)
         self._channel_combo.setToolTip("Channel to display in detail view")
 
-        self._btn_align = QPushButton("Auto-Align")
+        self._btn_align = QPushButton("Re-align")
         self._btn_align.setToolTip(
             "Use cross-correlation to estimate timing offset between A and B"
         )
@@ -162,7 +162,7 @@ class ComparisonPanel(QWidget):
         self._offset_spin.setValue(0.0)
         self._offset_spin.setFixedWidth(80)
 
-        self._btn_compare = QPushButton("Compare")
+        self._btn_compare = QPushButton("Refresh Compare")
         self._btn_compare.setObjectName("AccentButton")
         self._btn_compare.clicked.connect(self._on_compare)
 
@@ -182,10 +182,11 @@ class ComparisonPanel(QWidget):
 
         # ── Empty state guidance (shown until both sessions loaded) ──
         self._empty_hint = QLabel(
-            "Load a session in the Replay tab, then click <b>Add Overlay</b> "
-            "to load a second session.<br><br>"
-            "Once both datasets (A and B) are loaded, use <b>Auto-Align</b> to "
-            "time-synchronise them and <b>Compare</b> to see overlay and delta plots."
+            "Load a baseline session in Replay, then use <b>Add Overlay</b> to load "
+            "a second session.<br><br>"
+            "As soon as both datasets are present, this page renders the overlay and "
+            "delta automatically. Use <b>Re-align</b> or <b>Refresh Compare</b> only "
+            "after changing the offset or selected channel."
         )
         self._empty_hint.setWordWrap(True)
         self._empty_hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -435,6 +436,8 @@ class ComparisonPanel(QWidget):
         self._channel_combo.addItem("All matched channels", None)
         for ch in channels:
             self._channel_combo.addItem(ch, ch)
+        if channels:
+            self._channel_combo.setCurrentIndex(1)
 
     def _selected_channel(self) -> Optional[str]:
         return self._channel_combo.currentData()

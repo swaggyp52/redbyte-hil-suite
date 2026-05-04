@@ -155,6 +155,8 @@ class ValidationDashboard(QWidget):
 
     def clear(self):
         self.table.setRowCount(0)
+        self.summary_list.clear()
+        self.compliance_table.setRowCount(0)
 
     @pyqtSlot(dict)
     def add_entry(self, result_pkg):

@@ -110,6 +110,11 @@ class ReplayStudio(QWidget):
         self.btn_reset_zoom.clicked.connect(self._reset_zoom)
         self.btn_reset_zoom.setEnabled(False)
 
+        self.chk_link_axes = QCheckBox("Link Axes")
+        self.chk_link_axes.setChecked(True)
+        self.chk_link_axes.setToolTip("Keep the replay plots on the same time window")
+        self.chk_link_axes.toggled.connect(self._set_axes_linked)
+
         self.lbl_time = QLabel("0.00s")
 
         ctrl.addWidget(self.btn_load)
@@ -117,6 +122,7 @@ class ReplayStudio(QWidget):
         ctrl.addWidget(self.btn_clear)
         ctrl.addWidget(self.btn_play)
         ctrl.addWidget(self.btn_reset_zoom)
+        ctrl.addWidget(self.chk_link_axes)
         ctrl.addWidget(self.btn_export)
         ctrl.addWidget(self.btn_quick_export)
         ctrl.addWidget(self.lbl_time)
@@ -177,7 +183,6 @@ class ReplayStudio(QWidget):
         self.plot_line.setLabel('left', 'Voltage', units='V')
         self.plot_line.setLabel('bottom', 'Time', units='s')
         self.plot_line.addLegend()
-        self.plot_line.setXLink(self.plot_wave)
         wave_layout.addWidget(self.plot_line, stretch=2)
 
         self.plot_current = pg.PlotWidget(title="Phase Currents")
@@ -186,7 +191,6 @@ class ReplayStudio(QWidget):
         self.plot_current.setLabel('left', 'Current', units='A')
         self.plot_current.setLabel('bottom', 'Time', units='s')
         self.plot_current.addLegend()
-        self.plot_current.setXLink(self.plot_wave)
         wave_layout.addWidget(self.plot_current, stretch=2)
 
         self.plot_aux = pg.PlotWidget(title="Auxiliary Signals")
@@ -195,7 +199,6 @@ class ReplayStudio(QWidget):
         self.plot_aux.setLabel('left', 'Value')
         self.plot_aux.setLabel('bottom', 'Time', units='s')
         self.plot_aux.addLegend()
-        self.plot_aux.setXLink(self.plot_wave)
         wave_layout.addWidget(self.plot_aux, stretch=1)
 
         self.tabs.addTab(wave_container, "Replay")
@@ -265,10 +268,11 @@ class ReplayStudio(QWidget):
 
         self._metrics_summary = QLabel("")
         self._metrics_summary.setStyleSheet(
-            "color: #64748b; font-family: monospace; font-size: 10px; "
-            "padding: 4px 8px; background: transparent;"
+            "color: #94a3b8; font-size: 11px; padding: 6px 8px; "
+            "background: rgba(15,23,42,96); border: 1px solid rgba(51,65,85,96); "
+            "border-radius: 6px;"
         )
-        self._metrics_summary.setWordWrap(False)
+        self._metrics_summary.setWordWrap(True)
         metrics_layout.addWidget(self._metrics_summary)
         self._metrics_table = QTableWidget(0, 5)
         self._metrics_table.setHorizontalHeaderLabels(
@@ -315,6 +319,13 @@ class ReplayStudio(QWidget):
         # Tab 5: Events
         self._event_lane = EventLane()
         self.tabs.addTab(self._event_lane, "Events")
+
+        self._linked_plots = (self.plot_line, self.plot_current, self.plot_aux)
+        self._set_axes_linked(self.chk_link_axes.isChecked())
+
+        tab_bar = self.tabs.tabBar()
+        tab_bar.setTabVisible(self.tabs.indexOf(self.plot_spectrum), False)
+        tab_bar.setTabVisible(self.tabs.indexOf(self._event_lane), False)
 
         # Interactive Scrubber
         self.scrubber = pg.InfiniteLine(pos=0, angle=90, movable=True, pen=pg.mkPen('w', width=2))
@@ -568,7 +579,7 @@ class ReplayStudio(QWidget):
             self._set_empty_plot_state(
                 self.plot_current,
                 "Phase Currents",
-                "Current channels not mapped for this dataset.",
+                "No current data available; current-based checks remain N/A for this dataset.",
                 y_label="Current",
                 units="A",
             )
@@ -576,7 +587,7 @@ class ReplayStudio(QWidget):
             self._set_empty_plot_state(
                 self.plot_aux,
                 "Frequency / Auxiliary Channels",
-                "No frequency, power, or generic auxiliary channels are available.",
+                "No frequency or auxiliary data available; frequency checks remain N/A unless a freq channel or phase voltage is present.",
                 y_label="Value",
             )
 
@@ -708,39 +719,90 @@ class ReplayStudio(QWidget):
         line = summary.get("line_voltage", {})
         freq = summary.get("frequency", {})
 
+        phase_labels = {"v_an": "AN", "v_bn": "BN", "v_cn": "CN"}
+        line_labels = {"v_ab": "AB", "v_bc": "BC", "v_ca": "CA"}
+
         phase_values = [
-            f"{ch}: {phase[ch]['rms']:.2f} V"
+            f"{phase_labels[ch]}  {phase.get(ch, {}).get('rms', 0.0):.2f} V"
             for ch in ("v_an", "v_bn", "v_cn")
-            if phase.get(ch, {}).get("available") and phase[ch].get("rms") is not None
+            if phase.get(ch, {}).get("available") and phase.get(ch, {}).get("rms") is not None
         ]
         line_values = [
-            f"{ch}: {line[ch]['rms']:.2f} V"
+            f"{line_labels[ch]}  {line.get(ch, {}).get('rms', 0.0):.2f} V"
             for ch in ("v_ab", "v_bc", "v_ca")
-            if line.get(ch, {}).get("available") and line[ch].get("rms") is not None
+            if line.get(ch, {}).get("available") and line.get(ch, {}).get("rms") is not None
         ]
         thd_values = [
-            f"{ch}: {phase[ch]['thd_pct']:.2f}%"
+            f"{phase_labels[ch]}  {phase.get(ch, {}).get('thd_pct', 0.0):.2f}%"
             for ch in ("v_an", "v_bn", "v_cn")
-            if phase.get(ch, {}).get("available") and phase[ch].get("thd_pct") is not None
+            if phase.get(ch, {}).get("available") and phase.get(ch, {}).get("thd_pct") is not None
         ]
         if freq.get("available"):
-            freq_text = f"mean {freq.get('mean_hz', 0.0):.3f} Hz · max dev {freq.get('max_deviation_hz', 0.0):.3f} Hz"
+            freq_text = (
+                f"mean  {freq.get('mean_hz', 0.0):.3f} Hz\n"
+                f"max dev  {freq.get('max_deviation_hz', 0.0):.3f} Hz"
+            )
         else:
             freq_text = "N/A"
 
-        self._metric_cards["phase_rms"].setText(" | ".join(phase_values) if phase_values else "N/A")
-        self._metric_cards["line_rms"].setText(" | ".join(line_values) if line_values else "N/A")
-        self._metric_cards["thd"].setText(" | ".join(thd_values) if thd_values else "N/A")
+        self._metric_cards["phase_rms"].setText("\n".join(phase_values) if phase_values else "N/A")
+        self._metric_cards["line_rms"].setText("\n".join(line_values) if line_values else "N/A")
+        self._metric_cards["thd"].setText("\n".join(thd_values) if thd_values else "N/A")
         self._metric_cards["freq"].setText(freq_text)
         self._metric_cards["window"].setText(
-            f"{session_info.get('sample_count', 0):,} samples · "
-            f"{session_info.get('sample_rate_hz', 0.0):.2f} Hz · "
+            f"{session_info.get('sample_count', 0):,} samples\n"
+            f"{session_info.get('sample_rate_hz', 0.0):.2f} Hz\n"
             f"{session_info.get('time_window_s', 0.0):.4f} s"
         )
         derived = session_info.get("derived_channels", [])
         self._metric_cards["derived"].setText(
-            ", ".join(derived) if derived else "none"
+            "\n".join(derived[:4]) + ("\n…" if len(derived) > 4 else "") if derived else "none"
         )
+
+    def _build_metrics_status_lines(self, summary: dict) -> list[str]:
+        event_counts = summary.get("events", {}).get("counts", {})
+        current_info = summary.get("current_thresholds", {})
+        freq_info = summary.get("frequency", {})
+        session_info = summary.get("session", {})
+
+        lines = [
+            f"Voltage sag events: {event_counts.get('voltage_sag', 0)}",
+            f"Frequency excursions: {event_counts.get('frequency_excursion', 0)}",
+        ]
+        if current_info.get("available"):
+            lines.append(f"Overcurrent events: {event_counts.get('overcurrent', 0)}")
+        else:
+            lines.append(
+                "No current data available; current-based checks N/A "
+                f"({current_info.get('reason', 'missing current')})"
+            )
+
+        if freq_info.get("available"):
+            source = (
+                "estimated from V_an"
+                if freq_info.get("source") == "estimated_from_v_an"
+                else "from dataset"
+            )
+            lines.append(
+                f"Frequency available {source}: mean {freq_info.get('mean_hz', 0.0):.3f} Hz"
+            )
+        else:
+            lines.append(
+                "No frequency data available; frequency checks N/A "
+                f"({freq_info.get('reason', 'missing frequency')})"
+            )
+
+        generic_channels = session_info.get("generic_numeric_channels", [])
+        if generic_channels:
+            lines.append(f"Generic channels: {', '.join(generic_channels[:3])}")
+        else:
+            lines.append("Generic channels: none")
+        return lines
+
+    def _set_axes_linked(self, linked: bool) -> None:
+        target = self.plot_wave.getViewBox() if linked else None
+        for plot in getattr(self, "_linked_plots", ()):
+            plot.getViewBox().setXLink(target)
 
     def _set_empty_plot_state(self, plot, title: str, message: str, y_label: str, units=None) -> None:
         plot.clear()
@@ -749,14 +811,17 @@ class ReplayStudio(QWidget):
         plot.setLabel('bottom', 'Time', units='s')
         plot.showGrid(x=True, y=True, alpha=0.3)
         plot.setYRange(0.0, 1.0, padding=0.0)
+        start_s, end_s = self._session_time_range
+        x_mid = start_s + ((end_s - start_s) / 2.0) if end_s > start_s else 0.5
         note = pg.TextItem(message, color='#94a3b8', anchor=(0.5, 0.5))
-        note.setPos(0.5, 0.5)
+        note.setPos(x_mid, 0.5)
         plot.addItem(note)
 
     def _update_analysis_view(self, session) -> None:
         summary = compute_session_metrics(session['data'])
         rows = build_metric_rows(summary)
         self._populate_metrics_table(rows)
+        self._set_metric_cards_from_summary(summary)
 
         session_info = summary["session"]
         derived = ", ".join(session_info["derived_channels"]) or "none"
@@ -769,25 +834,7 @@ class ReplayStudio(QWidget):
             f"Derived: {derived}"
         )
 
-        event_counts = summary["events"]["counts"]
-        self._metrics_summary.setText(
-            "  |  ".join(
-                [
-                    f"Voltage sag events: {event_counts['voltage_sag']}",
-                    f"Frequency excursions: {event_counts['frequency_excursion']}",
-                    (
-                        f"Overcurrent events: {event_counts['overcurrent']}"
-                        if summary["current_thresholds"].get("available")
-                        else f"Overcurrent: N/A ({summary['current_thresholds'].get('reason', 'missing current')})"
-                    ),
-                    (
-                        f"Generic channels: {', '.join(session_info['generic_numeric_channels'][:3])}"
-                        if session_info['generic_numeric_channels']
-                        else "Generic channels: none"
-                    ),
-                ]
-            )
-        )
+        self._metrics_summary.setText("\n".join(self._build_metrics_status_lines(summary)))
 
         self.plot_metrics.clear()
         dataset = session.get('_dataset')
@@ -1027,24 +1074,7 @@ class ReplayStudio(QWidget):
             f"Canonical: {', '.join(session_info.get('available_canonical_channels', [])) or 'none'}  ·  "
             f"Derived: {derived}"
         )
-        event_counts = summary.get('events', {}).get('counts', {})
-        current_info = summary.get('current_thresholds', {})
-        self._metrics_summary.setText(
-            '  |  '.join([
-                f"Voltage sag events: {event_counts.get('voltage_sag', 0)}",
-                f"Frequency excursions: {event_counts.get('frequency_excursion', 0)}",
-                (
-                    f"Overcurrent events: {event_counts.get('overcurrent', 0)}"
-                    if current_info.get('available')
-                    else f"Overcurrent: N/A ({current_info.get('reason', 'missing current')})"
-                ),
-                (
-                    f"Generic channels: {', '.join(session_info.get('generic_numeric_channels', [])[:3])}"
-                    if session_info.get('generic_numeric_channels')
-                    else "Generic channels: none"
-                ),
-            ])
-        )
+        self._metrics_summary.setText("\n".join(self._build_metrics_status_lines(summary)))
         self._set_metric_cards_from_summary(summary)
         # Rebuild rolling-RMS plot using the decimated frame data (fast; avoids
         # the expensive np.convolve on 1 M-row full-resolution arrays).

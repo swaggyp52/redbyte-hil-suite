@@ -119,7 +119,7 @@ def test_drop_unsupported_file_shows_clear_guidance(qapp, monkeypatch):
     shell.close()
 
 
-def test_supported_import_loads_overview_then_replay_with_events_compare_and_export(qapp):
+def test_supported_import_lands_in_replay_with_locked_demo_navigation(qapp):
     shell = AppShell(demo_mode=False, mock_mode=False, enable_3d=False, windowed=True)
 
     dataset = ingest_file("data/demo_sessions/session_nominal.json")
@@ -128,17 +128,27 @@ def test_supported_import_loads_overview_then_replay_with_events_compare_and_exp
 
     shell._on_session_imported(capsule)
 
-    assert shell.stack.currentIndex() == _PAGE_INDICES["overview"]
+    assert shell.stack.currentIndex() == _PAGE_INDICES["replay"]
     assert shell._current_session is not None
     assert not shell._overview._info_panel.isHidden()
     assert shell._replay.studio.sessions
+    assert not shell.sidebar._buttons["overview"].isVisible()
 
     tabs = shell._replay.studio.tabs
-    tab_names = [tabs.tabText(i) for i in range(tabs.count())]
-    assert "Events" in tab_names
-    assert "Compare" in tab_names
+    tab_bar = tabs.tabBar()
+    tab_names = [
+        tabs.tabText(i)
+        for i in range(tabs.count())
+        if tab_bar.isTabVisible(i)
+    ]
+    assert tab_names == ["Replay", "Metrics", "Compare"]
 
     for btn in shell._replay._top_bar._export_btns:
         assert btn.isEnabled()
+
+    shell._clear_active_session()
+    assert shell.stack.currentIndex() == _PAGE_INDICES["overview"]
+    assert not shell.sidebar._buttons["overview"].isHidden()
+    assert not shell._replay.studio.sessions
 
     shell.close()

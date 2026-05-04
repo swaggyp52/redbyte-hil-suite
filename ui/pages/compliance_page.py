@@ -155,12 +155,27 @@ class CompliancePage(QWidget):
             name = meta.get("session_id", "imported")
             frames_str = str(meta.get("frame_count", len(capsule.get("frames", []))))
 
-        self._top_bar.set_session(name, int(frames_str.replace(",", "")) if frames_str.isdigit() else 0)
+        frames_value = frames_str.replace(",", "")
+        self._top_bar.set_session(name, int(frames_value) if frames_value.isdigit() else 0)
         self._ready.set_session_name(name)
         self._scorecard.setVisible(False)
         self._stack.setCurrentIndex(1)
         self._state = "loaded"
         logger.info("Compliance page pre-loaded from imported capsule: %s", name)
+
+    def clear_session(self) -> None:
+        """Reset Compliance to its unloaded state so Tools -> Reset Session is truthful."""
+        self._session_path = None
+        self._session_data = None
+        self._state = "no_session"
+        self._last_results = []
+        self._last_events = []
+        self._last_annotations = {}
+        self._top_bar.reset_session()
+        self._scorecard.setVisible(False)
+        self._check_cards.set_results([])
+        self.dashboard.clear()
+        self._stack.setCurrentIndex(0)
 
     def set_events(self, events: list, annotations: dict | None = None) -> None:
         """
@@ -600,6 +615,9 @@ class _ComplianceTopBar(QWidget):
 
     def set_session(self, name: str, frames: int):
         self._lbl.setText(f"Compliance  ·  {name}  ({frames:,} frames)")
+
+    def reset_session(self) -> None:
+        self._lbl.setText("Compliance  ·  Standards-Inspired Validation")
 
     def set_profile_description(self, text: str) -> None:
         self._desc.setText(text)

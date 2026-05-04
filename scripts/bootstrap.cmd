@@ -1,5 +1,5 @@
 @echo off
-setlocal EnableExtensions
+setlocal EnableExtensions EnableDelayedExpansion
 
 set "BOOTSTRAP_DIR=%~dp0"
 for %%I in ("%BOOTSTRAP_DIR%..") do set "PROJECT_ROOT=%%~fI"
@@ -21,7 +21,7 @@ if not exist "%VENV_PYTHON%" (
     if errorlevel 1 exit /b 1
 
     echo [setup] Creating virtual environment in .venv...
-    %BASE_PYTHON% -m venv "%VENV_DIR%"
+    !BASE_PYTHON! -m venv "%VENV_DIR%"
     if errorlevel 1 (
         echo [ERROR] Could not create .venv.
         exit /b 1

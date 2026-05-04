@@ -1,9 +1,9 @@
 """
 Tools page — demo-preparation utilities for the VSM Evidence Workbench.
 
-Provides a self-contained set of helpers for running pre-presentation checks,
-opening output folders, resetting session state, and inspecting version info.
-Not part of the primary analysis workflow.
+Provides a small, reliable set of helpers for the final presentation:
+run the two final checks, open the evidence export folder, and reset the app
+back to a clean import state.
 """
 
 import subprocess
@@ -20,15 +20,12 @@ from PyQt6.QtWidgets import (
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 
 _DEMO_CHECKLIST = [
-    "1. Run smoke test — all 31 checks should PASS",
-    "2. Open the app via run.bat",
-    "3. Import RigolDS0.csv — apply 3-phase mapping",
-    "4. Navigate to Replay → Metrics tab",
-    "5. Navigate to Compliance tab",
-    "6. Import DS1 as second session and compare",
-    "7. Export evidence package",
-    "8. Import InverterPower.xlsx — confirm generic mode",
-    "9. Close app and confirm exports in artifacts/evidence_exports/",
+    "1. Import RigolDS0.csv and confirm Replay opens immediately",
+    "2. Review Replay → Metrics → Compliance",
+    "3. Add RigolDS1 as overlay and open Compare",
+    "4. Import InverterPower_Simulation.xlsx and confirm generic power mode",
+    "5. Import VSGFrequency_Simulation.xlsx and confirm honest no-frequency handling",
+    "6. Export evidence package and open artifacts/evidence_exports/",
 ]
 
 
@@ -51,7 +48,7 @@ class ToolsPage(QWidget):
         root.addWidget(header)
 
         subtitle = QLabel(
-            "Pre-presentation checks, output folder access, and session reset."
+            "Final-check utilities only: smoke checks, evidence exports, and a clean reset."
         )
         subtitle.setObjectName("OverviewSubtitle")
         root.addWidget(subtitle)
@@ -60,26 +57,18 @@ class ToolsPage(QWidget):
         btn_row = QHBoxLayout()
         btn_row.setSpacing(12)
 
-        self._btn_smoke = QPushButton("▶  Run Smoke Test")
+        self._btn_smoke = QPushButton("▶  Run Smoke Tests")
         self._btn_smoke.setObjectName("SimBtnRun")
         self._btn_smoke.clicked.connect(self._run_smoke_test)
         btn_row.addWidget(self._btn_smoke)
 
-        btn_exports = QPushButton("📁  Open Evidence Exports")
-        btn_exports.clicked.connect(self._open_exports)
-        btn_row.addWidget(btn_exports)
+        self._btn_exports = QPushButton("📁  Open Evidence Export Folder")
+        self._btn_exports.clicked.connect(self._open_exports)
+        btn_row.addWidget(self._btn_exports)
 
-        btn_screenshots = QPushButton("🖼  Open Screenshots")
-        btn_screenshots.clicked.connect(self._open_screenshots)
-        btn_row.addWidget(btn_screenshots)
-
-        btn_reset = QPushButton("↺  Reset Session")
-        btn_reset.clicked.connect(self.reset_requested)
-        btn_row.addWidget(btn_reset)
-
-        btn_version = QPushButton("ℹ  Version Info")
-        btn_version.clicked.connect(self._show_version)
-        btn_row.addWidget(btn_version)
+        self._btn_reset = QPushButton("↺  Reset Session")
+        self._btn_reset.clicked.connect(self.reset_requested)
+        btn_row.addWidget(self._btn_reset)
 
         btn_row.addStretch()
         root.addLayout(btn_row)
@@ -106,24 +95,30 @@ class ToolsPage(QWidget):
     # ── Smoke test runner ────────────────────────────────────────────
 
     def _run_smoke_test(self):
-        script = _PROJECT_ROOT / "scripts" / "final_demo_smoke.py"
-        dlg = _OutputDialog(f"Smoke Test — {script.name}", self)
+        scripts = [
+            _PROJECT_ROOT / "scripts" / "final_demo_smoke.py",
+            _PROJECT_ROOT / "scripts" / "final_gui_state_smoke.py",
+        ]
+        dlg = _OutputDialog("Final Demo Checks", self)
         dlg.show()
 
         def _worker():
+            chunks: list[str] = []
             try:
-                proc = subprocess.run(
-                    [sys.executable, str(script)],
-                    capture_output=True,
-                    text=True,
-                    cwd=str(_PROJECT_ROOT),
-                    timeout=120,
-                )
-                output = proc.stdout
-                if proc.stderr:
-                    output += "\n--- stderr ---\n" + proc.stderr
-                if proc.returncode != 0:
-                    output += f"\n[Exit code {proc.returncode}]"
+                for script in scripts:
+                    proc = subprocess.run(
+                        [sys.executable, str(script)],
+                        capture_output=True,
+                        text=True,
+                        cwd=str(_PROJECT_ROOT),
+                        timeout=180,
+                    )
+                    chunk = [f"=== {script.name} ===", proc.stdout.rstrip()]
+                    if proc.stderr:
+                        chunk.extend(["--- stderr ---", proc.stderr.rstrip()])
+                    chunk.append(f"[Exit code {proc.returncode}]")
+                    chunks.append("\n".join(part for part in chunk if part))
+                output = "\n\n".join(chunks)
             except Exception as exc:
                 output = f"Failed to run smoke test:\n{exc}"
             dlg._output_ready.emit(output)

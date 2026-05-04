@@ -81,3 +81,13 @@ class Sidebar(QWidget):
     def select(self, key):
         """Programmatically select a page without re-emitting if already active."""
         self._select(key)
+
+    def set_page_visible(self, key: str, visible: bool) -> None:
+        """Show or hide one navigation button without removing the page itself."""
+        btn = self._buttons.get(key)
+        if btn is None:
+            return
+        btn.setVisible(visible)
+        if not visible and self._active == key:
+            btn.setChecked(False)
+            self._active = None
