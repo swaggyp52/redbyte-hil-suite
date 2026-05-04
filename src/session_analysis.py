@@ -27,7 +27,7 @@ _GENERIC_NUMERIC_EXCLUDES = frozenset(
     _PHASE_VOLTAGE_CHANNELS
     + _LINE_VOLTAGE_CHANNELS
     + _CURRENT_CHANNELS
-    + ("freq", "status")
+    + ("freq", "status", "display_time_s")
 )
 _EXPECTED_VSM_CHANNELS = (
     *_PHASE_VOLTAGE_CHANNELS,

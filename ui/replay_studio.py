@@ -301,6 +301,7 @@ class ReplayStudio(QWidget):
         self._tags = []
         self._tag_data = []
         self._last_spectrum_ts = 0.0
+        self._session_time_range = (0.0, 1.0)
 
         # Session colors for overlay
         self._session_colors = [
@@ -327,6 +328,8 @@ class ReplayStudio(QWidget):
             self._load_session(fname, is_primary=False)
 
     def _load_session(self, fname, is_primary=True):
+        if is_primary:
+            self._clear_all()
         try:
             with open(fname, 'r') as f:
                 data = json.load(f)
@@ -369,6 +372,8 @@ class ReplayStudio(QWidget):
 
     def _load_session_from_data(self, data: dict, label: str, is_primary: bool, path=None):
         """Internal: accept an already-parsed Data Capsule dict."""
+        if is_primary and self.sessions:
+            self._clear_all()
         ensure_capsule_derived_channels(data)
         frames = data.get('frames', [])
         if not frames:
@@ -437,8 +442,7 @@ class ReplayStudio(QWidget):
             label = session['label']
             suffix = f" ({label})" if len(self.sessions) > 1 else ""
             style = Qt.PenStyle.SolidLine if session['is_primary'] else Qt.PenStyle.DashLine
-            t0 = frames[0]['ts']
-            ts = np.array([f['ts'] - t0 for f in frames], dtype=float)
+            ts = self._build_display_time(frames)
             sample_frame = frames[0]
 
             def _is_boolean_channel(key: str) -> bool:
@@ -447,7 +451,7 @@ class ReplayStudio(QWidget):
 
             numeric_channels = [
                 key for key in sample_frame
-                if key != 'ts' and isinstance(sample_frame.get(key), (int, float))
+                if key not in {'ts', 'display_time_s'} and isinstance(sample_frame.get(key), (int, float))
                 and not _is_boolean_channel(key)
             ]
             phase_channels = [ch for ch in ('v_an', 'v_bn', 'v_cn') if ch in numeric_channels]
@@ -465,6 +469,8 @@ class ReplayStudio(QWidget):
                 primary_current_channels = current_channels
                 primary_aux_channels = aux_channels or generic_channels[:2]
                 primary_generic_channels = generic_channels
+                if ts.size:
+                    self._session_time_range = (float(ts[0]), float(ts[-1]))
 
             if phase_channels:
                 self._plot_channel_group(self.plot_wave, frames, ts, phase_channels, colors, style, suffix)
@@ -547,7 +553,7 @@ class ReplayStudio(QWidget):
             sample = primary_session['frames'][0] if primary_session['frames'] else {}
             ch_names = [
                 key for key in sample
-                if key != 'ts' and isinstance(sample.get(key), (int, float))
+                if key not in {'ts', 'display_time_s'} and isinstance(sample.get(key), (int, float))
             ]
             self._update_channel_bar(ch_names)
 
@@ -563,9 +569,14 @@ class ReplayStudio(QWidget):
                 logger.exception("Failed to start async event detection worker")
 
         self.play_idx = 0
+        self.scrubber.setValue(0.0)
+        self.lbl_time.setText("0.00s")
+        self.tabs.setCurrentIndex(0)
         self._update_ui(0)
+        self._apply_session_view_range()
         for plot in (self.plot_wave, self.plot_line, self.plot_current, self.plot_aux, self.plot_metrics, self.plot_spectrum):
             plot.autoRange()
+        self._apply_session_view_range()
 
     def _plot_channel_group(self, plot, frames, ts, channels, colors, style, suffix):
         pen_colors = [colors[i % len(colors)] for i in range(len(channels))]
@@ -574,6 +585,46 @@ class ReplayStudio(QWidget):
             pen = pg.mkPen(pen_colors[idx], width=1.4, style=style)
             curve = plot.plot(ts, arr, pen=pen, name=f"{channel}{suffix}")
             self._wave_curves.append(curve)
+
+    def _frame_time(self, frame: dict, fallback: float = 0.0) -> float:
+        """Read the replay display timestamp for one frame.
+
+        Prefer explicit display_time_s if present, then fall back to ts.
+        """
+        display_time = frame.get('display_time_s')
+        if display_time is not None:
+            try:
+                return float(display_time)
+            except (TypeError, ValueError):
+                pass
+        ts = frame.get('ts')
+        if ts is not None:
+            try:
+                return float(ts)
+            except (TypeError, ValueError):
+                pass
+        try:
+            return float(fallback)
+        except (TypeError, ValueError):
+            return 0.0
+
+    def _build_display_time(self, frames: list[dict]) -> np.ndarray:
+        if not frames:
+            return np.array([], dtype=float)
+        raw = np.array([self._frame_time(f, float(i)) for i, f in enumerate(frames)], dtype=float)
+        if raw.size == 0:
+            return np.array([], dtype=float)
+        raw = raw - float(raw[0])
+        # Guarantee monotonic non-decreasing display time to keep searchsorted stable.
+        return np.maximum.accumulate(raw)
+
+    def _apply_session_view_range(self) -> None:
+        start_s, end_s = self._session_time_range
+        if end_s <= start_s:
+            end_s = start_s + 1.0
+        for plot in (self.plot_wave, self.plot_line, self.plot_current, self.plot_aux):
+            plot.setXRange(start_s, end_s, padding=0.02)
+        self.plot_metrics.setXRange(start_s, end_s, padding=0.02)
 
     def _render_primary_markers(self, session, ts, primary_arr):
         frames = session['frames']
@@ -584,10 +635,10 @@ class ReplayStudio(QWidget):
         valid_vals = primary_arr[~np.isnan(primary_arr)] if len(primary_arr) else np.array([])
         y_anchor = float(valid_vals.max()) if len(valid_vals) > 0 else 0.0
 
-        t0 = frames[0]['ts']
+        t0 = self._frame_time(frames[0], 0.0)
         events = session['data'].get('events', [])
         for evt in events:
-            t_evt = evt['ts'] - t0
+            t_evt = float(evt.get('ts', t0)) - t0
             evt_label = evt.get('type', 'Event')
             color = 'r' if 'fault' in evt_label.lower() else 'b'
             line = pg.InfiniteLine(pos=t_evt, angle=90, pen=pg.mkPen(color, style=Qt.PenStyle.DashLine))
@@ -624,7 +675,6 @@ class ReplayStudio(QWidget):
         plot.setLabel('left', y_label, units=units)
         plot.setLabel('bottom', 'Time', units='s')
         plot.showGrid(x=True, y=True, alpha=0.3)
-        plot.setXRange(0.0, 1.0, padding=0.0)
         plot.setYRange(0.0, 1.0, padding=0.0)
         note = pg.TextItem(message, color='#94a3b8', anchor=(0.5, 0.5))
         note.setPos(0.5, 0.5)
@@ -742,6 +792,11 @@ class ReplayStudio(QWidget):
     def _clear_all(self):
         self.sessions = []
         self.active_session = None
+        self.is_playing = False
+        self.timer.stop()
+        self.btn_play.setText("Play")
+        self.play_idx = 0
+        self._session_time_range = (0.0, 1.0)
         self.plot_wave.clear()
         self.plot_wave.addItem(self.scrubber)
         self.plot_wave.addItem(self._crosshair_v, ignoreBounds=True)
@@ -758,6 +813,8 @@ class ReplayStudio(QWidget):
         self._metric_curves = []
         self._ts_arr = np.array([])
         self.lbl_time.setText("0.00s")
+        self.scrubber.setValue(0.0)
+        self.tabs.setCurrentIndex(0)
         self._comparison_tab.clear()
         self._event_lane.clear()
         self._sync_button_state()
@@ -781,6 +838,8 @@ class ReplayStudio(QWidget):
         """Auto-populate the Compare tab when two sessions are available."""
         if len(self.sessions) >= 2:
             self._comparison_tab.set_sessions(self.sessions[0], self.sessions[1])
+        else:
+            self._comparison_tab.clear()
 
     def _update_event_lane(self) -> None:
         """Detect events in the primary session and populate the Events tab."""
@@ -918,8 +977,7 @@ class ReplayStudio(QWidget):
         frames = primary.get('frames', [])
         if not frames:
             return
-        ts_arr = np.array([f['ts'] for f in frames], dtype=float)
-        t_rel = ts_arr - ts_arr[0]
+        t_rel = self._build_display_time(frames)
         phase_colors = {'v_an': '#f97316', 'v_bn': '#3b82f6', 'v_cn': '#22c55e'}
         window_n = max(8, min(len(frames) // 20, 200))
         kernel = np.ones(window_n) / window_n
@@ -1012,9 +1070,11 @@ class ReplayStudio(QWidget):
         frames = self.sessions[self.active_session]['frames']
         if idx >= len(frames):
             return
-        frame = frames[idx]
-        t0 = frames[0]['ts']
-        rel_t = frame['ts'] - t0
+        if self._ts_arr.size and idx < len(self._ts_arr):
+            rel_t = float(self._ts_arr[idx])
+        else:
+            frame = frames[idx]
+            rel_t = self._frame_time(frame, 0.0) - self._frame_time(frames[0], 0.0)
 
         self.lbl_time.setText(f"{rel_t:.2f}s")
         if update_scrubber:
@@ -1179,13 +1239,14 @@ class ReplayStudio(QWidget):
         self._readout.setText(f"t = {t_val:.4f}s   y = {y_val:.3f}")
 
     def _reset_zoom(self):
-        """Auto-range all plot widgets."""
+        """Restore plot ranges to the active session's display time window."""
         self.plot_wave.autoRange()
         self.plot_line.autoRange()
         self.plot_current.autoRange()
         self.plot_aux.autoRange()
         self.plot_metrics.autoRange()
         self.plot_spectrum.autoRange()
+        self._apply_session_view_range()
 
     def _update_channel_bar(self, channels: list[str]) -> None:
         """Build or rebuild the channel toggle checkboxes."""

@@ -20,6 +20,8 @@ import threading
 import time
 from typing import Optional
 
+import numpy as np
+
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import (
@@ -662,16 +664,32 @@ class ImportDialog(QDialog):
                 "Compliance behavior: VSM-specific checks will report N/A unless voltage/frequency channels are mapped."
             )
 
-        if any(c.lower() in ("ch4(v)", "ch4", "ch4 (v)") for c in unmapped_numeric):
-            lines.append(
-                "CH4(V) note: column kept under its original name (no auto-mapping). "
-                "If this is a generic auxiliary signal, manually map it to 'aux_ch4' in the table above."
+        ch4_key = next(
+            (c for c in raw_columns if c.lower() in ("ch4(v)", "ch4", "ch4 (v)")),
+            None,
+        )
+        if ch4_key is not None:
+            ch4_target = self._mapping.get(ch4_key, UNMAPPED)
+            ch4_arr = self._dataset.channels.get(ch4_key)
+            ch4_note = (
+                "CH4(V) guidance: this channel is usually a raw auxiliary signal. "
+                "Leave it unmapped or map to aux_ch4 unless a calibration is known."
             )
-        elif "aux_ch4" in mapped_channels:
-            lines.append(
-                "CH4(V) → aux_ch4: retained as generic raw auxiliary. "
-                "Not used in calibrated overcurrent checks unless a current scale factor is provided."
-            )
+            if ch4_arr is not None and len(ch4_arr) > 0:
+                ch4_valid = ch4_arr[np.isfinite(ch4_arr)]
+                if len(ch4_valid) > 0:
+                    ch4_rms = float(np.sqrt(np.mean(ch4_valid.astype(np.float64) ** 2)))
+                    ch4_span = float(ch4_valid.max() - ch4_valid.min())
+                    if ch4_rms < 0.05 and ch4_span < 0.2:
+                        ch4_note += (
+                            f" Detected low-level amplitude (RMS {ch4_rms:.4f}, span {ch4_span:.4f}), "
+                            "so treating it as v_dc would be misleading."
+                        )
+            if ch4_target == "v_dc":
+                ch4_note += " Current mapping selects v_dc; consider changing to aux_ch4 or unmapped."
+            elif ch4_target == "aux_ch4":
+                ch4_note += " Current mapping aux_ch4 is appropriate for an uncalibrated auxiliary channel."
+            lines.append(ch4_note)
 
         self._summary_box.setPlainText("\n".join(lines))
 

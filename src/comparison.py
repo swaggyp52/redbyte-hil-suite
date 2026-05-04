@@ -84,7 +84,7 @@ def dataset_from_capsule(capsule: dict, label: str = "") -> "ImportedDataset":
     all_keys: set[str] = set()
     for f in frames:
         for k, v in f.items():
-            if k == "ts":
+            if k in {"ts", "display_time_s"}:
                 continue
             if isinstance(v, (int, float, np.integer, np.floating)) and not isinstance(v, bool):
                 all_keys.add(k)

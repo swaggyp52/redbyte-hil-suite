@@ -296,9 +296,31 @@ class AppShell(QMainWindow):
         self.stack.setCurrentIndex(idx)
         self.sidebar.select(key)
 
-        # Auto-load last session when entering Replay
-        if key == "replay" and not self._replay.studio.sessions:
-            self._replay.try_autoload_last_session()
+        # When entering Replay, prefer the in-memory active session created by import.
+        if key == "replay":
+            if self._current_session is not None:
+                primary_capsule = self._replay.studio.get_primary_capsule()
+                active_sid = self._current_session.capsule.get("meta", {}).get("session_id", "<unknown>")
+                replay_sid = (
+                    primary_capsule.get("meta", {}).get("session_id", "<none>")
+                    if primary_capsule is not None
+                    else "<none>"
+                )
+                needs_reload = primary_capsule is not self._current_session.capsule
+                if needs_reload:
+                    logger.debug(
+                        "Replay navigation: loading active session into replay (active=%s replay=%s)",
+                        active_sid,
+                        replay_sid,
+                    )
+                    self._replay.load_imported_session(
+                        self._current_session.capsule,
+                        self._current_session,
+                    )
+                else:
+                    logger.debug("Replay navigation: active session already loaded (%s)", active_sid)
+            elif not self._replay.studio.sessions:
+                self._replay.try_autoload_last_session()
 
         # Refresh overview when returning to it
         if key == "overview":

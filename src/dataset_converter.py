@@ -119,6 +119,10 @@ def dataset_to_session(
         dec_factor = 1.0
 
     dec_time = dataset.time[indices]
+    raw_start_s = float(dataset.time[0]) if len(dataset.time) else 0.0
+    raw_end_s = float(dataset.time[-1]) if len(dataset.time) else 0.0
+    display_start_s = float(dec_time[0]) if len(dec_time) else 0.0
+    display_end_s = float(dec_time[-1]) if len(dec_time) else 0.0
     dec_channels: dict[str, np.ndarray] = {
         ch: arr[indices]
         for ch, arr in dataset.channels.items()
@@ -129,7 +133,11 @@ def dataset_to_session(
     channel_names = list(dec_channels.keys())
 
     for i in range(len(indices)):
-        frame: dict = {"ts": float(dec_time[i])}
+        display_t = float(dec_time[i] - dec_time[0]) if len(dec_time) else 0.0
+        frame: dict = {
+            "ts": float(dec_time[i]),
+            "display_time_s": display_t,
+        }
         for ch in channel_names:
             val = float(dec_channels[ch][i])
             if not np.isnan(val):
@@ -161,8 +169,12 @@ def dataset_to_session(
             "original_row_count":    n,
             "decimation_factor":     dec_factor,
             "time_range_s":          {
-                "start": round(float(dataset.time[0]), 6),
-                "end": round(float(dataset.time[-1]), 6),
+                "start": round(raw_start_s, 6),
+                "end": round(raw_end_s, 6),
+            },
+            "display_time_range_s": {
+                "start": round(display_start_s, 6),
+                "end": round(display_end_s, 6),
             },
         },
         "frames":   frames,
