@@ -1,11 +1,13 @@
 @echo off
+setlocal EnableExtensions
+
 cd /d "%~dp0"
 echo ============================================
-echo  RedByte GFM HIL Suite - Setup
+echo  VSM Evidence Workbench - Setup
 echo ============================================
 echo.
 
-call scripts\bootstrap.cmd --dev
+call scripts\bootstrap.cmd
 if errorlevel 1 (
     echo.
     echo [ERROR] Setup failed. Check the error above.
@@ -13,21 +15,39 @@ if errorlevel 1 (
     exit /b 1
 )
 
-echo [Optional] Installing Playwright Chromium (for browser UI tests)...
-"%REDBYTE_PYTHON%" -m playwright install chromium >nul 2>&1
+echo [setup] Running package self-check...
+"%REDBYTE_PYTHON%" scripts\package_self_check.py --mode install
 if errorlevel 1 (
-    echo [WARN] Playwright browser install skipped or unavailable.
-    echo        Core app setup is complete. Browser-based tests may require:
-    echo        .venv\Scripts\python.exe -m playwright install chromium
+    echo.
+    echo [ERROR] Package self-check failed.
+    pause
+    exit /b 1
+)
+
+echo [setup] Running final demo smoke validation...
+"%REDBYTE_PYTHON%" scripts\final_demo_smoke.py
+if errorlevel 1 (
+    echo.
+    echo [ERROR] Demo smoke validation failed.
+    pause
+    exit /b 1
+)
+
+if exist scripts\final_gui_state_smoke.py (
+    echo [setup] Running GUI-state smoke validation...
+    "%REDBYTE_PYTHON%" scripts\final_gui_state_smoke.py
+    if errorlevel 1 (
+        echo.
+        echo [ERROR] GUI-state smoke validation failed.
+        pause
+        exit /b 1
+    )
 )
 
 echo.
 echo ============================================
 echo  Setup complete!
 echo.
-echo  Launch:  run.bat  (double-click)
-echo    or     .venv\Scripts\python.exe run.py
-echo.
-echo  Test:    bin\test.bat
+echo  Next step: double-click run.bat
 echo ============================================
 pause

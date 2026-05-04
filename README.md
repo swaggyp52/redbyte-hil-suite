@@ -17,6 +17,24 @@ Local Python/PyQt6 desktop application for offline recorded-session analysis.
 - UART streaming deliverable
 - hardware control or formal certification tool
 
+## Fresh Windows Install
+
+1. Download the GitHub ZIP.
+2. Extract it to a normal folder.
+3. Double-click `install.cmd`.
+4. Wait for setup to finish.
+5. Double-click `run.bat`.
+
+`install.cmd` now handles the full end-user setup flow:
+
+- finds an existing Python 3.12+ runtime when available
+- installs Python 3.12 for the current user when needed
+- creates the project `.venv`
+- installs runtime dependencies
+- runs a package self-check
+- runs smoke validation that does not depend on private OneDrive files
+
+Supported bootstrap targets: Windows 11 x64 and ARM64.
 ## Launch
 
 **Windows (double-click or terminal):**
@@ -25,8 +43,8 @@ Local Python/PyQt6 desktop application for offline recorded-session analysis.
 run.bat
 ```
 
-`run.bat` locates the project `.venv`, checks Python 3.12+, installs missing dependencies,
-and launches `run.py`. It is the supported user launcher.
+`run.bat` uses only the project `.venv\Scripts\python.exe` and launches `run.py`.
+If `.venv` is missing or broken, rerun `install.cmd`.
 
 **Alternative (already inside the project `.venv`):**
 
@@ -88,12 +106,39 @@ Evidence export writes real analysis artifacts under `artifacts/evidence_exports
 
 Up to 8 artifacts total. `compliance.json` is written only when the Compliance page has been opened and checks have been run before export. For very large captures, `preview.csv` is a downsampled preview; full-resolution export is a known future-work item.
 
-## Demo-Validated Files
+## Sample Data
 
-- `RigolDS0.csv`
-- `RigolDS1.csv`
-- `InverterPower_Simulation.xlsx`
-- `VSGFrequency_Simulation.xlsx`
+Bundled sample files are in `sample_data/`:
+
+- `sample_data/demo_three_phase.csv`
+- `sample_data/demo_session.json`
+
+Use **Import Run File** and choose one of those files on a fresh install.
+
+Optional local senior-design validation files can still be used when available, but the packaged install and smoke validation no longer depend on them.
+
+## Troubleshooting
+
+If Windows SmartScreen appears:
+
+- click **More info**
+- click **Run anyway**
+
+If `install.cmd` cannot download Python:
+
+- check the internet connection
+- install Python 3.12 or newer manually
+- rerun `install.cmd`
+
+If the app does not open:
+
+- run `run.bat` from Command Prompt
+- keep the console open and capture the error text
+
+If your own data files are not ready yet:
+
+- use **Import Run File** and choose a CSV, XLSX, or JSON file
+- bundled examples are in `sample_data/`
 
 ## Known Limitations
 
