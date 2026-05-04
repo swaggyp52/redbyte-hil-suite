@@ -20,6 +20,7 @@ from src.channel_mapping import (
     CANONICAL_SIGNALS,
     UNMAPPED,
     ChannelMapper,
+    apply_rigol_three_phase_defaults,
     auto_suggest_mapping,
     infer_unit_from_header,
 )
@@ -66,6 +67,29 @@ def test_auto_suggest_rigol_headers_are_unmapped():
             f"'{ch}' must not be auto-mapped to a canonical name. "
             f"Got '{mapping[ch]}'"
         )
+
+
+def test_apply_rigol_three_phase_defaults_presets_phase_channels_only():
+    headers = ["Time(s)", "CH1(V)", "CH2(V)", "CH3(V)", "CH4(V)"]
+    suggested = auto_suggest_mapping(headers)
+    updated = apply_rigol_three_phase_defaults(headers, suggested)
+    assert updated["CH1(V)"] == "v_an"
+    assert updated["CH2(V)"] == "v_bn"
+    assert updated["CH3(V)"] == "v_cn"
+    assert updated["CH4(V)"] == UNMAPPED
+
+
+def test_apply_rigol_three_phase_defaults_preserves_existing_user_target():
+    headers = ["Time(s)", "CH1(V)", "CH2(V)", "CH3(V)"]
+    suggested = {
+        "CH1(V)": "v_ab",
+        "CH2(V)": UNMAPPED,
+        "CH3(V)": UNMAPPED,
+    }
+    updated = apply_rigol_three_phase_defaults(headers, suggested)
+    assert updated["CH1(V)"] == "v_ab"
+    assert updated["CH2(V)"] == "v_bn"
+    assert updated["CH3(V)"] == "v_cn"
 
 
 def test_auto_suggest_simulation_excel_pinv():

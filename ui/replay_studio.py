@@ -231,6 +231,38 @@ class ReplayStudio(QWidget):
         self.plot_metrics.setLabel('bottom', 'Time', units='s')
         self.plot_metrics.addLegend()
         metrics_layout.addWidget(self.plot_metrics, stretch=1)
+
+        self._metric_cards: dict[str, QLabel] = {}
+        self._metric_cards_container = QWidget()
+        cards_layout = QGridLayout(self._metric_cards_container)
+        cards_layout.setContentsMargins(4, 4, 4, 4)
+        cards_layout.setHorizontalSpacing(8)
+        cards_layout.setVerticalSpacing(8)
+        card_keys = [
+            ("phase_rms", "Phase RMS"),
+            ("line_rms", "Line-to-Line RMS"),
+            ("thd", "THD"),
+            ("freq", "Frequency"),
+            ("window", "Display Window"),
+            ("derived", "Derived Channels"),
+        ]
+        for i, (key, title) in enumerate(card_keys):
+            card = QFrame()
+            card.setObjectName("MetricChip")
+            card_layout = QVBoxLayout(card)
+            card_layout.setContentsMargins(8, 6, 8, 6)
+            card_layout.setSpacing(2)
+            title_lbl = QLabel(title)
+            title_lbl.setStyleSheet("color: #94a3b8; font-size: 8pt; font-weight: 600;")
+            value_lbl = QLabel("—")
+            value_lbl.setStyleSheet("color: #e2e8f0; font-size: 9pt; font-weight: 700;")
+            value_lbl.setWordWrap(True)
+            card_layout.addWidget(title_lbl)
+            card_layout.addWidget(value_lbl)
+            self._metric_cards[key] = value_lbl
+            cards_layout.addWidget(card, i // 3, i % 3)
+        metrics_layout.addWidget(self._metric_cards_container)
+
         self._metrics_summary = QLabel("")
         self._metrics_summary.setStyleSheet(
             "color: #64748b; font-family: monospace; font-size: 10px; "
@@ -669,6 +701,47 @@ class ReplayStudio(QWidget):
     def _set_optional_plot_visibility(self, plot, visible: bool) -> None:
         plot.setVisible(True)
 
+    def _set_metric_cards_from_summary(self, summary: dict) -> None:
+        """Populate high-level metric cards for demo-friendly readability."""
+        session_info = summary.get("session", {})
+        phase = summary.get("phase_voltage", {})
+        line = summary.get("line_voltage", {})
+        freq = summary.get("frequency", {})
+
+        phase_values = [
+            f"{ch}: {phase[ch]['rms']:.2f} V"
+            for ch in ("v_an", "v_bn", "v_cn")
+            if phase.get(ch, {}).get("available") and phase[ch].get("rms") is not None
+        ]
+        line_values = [
+            f"{ch}: {line[ch]['rms']:.2f} V"
+            for ch in ("v_ab", "v_bc", "v_ca")
+            if line.get(ch, {}).get("available") and line[ch].get("rms") is not None
+        ]
+        thd_values = [
+            f"{ch}: {phase[ch]['thd_pct']:.2f}%"
+            for ch in ("v_an", "v_bn", "v_cn")
+            if phase.get(ch, {}).get("available") and phase[ch].get("thd_pct") is not None
+        ]
+        if freq.get("available"):
+            freq_text = f"mean {freq.get('mean_hz', 0.0):.3f} Hz · max dev {freq.get('max_deviation_hz', 0.0):.3f} Hz"
+        else:
+            freq_text = "N/A"
+
+        self._metric_cards["phase_rms"].setText(" | ".join(phase_values) if phase_values else "N/A")
+        self._metric_cards["line_rms"].setText(" | ".join(line_values) if line_values else "N/A")
+        self._metric_cards["thd"].setText(" | ".join(thd_values) if thd_values else "N/A")
+        self._metric_cards["freq"].setText(freq_text)
+        self._metric_cards["window"].setText(
+            f"{session_info.get('sample_count', 0):,} samples · "
+            f"{session_info.get('sample_rate_hz', 0.0):.2f} Hz · "
+            f"{session_info.get('time_window_s', 0.0):.4f} s"
+        )
+        derived = session_info.get("derived_channels", [])
+        self._metric_cards["derived"].setText(
+            ", ".join(derived) if derived else "none"
+        )
+
     def _set_empty_plot_state(self, plot, title: str, message: str, y_label: str, units=None) -> None:
         plot.clear()
         plot.setTitle(title)
@@ -807,6 +880,8 @@ class ReplayStudio(QWidget):
         self.plot_metrics.clear()
         self._metrics_summary.setText("")
         self._metrics_table.setRowCount(0)
+        for lbl in self._metric_cards.values():
+            lbl.setText("—")
         self._wave_summary.setText("")
         self._clear_markers()
         self._wave_curves = []
@@ -970,6 +1045,7 @@ class ReplayStudio(QWidget):
                 ),
             ])
         )
+        self._set_metric_cards_from_summary(summary)
         # Rebuild rolling-RMS plot using the decimated frame data (fast; avoids
         # the expensive np.convolve on 1 M-row full-resolution arrays).
         self.plot_metrics.clear()

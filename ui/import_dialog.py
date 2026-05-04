@@ -50,6 +50,7 @@ from src.channel_mapping import (
     CANONICAL_SIGNALS,
     UNMAPPED,
     ChannelMapper,
+    apply_rigol_three_phase_defaults,
     ordered_mapping_targets,
     DIRECT_LINE_TO_LINE_MAPPING_TARGETS,
 )
@@ -401,6 +402,7 @@ class ImportDialog(QDialog):
         import numpy as np
 
         suggested = self._mapper.auto_suggest(ds.raw_headers)
+        suggested = apply_rigol_three_phase_defaults(ds.raw_headers, suggested)
         # Exclude the time column from channel mappings — it is the x-axis, not a
         # signal channel, and including it produces a spurious "Unmapped: Time(s)"
         # notice in the waveform view.
@@ -486,8 +488,10 @@ class ImportDialog(QDialog):
         rigol_cols = ["CH1(V)", "CH2(V)", "CH3(V)"]
         if all(c in ds.raw_headers for c in rigol_cols):
             self._rigol_hint.setText(
-                "Detected 3 voltage channels. Recommended mapping: CH1(V)→v_an, "
-                "CH2(V)→v_bn, CH3(V)→v_cn. V_ab/V_bc/V_ca will be derived after import."
+                "Detected 3 voltage channels. Mapping was preselected as "
+                "CH1(V)→v_an, CH2(V)→v_bn, CH3(V)→v_cn. "
+                "CH4(V), if present, stays unmapped by default and should be treated as raw auxiliary unless calibrated. "
+                "V_ab/V_bc/V_ca will be derived after import."
             )
             self._rigol_hint.setVisible(True)
             self._btn_rigol_map.setVisible(True)

@@ -88,3 +88,22 @@ def test_primary_load_replaces_prior_session(tmp_path, qapp):
     studio._load_session(str(path_b), is_primary=True)
     assert len(studio.sessions) == 1
     assert studio.sessions[0]["label"] == "session_b"
+
+
+def test_compare_auto_populates_after_overlay_load(qapp):
+    _ = qapp
+    studio = ReplayStudio(Recorder(), _FakeSerialMgr())
+
+    ds_a = _make_dataset(duration_s=0.1, n=1000)
+    cap_a = dataset_to_session(ds_a, session_id="baseline")
+    studio.load_session_from_dict(cap_a, label="baseline", is_primary=True)
+
+    ds_b = _make_dataset(duration_s=0.1, n=1000)
+    # Introduce a slight amplitude delta so comparison is meaningful.
+    ds_b.channels["v_an"] = ds_b.channels["v_an"] * 1.01
+    cap_b = dataset_to_session(ds_b, session_id="comparison")
+    studio.load_session_from_dict(cap_b, label="comparison", is_primary=False)
+
+    result = studio._comparison_tab._last_result
+    assert result is not None
+    assert result.channels

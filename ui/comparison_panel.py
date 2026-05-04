@@ -104,6 +104,11 @@ class ComparisonPanel(QWidget):
         # Populate channel selector
         self._populate_channels()
 
+        # One-action compare workflow for demos: as soon as A and B are present,
+        # attempt alignment and render an initial overlay/delta result.
+        self._on_auto_align()
+        self._on_compare()
+
     def clear(self) -> None:
         """Reset panel to empty state."""
         self._session_a = None

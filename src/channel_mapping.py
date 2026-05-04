@@ -231,6 +231,34 @@ def auto_suggest_mapping(headers: list[str]) -> dict[str, str]:
     return mapping
 
 
+def apply_rigol_three_phase_defaults(
+    headers: list[str],
+    suggested: dict[str, str],
+    reset_ch4: bool = True,
+) -> dict[str, str]:
+    """Apply UI-level Rigol defaults for CH1/CH2/CH3 without guessing CH4.
+
+    This is intentionally separate from auto_suggest_mapping so that the
+    low-level mapper remains conservative and never silently assumes that
+    generic scope channels are canonical signals.
+    """
+    updated = dict(suggested)
+    rigol_phase_map = {
+        "CH1(V)": "v_an",
+        "CH2(V)": "v_bn",
+        "CH3(V)": "v_cn",
+    }
+    if all(col in headers for col in rigol_phase_map):
+        for src, target in rigol_phase_map.items():
+            current = updated.get(src, UNMAPPED)
+            if current in (UNMAPPED, "", None):
+                updated[src] = target
+        # Keep CH4 conservative by default during auto-suggestion.
+        if reset_ch4 and "CH4(V)" in headers and updated.get("CH4(V)") not in (UNMAPPED, "", None, "aux_ch4"):
+            updated["CH4(V)"] = UNMAPPED
+    return updated
+
+
 # ---------------------------------------------------------------------------
 # ChannelMapper class
 # ---------------------------------------------------------------------------
