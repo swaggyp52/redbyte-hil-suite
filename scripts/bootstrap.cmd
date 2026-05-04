@@ -107,6 +107,12 @@ if errorlevel 1 (
 exit /b 0
 
 :resolve_base_python
+if /i "%REDBYTE_FORCE_PYTHON_INSTALL%"=="1" (
+    echo [setup] REDBYTE_FORCE_PYTHON_INSTALL=1, skipping Python detection and forcing the installer branch...
+    call :install_python_branch
+    exit /b %errorlevel%
+)
+
 call :try_python_command "py -3.12"
 if not errorlevel 1 exit /b 0
 
@@ -122,6 +128,10 @@ if not errorlevel 1 exit /b 0
 call :try_python_command "py -3"
 if not errorlevel 1 exit /b 0
 
+call :install_python_branch
+exit /b %errorlevel%
+
+:install_python_branch
 echo [setup] Python 3.12+ was not found. Installing local Python for this user...
 call :install_python_for_current_user
 if errorlevel 1 exit /b 1
