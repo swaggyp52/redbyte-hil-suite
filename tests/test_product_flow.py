@@ -37,13 +37,13 @@ class TestSessionBarAnalysisMode:
         bar.set_analysis_mode(True)
         assert bar.lbl_mode.text() == "ANALYSIS"
 
-    def test_analysis_mode_on_disables_controls(self, qapp):
+    def test_analysis_mode_on_hides_controls(self, qapp):
         from ui.session_bar import SessionBar
         bar = SessionBar()
         bar.set_analysis_mode(True)
-        assert not bar.btn_run.isEnabled()
-        assert not bar.btn_pause.isEnabled()
-        assert not bar.btn_stop.isEnabled()
+        assert not bar.btn_run.isVisible()
+        assert not bar.btn_pause.isVisible()
+        assert not bar.btn_stop.isVisible()
 
     def test_analysis_mode_off_restores_ready(self, qapp):
         from ui.session_bar import SessionBar
@@ -165,22 +165,15 @@ class TestComplianceLoadFromCapsule:
 # ─────────────────────────────────────────────────────────────────
 
 class TestSidebarLabels:
-    def test_monitor_label_present(self, qapp):
+    def test_diagnostics_and_console_removed_from_nav(self, qapp):
         from ui.sidebar import Sidebar
         sb = Sidebar()
-        # "console" key should show "Monitor" text, not "Console"
-        btn = sb._buttons.get("console")
-        assert btn is not None
-        assert "Monitor" in btn.text()
+        # Live-hardware surfaces are no longer exposed in the default nav
+        assert "diagnostics" not in sb._buttons
+        assert "console" not in sb._buttons
 
-    def test_console_label_absent(self, qapp):
+    def test_core_nav_keys_present(self, qapp):
         from ui.sidebar import Sidebar
         sb = Sidebar()
-        btn = sb._buttons.get("console")
-        assert "Console" not in btn.text()
-
-    def test_all_expected_nav_keys_present(self, qapp):
-        from ui.sidebar import Sidebar
-        sb = Sidebar()
-        for key in ("overview", "diagnostics", "replay", "compliance", "console", "tools"):
+        for key in ("overview", "replay", "compliance", "tools"):
             assert key in sb._buttons, f"Missing nav key: {key}"

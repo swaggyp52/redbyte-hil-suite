@@ -132,9 +132,6 @@ class OverviewPage(QWidget):
             ("✓", "Run Compliance",
              "Run standards-inspired engineering checks",
              "compliance", False),
-            ("⚡", "Start Demo Session",
-             "[Demo] Launch diagnostics with simulated recorded-style input",
-             "diagnostics", False),
         ]
 
         for icon, label, desc, nav_key, is_primary in cards_data:

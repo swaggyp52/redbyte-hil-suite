@@ -140,7 +140,7 @@ class AppShell(QMainWindow):
         )
         self._replay = ReplayPage(self.recorder, self.serial_mgr)
         self._compliance = CompliancePage(self.scenario_ctrl)
-        self._tools = ToolsPage(self.serial_mgr)
+        self._tools = ToolsPage()
         self._console = ConsolePage(self.serial_mgr, self.insight_engine)
 
         for page in [self._overview, self._diagnostics, self._replay,
@@ -174,6 +174,12 @@ class AppShell(QMainWindow):
 
         # Connection status → overview health indicator
         self.serial_mgr.connection_status.connect(self._on_connection_status)
+
+        # Tools page
+        self._tools.reset_requested.connect(self._clear_active_session)
+
+        # Replay empty-state navigation
+        self._replay.navigate_to.connect(self._navigate)
 
         # Forward detected events to compliance page for full report context
         self._replay.studio.events_detected.connect(self._on_events_detected)

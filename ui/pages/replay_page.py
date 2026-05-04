@@ -22,6 +22,8 @@ class ReplayPage(QWidget):
       loaded  — session loaded, shows summary bar + studio + insights
     """
 
+    navigate_to = pyqtSignal(str)
+
     def __init__(self, recorder, serial_mgr, parent=None):
         super().__init__(parent)
         self._session_path = None
@@ -49,6 +51,7 @@ class ReplayPage(QWidget):
         # Page 0: empty state
         self._empty = _EmptyState()
         self._empty.load_clicked.connect(self._on_load)
+        self._empty.navigate_to.connect(self.navigate_to)
         self._stack.addWidget(self._empty)
 
         # Page 1: content (studio + insights)
@@ -220,6 +223,7 @@ class ReplayPage(QWidget):
 class _EmptyState(QWidget):
     """Centered empty-state shown when no session is loaded."""
     load_clicked = pyqtSignal()
+    navigate_to  = pyqtSignal(str)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -228,7 +232,7 @@ class _EmptyState(QWidget):
 
         card = QFrame()
         card.setObjectName("EmptyStateCard")
-        card.setFixedWidth(400)
+        card.setFixedWidth(420)
         layout = QVBoxLayout(card)
         layout.setContentsMargins(32, 36, 32, 36)
         layout.setSpacing(12)
@@ -255,8 +259,12 @@ class _EmptyState(QWidget):
 
         layout.addSpacing(8)
 
-        btn = QPushButton("Load Session")
-        btn.setObjectName("EmptyAction")
+        btn_overview = QPushButton("← Go to Overview")
+        btn_overview.setObjectName("EmptyAction")
+        btn_overview.clicked.connect(lambda: self.navigate_to.emit("overview"))
+        layout.addWidget(btn_overview, alignment=Qt.AlignmentFlag.AlignCenter)
+
+        btn = QPushButton("Load Saved Session")
         btn.clicked.connect(self.load_clicked)
         layout.addWidget(btn, alignment=Qt.AlignmentFlag.AlignCenter)
 

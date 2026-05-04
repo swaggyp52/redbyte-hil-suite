@@ -2,11 +2,9 @@ from PyQt6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QLabel, QFrame
 from PyQt6.QtCore import pyqtSignal, Qt
 
 _NAV_ITEMS = [
-    ("overview",    "⊞",  "Overview"),
-    ("diagnostics", "⚡", "Adapter Preview"),
-    ("replay",      "⏵",  "Replay"),
-    ("compliance",  "✓",  "Compliance"),
-    ("console",     "📐", "Demo Monitor"),
+    ("overview",   "⊞", "Overview"),
+    ("replay",     "⏵", "Replay"),
+    ("compliance", "✓", "Compliance"),
 ]
 
 _TOOL_ITEMS = [

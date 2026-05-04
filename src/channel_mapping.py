@@ -60,6 +60,7 @@ CANONICAL_SIGNALS: dict[str, dict] = {
     "v_dc":   {"label": "DC bus voltage (V)",            "unit": "V",  "type": "voltage"},
     "i_dc":   {"label": "DC bus current (A)",            "unit": "A",  "type": "current"},
     "angle":  {"label": "Rotor angle (deg)",             "unit": "deg","type": "angle"},
+    "aux_ch4": {"label": "CH4 raw auxiliary (uncalibrated)", "unit": "",  "type": "auxiliary"},
 }
 
 
@@ -78,6 +79,7 @@ PRIMARY_MAPPING_TARGETS: list[str] = [
     "v_dc",
     "i_dc",
     "angle",
+    "aux_ch4",
 ]
 
 
@@ -221,6 +223,8 @@ def auto_suggest_mapping(headers: list[str]) -> dict[str, str]:
 
         # ── Everything else: no confident mapping ────────────────────────────
         # CH1, CH2, CH3, CH4 deliberately fall through to UNMAPPED.
+        # Use the aux_ch4 canonical target for CH4 by manually selecting it
+        # in the mapping table — never silently guess based on column position.
 
         mapping[hdr] = target
 

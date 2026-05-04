@@ -92,11 +92,12 @@ class SessionBar(QWidget):
         """Switch between live-session mode (Run/Pause/Stop enabled) and analysis mode."""
         if active:
             self.lbl_mode.setText("ANALYSIS")
-            self.btn_run.setEnabled(False)
-            self.btn_pause.setEnabled(False)
-            self.btn_stop.setEnabled(False)
+            for btn in (self.btn_run, self.btn_pause, self.btn_stop):
+                btn.setVisible(False)
         else:
             self.lbl_mode.setText("READY")
+            for btn in (self.btn_run, self.btn_pause, self.btn_stop):
+                btn.setVisible(True)
             self.btn_run.setEnabled(True)
             self.btn_pause.setEnabled(False)
             self.btn_stop.setEnabled(False)

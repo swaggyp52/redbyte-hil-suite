@@ -662,6 +662,17 @@ class ImportDialog(QDialog):
                 "Compliance behavior: VSM-specific checks will report N/A unless voltage/frequency channels are mapped."
             )
 
+        if any(c.lower() in ("ch4(v)", "ch4", "ch4 (v)") for c in unmapped_numeric):
+            lines.append(
+                "CH4(V) note: column kept under its original name (no auto-mapping). "
+                "If this is a generic auxiliary signal, manually map it to 'aux_ch4' in the table above."
+            )
+        elif "aux_ch4" in mapped_channels:
+            lines.append(
+                "CH4(V) → aux_ch4: retained as generic raw auxiliary. "
+                "Not used in calibrated overcurrent checks unless a current scale factor is provided."
+            )
+
         self._summary_box.setPlainText("\n".join(lines))
 
     def _apply_rigol_mapping(self) -> None:
